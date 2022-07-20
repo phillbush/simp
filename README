@@ -1,0 +1,112 @@
+                    The Schola Programming Language
+
+Schola programming is my attempt to design and implement a minimalist
+lisp language.  For now, it only contains a REPL, whose evaluator only
+passes what is read to be print (so it is actually a RPL).
+
+
+§ Vectors
+
+One of the features of Schola that makes it different from other lisps
+is that it does not have pair as a proper type.  It is the vector the
+mean of combination of data.
+
+A pair is just a vector with two elements.
+A box is just a vector with one element.
+And nil is a vector with no element.
+
+A list is still defined in terms of pairs (two-element vectors).
+
+Since pairs are vectors, we need a notation to express both data
+structures at the same time.
+
+Lists are still expressed with parentheses:
+
+	> (a b c d)
+	(a b c d)
+
+Pairs (two-element vectors) are still expressed with the dot notation:
+
+	> (a . b)
+	(a . b)
+
+The dot notation is expanded to express vectors with more than one
+element.  For example, the following is a vector with four elements:
+
+	> (a . b . c . d)
+	(a . b . c . d)
+
+To make it easy to write vectors, they can be written with square
+braces. They are still written in the dot notation:
+
+	> [a b c d]
+	(a . b . c . d)
+
+A list can also be written with square braces:
+
+	> [a [b [c [d []]]]]
+	(a b c d)
+
+Which is the same as this:
+
+	> (a . (b . (c . (d . ()))))
+	(a b c d)
+
+Here is a interesting structure:
+
+	> [a b [c d]]
+	(a . b c . d)
+
+Which has the same box-and-pointer notation:
+
+	┌───┬───┬───┐    ┌───┬───┐
+	│ ╷ │ ╷ │ ╶─┼───>│ ╷ │ ╷ │
+	└─┼─┴─┼─┴───┘    └─┼─┴─┼─┘
+	  V   V            V   V
+	  a   b            c   d
+
+Here's a list with a vector:
+
+	> (a (b . c . d) e)
+	(a (b . c . d) e)
+
+In square bracket notation:
+
+	> [a [[b c d] [e []]]]
+	(a (b . c . d) e)
+
+In mixed parentheses/braces notation:
+
+	> (a [b c d] e)
+	(a (b . c . d) e)
+
+And in box-and-pointer notation:
+
+	┌───┬───┐    ┌───┬───┐    ┌───┬───┐
+	│ ╷ │ ╶─┼───>│ ╷ │ ╶─┼───>│ ╷ │ ╱ │
+	└─┼─┴───┘    └─┼─┴───┘    └─┼─┴───┘
+	  V            │            V
+	  a            V            e
+	         ┌───┬───┬───┐
+	         │ ╷ │ ╷ │ ╷ │
+	         └─┼─┴─┼─┴─┼─┘
+	           V   V   V
+	           b   c   d
+
+
+§ What needs to be done
+
+Everything.
+• Evaluation.
+• Procedures.
+• Garbage collection.
+• Numbers (Schola only supports strings, symbols, and vectors).
+• Proper symbols (symbols are just strings printed without double quotess).
+• FFI
+• The library
+• Etc.
+
+
+§ How to test it
+
+Make and run ./cmd/schola
