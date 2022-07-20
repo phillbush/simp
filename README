@@ -2,9 +2,9 @@
 
 Warning: this is ugly.
 
-Schola programming is my attempt to design and implement a minimalist
-lisp language.  For now, it only contains a REPL, whose evaluator only
-passes what is read to be print (so it is actually a RPL).
+Schola is my attempt to design and implement a minimalist lisp language.
+For now, it only contains a REPL, whose evaluator only passes what is
+read to be print (so it is actually a RPL).
 
 
 § Vectors
