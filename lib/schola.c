@@ -797,29 +797,36 @@ error:
 }
 
 static void
+fillvector(schola_context ctx, schola_cellstack *cellstack, schola_cell *vector, size_t len)
+{
+	schola_cell *arr;
+	size_t i;
+
+	if ((arr = calloc(len, sizeof(*arr))) == NULL) {
+		fprintf(stderr, "no memory\n");
+		abort();
+	}
+	for (i = 0; i < len; i++)
+		arr[len - i - 1] = popcell(ctx, cellstack);
+	if ((*vector = newvector(ctx)) == NULL) {
+		fprintf(stderr, "no memory\n");
+		abort();
+	}
+	(*vector)->v.vector.arr = arr;
+	(*vector)->v.vector.len = len;
+}
+
+static void
 virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
 {
 	schola_vectorinfo vectorinfo;
-	schola_cell *arr;
 	schola_cell vector;
-	size_t i;
 
 	vector = schola_nil;
 	vectorinfo = popvector(ctx, vectorstack);
 	vectorinfo.size++;
-	if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
-		fprintf(stderr, "no memory\n");
-		abort();
-	}
 	pushcell(ctx, cellstack, vector);
-	for (i = 0; i < vectorinfo.size; i++) {
-		arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
-	}
-	if ((vectorinfo.vector = newvector(ctx)) == NULL) {
-		// TODO: complain about no memory
-	}
-	vectorinfo.vector->v.vector.arr = arr;
-	vectorinfo.vector->v.vector.len = vectorinfo.size;
+	fillvector(ctx, cellstack, &vectorinfo.vector, vectorinfo.size);
 	if (vectorinfo.parent == NULL) {
 		popcell(ctx, cellstack);
 		pushcell(ctx, cellstack, vectorinfo.vector);
@@ -854,29 +861,19 @@ static void
 gotrdelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
 {
 	schola_vectorinfo vectorinfo;
-	schola_cell *arr;
 	schola_cell vector;
-	size_t i;
 
 	vectorinfo = popvector(ctx, vectorstack);
-	if (vectorinfo.type == NOTATION_VIRTUAL)
-		return;
 	if (vectorinfo.size == 0)
 		return;
-	if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
-		fprintf(stderr, "no memory\n");
-		abort();
+	if (vectorinfo.type == NOTATION_VIRTUAL) {
+		fillvector(ctx, cellstack, &vector, vectorinfo.size);
+		vectorinfo.parent->v.vector.arr[vectorinfo.parent->v.vector.len - 1] = vector;
+	} else {
+		fillvector(ctx, cellstack, &vector, vectorinfo.size);
+		(void)popcell(ctx, cellstack);          /* pop nil vector */
+		pushcell(ctx, cellstack, vector);
 	}
-	for (i = 0; i < vectorinfo.size; i++) {
-		arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
-	}
-	vector = popcell(ctx, cellstack);
-	if ((vector = newvector(ctx)) == NULL) {
-		// TODO: complain about no memory
-	}
-	vector->v.vector.arr = arr;
-	vector->v.vector.len = vectorinfo.size;
-	pushcell(ctx, cellstack, vector);
 }
 
 int
@@ -910,6 +907,7 @@ schola_false_p(schola_context ctx, schola_cell cell)
 int
 schola_nil_p(schola_context ctx, schola_cell cell)
 {
+	(void)ctx;
 	return cell == schola_nil;
 }
 
