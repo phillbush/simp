@@ -11,7 +11,7 @@ int schola_false_p(schola_context, schola_cell);
 schola_context schola_init(void);
 schola_cell schola_read(schola_context);
 schola_cell schola_eval(schola_context, schola_cell);
-void schola_write(schola_context, schola_cell);
+schola_cell schola_write(schola_context, schola_cell);
 void schola_interactive(schola_context, FILE *, FILE *, FILE *);
 
 #endif /* _SCHOLA_H */

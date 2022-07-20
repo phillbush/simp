@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <schola.h>
+
 #define STRBUFSIZE      1028
 #define NUMBUFSIZE      8
 #define MAXOCTALESCAPE  3
@@ -29,6 +31,7 @@ enum {
 typedef struct schola_cell {
 	enum {
 		/* immediate types without standard external representation */
+		TYPE_NIL,
 		TYPE_EOF,
 		TYPE_VOID,
 		TYPE_TRUE,
@@ -99,6 +102,7 @@ typedef struct schola_cellstack {
 
 /* information of vector being building by read procedure */
 typedef struct schola_vectorinfo {
+	schola_cell parent;
 	schola_cell vector;
 	size_t size;
 	enum {
@@ -116,6 +120,7 @@ typedef struct schola_vectorstack {
 
 /* table of non-standard external representation */
 static char *representations[] = {
+	[TYPE_NIL]   = "()",
 	[TYPE_EOF]   = "#<eof>",
 	[TYPE_VOID]  = "#<void>",
 	[TYPE_TRUE]  = "#<true>",
@@ -123,6 +128,7 @@ static char *representations[] = {
 };
 
 /* immediate types */
+static schola_cell schola_nil = &(struct schola_cell){.type = TYPE_NIL};
 static schola_cell schola_eof = &(struct schola_cell){.type = TYPE_EOF};
 static schola_cell schola_void = &(struct schola_cell){.type = TYPE_VOID};
 static schola_cell schola_true = &(struct schola_cell){.type = TYPE_TRUE};
@@ -311,7 +317,7 @@ pushcell(schola_context ctx, schola_cellstack *cellstack, schola_cell cell)
 }
 
 static void
-pushvector(schola_context ctx, schola_vectorstack *vectorstack, schola_cell vector, int type)
+pushvector(schola_context ctx, schola_vectorstack *vectorstack, schola_cell parent, schola_cell vector, int type)
 {
 	schola_vectorstack entry;
 
@@ -322,6 +328,7 @@ pushvector(schola_context ctx, schola_vectorstack *vectorstack, schola_cell vect
 	entry->next = *vectorstack;
 	entry->v.size = 0;
 	entry->v.type = type;
+	entry->v.parent = parent;
 	entry->v.vector = vector;
 	*vectorstack = entry;
 }
@@ -797,7 +804,7 @@ virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstac
 	schola_cell vector;
 	size_t i;
 
-	vector = newvector(ctx);
+	vector = schola_nil;
 	vectorinfo = popvector(ctx, vectorstack);
 	vectorinfo.size++;
 	if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
@@ -808,9 +815,18 @@ virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstac
 	for (i = 0; i < vectorinfo.size; i++) {
 		arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
 	}
+	if ((vectorinfo.vector = newvector(ctx)) == NULL) {
+		// TODO: complain about no memory
+	}
 	vectorinfo.vector->v.vector.arr = arr;
 	vectorinfo.vector->v.vector.len = vectorinfo.size;
-	pushvector(ctx, vectorstack, vector, NOTATION_VIRTUAL);
+	if (vectorinfo.parent == NULL) {
+		popcell(ctx, cellstack);
+		pushcell(ctx, cellstack, vectorinfo.vector);
+	} else {
+		vectorinfo.parent->v.vector.arr[vectorinfo.parent->v.vector.len - 1] = vectorinfo.vector;
+	}
+	pushvector(ctx, vectorstack, vectorinfo.vector, vector, NOTATION_VIRTUAL);
 }
 
 static void
@@ -828,15 +844,10 @@ gotobject(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *v
 static void
 gotldelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack, int isbrace)
 {
-	schola_cell vector;
-
-	if ((vector = newvector(ctx)) == NULL) {
-		// TODO: complain about no memory
-	}
-	pushcell(ctx, cellstack, vector);
+	pushcell(ctx, cellstack, schola_nil);
 	if (*vectorstack != NULL)
 		(*vectorstack)->v.size++;
-	pushvector(ctx, vectorstack, vector, isbrace ? NOTATION_BRACE : NOTATION_DOT);
+	pushvector(ctx, vectorstack, NULL, schola_nil, isbrace ? NOTATION_BRACE : NOTATION_DOT);
 }
 
 static void
@@ -848,19 +859,24 @@ gotrdelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *v
 	size_t i;
 
 	vectorinfo = popvector(ctx, vectorstack);
-	if (vectorinfo.type != NOTATION_VIRTUAL) {
-		if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
-			fprintf(stderr, "no memory\n");
-			abort();
-		}
-		for (i = 0; i < vectorinfo.size; i++) {
-			arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
-		}
-		vector = popcell(ctx, cellstack);
-		vector->v.vector.arr = arr;
-		vector->v.vector.len = vectorinfo.size;
-		pushcell(ctx, cellstack, vector);
+	if (vectorinfo.type == NOTATION_VIRTUAL)
+		return;
+	if (vectorinfo.size == 0)
+		return;
+	if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
+		fprintf(stderr, "no memory\n");
+		abort();
 	}
+	for (i = 0; i < vectorinfo.size; i++) {
+		arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
+	}
+	vector = popcell(ctx, cellstack);
+	if ((vector = newvector(ctx)) == NULL) {
+		// TODO: complain about no memory
+	}
+	vector->v.vector.arr = arr;
+	vector->v.vector.len = vectorinfo.size;
+	pushcell(ctx, cellstack, vector);
 }
 
 int
@@ -892,16 +908,16 @@ schola_false_p(schola_context ctx, schola_cell cell)
 }
 
 int
-schola_vector_p(schola_context ctx, schola_cell cell)
+schola_nil_p(schola_context ctx, schola_cell cell)
 {
-	(void)ctx;
-	return cell->type == TYPE_VECTOR;
+	return cell == schola_nil;
 }
 
 int
-schola_nil_p(schola_context ctx, schola_cell cell)
+schola_vector_p(schola_context ctx, schola_cell cell)
 {
-	return schola_vector_p(ctx, cell) && cell->v.vector.len == 0;
+	(void)ctx;
+	return cell->type == TYPE_NIL || cell->type == TYPE_VECTOR;
 }
 
 schola_cell
@@ -986,6 +1002,7 @@ schola_write(schola_context ctx, schola_cell cell)
 	int space;
 
 	switch (cell->type) {
+	case TYPE_NIL:
 	case TYPE_EOF:
 	case TYPE_VOID:
 	case TYPE_TRUE:
