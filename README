@@ -76,12 +76,12 @@ Here's a list with a vector in it:
 In square bracket notation:
 
 	> [a [[b c d] [e []]]]
-	(a (b . c . d) e)
+	(a (b . c . d .) e)
 
 In mixed parentheses/braces notation:
 
 	> (a [b c d] e)
-	(a (b . c . d) e)
+	(a (b . c . d .) e)
 
 And in box-and-pointer notation:
 
