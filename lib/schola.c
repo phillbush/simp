@@ -91,21 +91,27 @@ typedef struct schola_context {
 	int isinteractive;
 } *schola_context;
 
-/* cell list for the read procedure */
+/* cell stack for the read procedure */
 typedef struct schola_cellstack {
 	struct schola_cellstack *next;
 	schola_cell cell;
 } *schola_cellstack;
 
-/* size list for the read procedure */
-typedef struct schola_vectorstack {
-	struct schola_vectorstack *next;
+/* information of vector being building by read procedure */
+typedef struct schola_vectorinfo {
+	schola_cell vector;
 	size_t size;
 	enum {
 		NOTATION_DOT,
-		NOTATION_NODOT,
+		NOTATION_VIRTUAL,
 		NOTATION_BRACE,
 	} type;
+} schola_vectorinfo;
+
+/* vector stack for the read procedure */
+typedef struct schola_vectorstack {
+	struct schola_vectorstack *next;
+	struct schola_vectorinfo v;
 } *schola_vectorstack;
 
 /* table of non-standard external representation */
@@ -227,13 +233,13 @@ xprintf(schola_cell port, const char *fmt, ...)
 {
 	va_list ap;
 
-	va_start(ap, fmt);
 	if (port->type == TYPE_INPUT_STRING) {
 		// TODO: write to string
 	} else {
+		va_start(ap, fmt);
 		(void)vfprintf(port->v.fport.fp, fmt, ap);
+		va_end(ap);
 	}
-	va_end(ap);
 }
 
 static int
@@ -272,11 +278,11 @@ popcell(schola_context ctx, schola_cellstack *cellstack)
 	return cell;
 }
 
-static size_t
-popsize(schola_context ctx, schola_vectorstack *vectorstack, int *type)
+static schola_vectorinfo
+popvector(schola_context ctx, schola_vectorstack *vectorstack)
 {
 	schola_vectorstack entry;
-	size_t size;
+	schola_vectorinfo v;
 
 	(void)ctx;
 	if (*vectorstack == NULL) {
@@ -284,11 +290,10 @@ popsize(schola_context ctx, schola_vectorstack *vectorstack, int *type)
 		// TODO: complain about empty stack;
 	}
 	entry = *vectorstack;
-	size = entry->size;
-	*type = entry->type;
+	v = entry->v;
 	*vectorstack = (*vectorstack)->next;
 	free(entry);
-	return size;
+	return v;
 }
 
 static void
@@ -306,7 +311,7 @@ pushcell(schola_context ctx, schola_cellstack *cellstack, schola_cell cell)
 }
 
 static void
-pushsize(schola_context ctx, schola_vectorstack *vectorstack, size_t size, int type)
+pushvector(schola_context ctx, schola_vectorstack *vectorstack, schola_cell vector, int type)
 {
 	schola_vectorstack entry;
 
@@ -315,8 +320,9 @@ pushsize(schola_context ctx, schola_vectorstack *vectorstack, size_t size, int t
 		// TODO: complain about no memory
 	}
 	entry->next = *vectorstack;
-	entry->size = size;
-	entry->type = type;
+	entry->v.size = 0;
+	entry->v.type = type;
+	entry->v.vector = vector;
 	*vectorstack = entry;
 }
 
@@ -784,6 +790,30 @@ error:
 }
 
 static void
+virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
+{
+	schola_vectorinfo vectorinfo;
+	schola_cell *arr;
+	schola_cell vector;
+	size_t i;
+
+	vector = newvector(ctx);
+	vectorinfo = popvector(ctx, vectorstack);
+	vectorinfo.size++;
+	if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
+		fprintf(stderr, "no memory\n");
+		abort();
+	}
+	pushcell(ctx, cellstack, vector);
+	for (i = 0; i < vectorinfo.size; i++) {
+		arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
+	}
+	vectorinfo.vector->v.vector.arr = arr;
+	vectorinfo.vector->v.vector.len = vectorinfo.size;
+	pushvector(ctx, vectorstack, vector, NOTATION_VIRTUAL);
+}
+
+static void
 gotobject(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack, schola_cell cell)
 {
 	if (cell == NULL) {
@@ -791,7 +821,7 @@ gotobject(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *v
 	}
 	pushcell(ctx, cellstack, cell);
 	if (*vectorstack != NULL) {
-		(*vectorstack)->size++;
+		(*vectorstack)->v.size++;
 	}
 }
 
@@ -805,84 +835,32 @@ gotldelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *v
 	}
 	pushcell(ctx, cellstack, vector);
 	if (*vectorstack != NULL)
-		(*vectorstack)->size++;
-	pushsize(ctx, vectorstack, 0, isbrace ? NOTATION_BRACE : NOTATION_DOT);
-}
-
-static void
-gotnodot(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
-{
-	schola_cell *arr;
-	schola_cell vold, vnew;
-	size_t i, len;
-
-	/*
-	 * This function is called when we're adding an element to a
-	 * vector after a dot has been read.
-	 *
-	 * First, we pop the size stack (vectorstack) to get the size of
-	 * the old vector (we add +1 to this size for the pointer to a
-	 * new vector we'll create later).
-	 *
-	 * Then, we pop the old vector elements and the old vector
-	 * itself from the cell stack (cellstack) and place those elements
-	 * into a cell array.  We then create a new vector and place it
-	 * in the last position of the array.
-	 *
-	 * We then put the cell array into the old vector.
-	 *
-	 * We add a new vector into the cell stack, a new item into the
-	 * size stack, and return the new vector.
-	 */
-
-	vnew = newvector(ctx);
-	len = ++(*vectorstack)->size;
-	if ((*vectorstack)->type == NOTATION_NODOT) {
-		if ((arr = calloc(len, sizeof(*arr))) == NULL) {
-			abort();
-			// TODO: complain about no memory
-		}
-		arr[len - 1] = vnew;
-		for (i = 0; i + 1 < len; i++) {
-			arr[len - i - 2] = popcell(ctx, cellstack);
-		}
-		vold = popcell(ctx, cellstack);
-		vold->v.vector.arr = arr;
-		vold->v.vector.len = len;
-		pushcell(ctx, cellstack, vold);
-	}
-	pushcell(ctx, cellstack, vnew);
-	pushsize(ctx, vectorstack, 0, NOTATION_NODOT);
+		(*vectorstack)->v.size++;
+	pushvector(ctx, vectorstack, vector, isbrace ? NOTATION_BRACE : NOTATION_DOT);
 }
 
 static void
 gotrdelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
 {
+	schola_vectorinfo vectorinfo;
 	schola_cell *arr;
 	schola_cell vector;
-	size_t i, npairs, len;
-	int type;
+	size_t i;
 
-	/*
-	 * This function is called when closing a vector the regular way
-	 * (we read a close parenthesis rather than a dot).
-	 */
-
-	len = popsize(ctx, vectorstack, &type);
-	for (npairs = 0; type == NOTATION_NODOT; npairs++)
-		len = popsize(ctx, vectorstack, &type);
-	if ((arr = calloc(len, sizeof(*arr))) == NULL) {
-		abort();
-		// TODO: complain about no memory
+	vectorinfo = popvector(ctx, vectorstack);
+	if (vectorinfo.type != NOTATION_VIRTUAL) {
+		if ((arr = calloc(vectorinfo.size, sizeof(*arr))) == NULL) {
+			fprintf(stderr, "no memory\n");
+			abort();
+		}
+		for (i = 0; i < vectorinfo.size; i++) {
+			arr[vectorinfo.size - i - 1] = popcell(ctx, cellstack);
+		}
+		vector = popcell(ctx, cellstack);
+		vector->v.vector.arr = arr;
+		vector->v.vector.len = vectorinfo.size;
+		pushcell(ctx, cellstack, vector);
 	}
-	for (i = 1; i < npairs; i++)
-		(void)popcell(ctx, cellstack);
-	for (i = 0; i < len; i++)
-		arr[len - i - 1] = popcell(ctx, cellstack);
-	vector = popcell(ctx, cellstack);
-	vector->v.vector.arr = arr;
-	vector->v.vector.len = len;
-	pushcell(ctx, cellstack, vector);
 }
 
 int
@@ -933,19 +911,26 @@ schola_read(schola_context ctx)
 	schola_cellstack cellstack = NULL;
 	size_t len;
 	char *tok;
-	int dot, toktype;
+	int virtual, toktype, prevtok;
 
-	dot = 1;
+	toktype = TOK_DOT;
 	while (cellstack == NULL || vectorstack != NULL) {
+		prevtok = toktype;
 		toktype = gettok(ctx, ctx->iport, &tok, &len);
-		if (vectorstack != NULL && vectorstack->type != NOTATION_BRACE && !dot && toktype != TOK_DOT)
-			gotnodot(ctx, &cellstack, &vectorstack);
-		dot = 0;
+		virtual = (vectorstack == NULL || vectorstack->v.type != NOTATION_BRACE) &&
+		          toktype != TOK_DOT &&
+		          toktype != TOK_EOF &&
+		          prevtok != TOK_LPAREN &&
+		          prevtok != TOK_LBRACE &&
+		          prevtok != TOK_DOT;
+		if (virtual) {
+			virtualvector(ctx, &cellstack, &vectorstack);
+		}
 		switch (toktype) {
 		case TOK_EOF:
 			if (cellstack != NULL) {
+				fprintf(stderr, "unexpected EOF\n");
 				abort();
-				// TODO: warn: unexpected EOF
 			}
 			return schola_eof;
 		case TOK_SYMBOL:
@@ -956,14 +941,12 @@ schola_read(schola_context ctx)
 			break;
 		case TOK_LPAREN:
 			gotldelim(ctx, &cellstack, &vectorstack, 0);
-			dot = 1;
 			break;
 		case TOK_RPAREN:
 			gotrdelim(ctx, &cellstack, &vectorstack);
 			break;
 		case TOK_LBRACE:
 			gotldelim(ctx, &cellstack, &vectorstack, 1);
-			dot = 1;
 			break;
 		case TOK_RBRACE:
 			gotrdelim(ctx, &cellstack, &vectorstack);
@@ -976,12 +959,13 @@ schola_read(schola_context ctx)
 			break;
 		case TOK_DOT:
 			if (vectorstack == NULL) {
-				// TODO: warn: unexpected '.'
+				fprintf(stderr, "unexpected '.'\n");
+				abort();
 			}
-			dot = 1;
 			break;
 		default:
-			// TODO: warn: something
+			fprintf(stderr, "this should not happen\n");
+			abort();
 			break;
 		}
 	}
@@ -1045,6 +1029,7 @@ schola_write(schola_context ctx, schola_cell cell)
 						if (i > 0)
 							xprintf(ctx->oport, " . ");
 						schola_write(ctx, cell->v.vector.arr[i]);
+						xprintf(ctx->oport, " .");
 						cell = NULL;
 					}
 					break;
