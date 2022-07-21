@@ -39,13 +39,13 @@ element.  For example, the following is a vector with four elements:
 	> (a . b . c . d .)
 	(a . b . c . d .)
 
-To make it easy to write vectors, they can be written with square
-braces. They are still written in the dot notation:
+To make it easy to write vectors, they can be typed in with square
+braces. They are still printed using dot notation:
 
 	> [a b c d]
 	(a . b . c . d .)
 
-A list can also be written with square braces:
+A list can also be typed in with square braces:
 
 	> [a [b [c [d []]]]]
 	(a b c d)
@@ -112,4 +112,4 @@ Everything.
 
 § How to test it
 
-Make and run ./cmd/schola
+Make and run ./bin/schola
