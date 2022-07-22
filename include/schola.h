@@ -4,6 +4,7 @@
 typedef struct schola_cell *schola_cell;
 typedef struct schola_context *schola_context;
 
+int schola_nil_p(schola_context, schola_cell);
 int schola_eof_p(schola_context, schola_cell);
 int schola_void_p(schola_context, schola_cell);
 int schola_true_p(schola_context, schola_cell);

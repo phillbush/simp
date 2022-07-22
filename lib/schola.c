@@ -11,6 +11,8 @@
 #define MAXOCTALESCAPE  3
 #define MAXHEX4ESCAPE   4
 #define MAXHEX8ESCAPE   8
+#define SYMTABSIZE      389
+#define SYMTABMULT      37
 
 enum {
 	TOK_ERROR,
@@ -52,7 +54,6 @@ typedef struct schola_cell {
 	union {
 		long l;
 		double d;
-		char *sym;
 
 		/* vector length */
 		struct {
@@ -60,7 +61,7 @@ typedef struct schola_cell {
 			size_t len;
 		} vector;
 
-		/* string */
+		/* string or symbol */
 		struct {
 			char *sp;
 			size_t len;
@@ -84,6 +85,7 @@ typedef struct schola_cell {
 typedef struct schola_context {
 	schola_cell stack;
 	schola_cell env;
+	schola_cell symtab;             /* symbol hash table */
 
 	/* current ports */
 	schola_cell iport;              /* current input port */
@@ -246,6 +248,17 @@ xprintf(schola_cell port, const char *fmt, ...)
 		(void)vfprintf(port->v.fport.fp, fmt, ap);
 		va_end(ap);
 	}
+}
+
+static size_t
+symtabhash(const char *str, size_t len)
+{
+	size_t i, h;
+
+	h = 0;
+	for (i = 0; i < len; i++)
+		h = SYMTABMULT * h + str[i];
+	return h % SYMTABSIZE;
 }
 
 static int
@@ -719,50 +732,38 @@ newstr(schola_context ctx, char *tok, size_t len)
 	schola_cell cell;
 	char *sp;
 
-	if ((sp = malloc(len)) == NULL)
+	if ((sp = malloc(len + 1)) == NULL)
 		goto error;
 	memcpy(sp, tok, len);
-	free(tok);
+	sp[len] = '\0';
 	if ((cell = newcell(ctx, TYPE_STRING)) == NULL)
 		goto error;
 	cell->v.str.sp = sp;
 	cell->v.str.len = len;
 	return cell;
 error:
-	free(tok);
 	warn(ctx, "allocation error");
 	return NULL;
 }
 
 static schola_cell
-newsym(schola_context ctx, char *tok, size_t len)
+newvector(schola_context ctx, size_t len, schola_cell value)
 {
 	schola_cell cell;
-	char *sp;
+	schola_cell *arr;
+	size_t i;
 
-	if ((sp = malloc(len)) == NULL)
-		goto error;
-	memcpy(sp, tok, len);
-	free(tok);
-	if ((cell = newcell(ctx, TYPE_SYMBOL)) == NULL)
-		goto error;
-	cell->v.sym = sp;
-	return cell;
-error:
-	free(tok);
-	warn(ctx, "allocation error");
-	return NULL;
-}
-
-static schola_cell
-newvector(schola_context ctx)
-{
-	schola_cell cell;
-
+	if (len == 0)
+		return schola_nil;
 	if ((cell = newcell(ctx, TYPE_VECTOR)) == NULL)
 		goto error;
-	cell->v.vector.arr = NULL;
-	cell->v.vector.len = 0;
+	if ((arr = calloc(len, sizeof(*arr))) == NULL)
+		goto error;
+	if (value != NULL)
+		for (i = 0; i < len; i++)
+			arr[i] = value;
+	cell->v.vector.arr = arr;
+	cell->v.vector.len = len;
 	return cell;
 error:
 	warn(ctx, "allocation error");
@@ -797,23 +798,101 @@ error:
 }
 
 static void
+vector_set(schola_context ctx, schola_cell vector, size_t index, schola_cell value)
+{
+	(void)ctx;
+	vector->v.vector.arr[index] = value;
+}
+
+static schola_cell
+vector_ref(schola_context ctx, schola_cell vector, size_t index)
+{
+	(void)ctx;
+	return vector->v.vector.arr[index];
+}
+
+static size_t
+vector_len(schola_context ctx, schola_cell vector)
+{
+	(void)ctx;
+	return vector->v.vector.len;
+}
+
+static void
+set_car(schola_context ctx, schola_cell pair, schola_cell value)
+{
+	vector_set(ctx, pair, 0, value);
+}
+
+static void
+set_cdr(schola_context ctx, schola_cell pair, schola_cell value)
+{
+	vector_set(ctx, pair, 1, value);
+}
+
+static schola_cell
+cons(schola_context ctx, schola_cell a, schola_cell b)
+{
+	schola_cell pair;
+
+	pair = newvector(ctx, 2, NULL);
+	set_car(ctx, pair, a);
+	set_cdr(ctx, pair, b);
+	return pair;
+}
+
+static schola_cell
+car(schola_context ctx, schola_cell pair)
+{
+	return vector_ref(ctx, pair, 0);
+}
+
+static schola_cell
+cdr(schola_context ctx, schola_cell pair)
+{
+	return vector_ref(ctx, pair, 1);
+}
+
+static schola_cell
+newsym(schola_context ctx, char *tok, size_t len)
+{
+	schola_cell pair, list, sym;
+	size_t bucket;
+	char *sp;
+
+	bucket = symtabhash(tok, len);
+	list = vector_ref(ctx, ctx->symtab, bucket);
+	for (pair = list; !schola_nil_p(ctx, pair); pair = cdr(ctx, pair)) {
+		sym = car(ctx, pair);
+		if (memcmp(tok, sym->v.str.sp, len) == 0) {
+			return sym;
+		}
+	}
+	if ((sym = newcell(ctx, TYPE_SYMBOL)) == NULL)
+		goto error;
+	if ((sp = malloc(len + 1)) == NULL)
+		goto error;
+	memcpy(sp, tok, len);
+	sp[len] = '\0';
+	sym->v.str.sp = sp;
+	sym->v.str.len = len;
+	pair = cons(ctx, sym, list);
+	vector_set(ctx, ctx->symtab, bucket, pair);
+	list = vector_ref(ctx, ctx->symtab, bucket);
+	return sym;
+error:
+	warn(ctx, "allocation error");
+	return NULL;
+}
+
+static void
 fillvector(schola_context ctx, schola_cellstack *cellstack, schola_cell *vector, size_t len)
 {
-	schola_cell *arr;
 	size_t i;
 
-	if ((arr = calloc(len, sizeof(*arr))) == NULL) {
-		fprintf(stderr, "no memory\n");
-		abort();
-	}
+	*vector = newvector(ctx, len, NULL);
 	for (i = 0; i < len; i++)
-		arr[len - i - 1] = popcell(ctx, cellstack);
-	if ((*vector = newvector(ctx)) == NULL) {
-		fprintf(stderr, "no memory\n");
-		abort();
-	}
-	(*vector)->v.vector.arr = arr;
-	(*vector)->v.vector.len = len;
+		vector_set(ctx, *vector, len - i - 1, popcell(ctx, cellstack));
 }
 
 static void
@@ -822,7 +901,7 @@ virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstac
 	schola_vectorinfo vectorinfo;
 	schola_cell vector;
 
-	vector = schola_nil;
+	vector = newvector(ctx, 0, NULL);
 	vectorinfo = popvector(ctx, vectorstack);
 	vectorinfo.size++;
 	pushcell(ctx, cellstack, vector);
@@ -831,7 +910,7 @@ virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstac
 		popcell(ctx, cellstack);
 		pushcell(ctx, cellstack, vectorinfo.vector);
 	} else {
-		vectorinfo.parent->v.vector.arr[vectorinfo.parent->v.vector.len - 1] = vectorinfo.vector;
+		vector_set(ctx, vectorinfo.parent, vector_len(ctx, vectorinfo.parent) - 1, vectorinfo.vector);
 	}
 	pushvector(ctx, vectorstack, vectorinfo.vector, vector, NOTATION_VIRTUAL);
 }
@@ -868,7 +947,7 @@ gotrdelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *v
 		return;
 	if (vectorinfo.type == NOTATION_VIRTUAL) {
 		fillvector(ctx, cellstack, &vector, vectorinfo.size);
-		vectorinfo.parent->v.vector.arr[vectorinfo.parent->v.vector.len - 1] = vector;
+		vector_set(ctx, vectorinfo.parent, vector_len(ctx, vectorinfo.parent) - 1, vector);
 	} else {
 		fillvector(ctx, cellstack, &vector, vectorinfo.size);
 		(void)popcell(ctx, cellstack);          /* pop nil vector */
@@ -949,9 +1028,11 @@ schola_read(schola_context ctx)
 			return schola_eof;
 		case TOK_SYMBOL:
 			gotobject(ctx, &cellstack, &vectorstack, newsym(ctx, tok, len));
+			free(tok);
 			break;
 		case TOK_STRING:
 			gotobject(ctx, &cellstack, &vectorstack, newstr(ctx, tok, len));
+			free(tok);
 			break;
 		case TOK_LPAREN:
 			gotldelim(ctx, &cellstack, &vectorstack, 0);
@@ -996,7 +1077,8 @@ schola_eval(schola_context ctx, schola_cell cell)
 schola_cell
 schola_write(schola_context ctx, schola_cell cell)
 {
-	size_t i;
+	schola_cell curr;
+	size_t len, i;
 	int space;
 
 	switch (cell->type) {
@@ -1008,7 +1090,7 @@ schola_write(schola_context ctx, schola_cell cell)
 		xprintf(ctx->oport, "%s", representations[cell->type]);
 		break;
 	case TYPE_SYMBOL:
-		xprintf(ctx->oport, "%s", cell->v.sym);
+		putstr(ctx, ctx->oport, cell);
 		break;
 	case TYPE_STRING:
 		xprintf(ctx->oport, "\"");
@@ -1036,14 +1118,16 @@ schola_write(schola_context ctx, schola_cell cell)
 			if (space)
 				xprintf(ctx->oport, " ");
 			space = 1;
-			for (i = 0; i < cell->v.vector.len; i++) {
-				if (i + 1 == cell->v.vector.len) {
-					if (i > 0 && schola_vector_p(ctx, cell->v.vector.arr[i])) {
-						cell = cell->v.vector.arr[i];
+			len = vector_len(ctx, cell);
+			for (i = 0; i < len; i++) {
+				curr = vector_ref(ctx, cell, i);
+				if (i + 1 == len) {
+					if (i > 0 && schola_vector_p(ctx, curr)) {
+						cell = curr;
 					} else {
 						if (i > 0)
 							xprintf(ctx->oport, " . ");
-						schola_write(ctx, cell->v.vector.arr[i]);
+						schola_write(ctx, curr);
 						xprintf(ctx->oport, " .");
 						cell = NULL;
 					}
@@ -1051,7 +1135,7 @@ schola_write(schola_context ctx, schola_cell cell)
 				} else {
 					if (i > 0)
 						xprintf(ctx->oport, " . ");
-					schola_write(ctx, cell->v.vector.arr[i]);
+					schola_write(ctx, curr);
 				}
 			}
 		}
@@ -1073,6 +1157,7 @@ schola_init(void)
 		return NULL;
 	}
 	ctx->isinteractive = 0;
+	ctx->symtab = newvector(ctx, SYMTABSIZE, schola_nil);
 	return ctx;
 }
 

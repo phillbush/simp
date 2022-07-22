@@ -1,6 +1,6 @@
-CMD     = cmd/schola
-CMDOBJS = cmd/schola.o
-CMDSRCS = cmd/schola.c
+CMD     = bin/schola
+CMDOBJS = bin/schola.o
+CMDSRCS = bin/schola.c
 
 AR      = lib/libschola.a
 SO      = lib/libschola.so
