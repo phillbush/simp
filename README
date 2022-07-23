@@ -83,7 +83,7 @@ in `(a b . c)`.
 	> [a [b c]]
 	(a b . c .)
 
-Here is a interesting structure, a list build on triples rather than on
+Here is a interesting structure, a list built on triples rather than on
 pairs:
 
 	> [a b [c d []]]
