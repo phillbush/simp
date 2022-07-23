@@ -104,7 +104,6 @@ Everything.
 • Procedures.
 • Garbage collection.
 • Numbers (Schola only supports strings, symbols, and vectors).
-• Proper symbols (symbols are just strings printed without double quotess).
 • FFI
 • The library
 • Etc.

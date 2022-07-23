@@ -29,8 +29,28 @@ enum {
 	TOK_MINUS,      /* special symbol */
 };
 
-/* objects */
+enum {
+	/*
+	 * indexes for the entries of the vector stack (check
+	 * schola_read(), newvirtualvector(), and got*() routines).
+	 */
+	VECTORSTACK_PARENT  = 0,
+	VECTORSTACK_NMEMB   = 1,
+	VECTORSTACK_ISLIST  = 2,
+	VECTORSTACK_NEXT    = 3,
+	VECTORSTACK_SIZE    = 4,
+};
+
 typedef struct schola_cell {
+
+	/*
+	 * The schola_cell, along with the schola_context, are the two
+	 * main data types used in schola code.
+	 *
+	 * A schola_cell is a pointer to a struct schola_cell, which
+	 * maintains the type and the data of a schola object.
+	 */
+
 	enum {
 		/* immediate types without standard external representation */
 		TYPE_NIL,
@@ -49,11 +69,10 @@ typedef struct schola_cell {
 		TYPE_SYMBOL,
 		TYPE_STRING,
 		TYPE_VECTOR,
-		TYPE_NUMBER,
+		TYPE_FIXNUM,
 	} type;
 	union {
-		long l;
-		double d;
+		size_t fixnum;
 
 		/* vector length */
 		struct {
@@ -81,56 +100,46 @@ typedef struct schola_cell {
 	} v;
 } *schola_cell;
 
-/* context of the interpreter */
 typedef struct schola_context {
+
+	/*
+	 * The schola_context, along with the schola_cell, are the two
+	 * main data types used in schola code.
+	 *
+	 * A schola_context is a pointer to a struct schola_context,
+	 * which maintains all the data required for the interpreter to
+	 * run, such as the stack, the environment, the symbol table,
+	 * the current I/O ports, etc.  This object allows the
+	 * co-existence of multiple interpreter instances in a single
+	 * program.
+	 *
+	 * A schola_context is created by the schola_init() function and
+	 * destroyed by the schola_clean() procedure.  Each interpreter
+	 * should have a single schola_context that should be passed
+	 * around to virtually all the functions in the library.
+	 */
+
 	schola_cell stack;
 	schola_cell env;
 	schola_cell symtab;             /* symbol hash table */
 
-	/* current ports */
+	/*
+	 * Stacks used while reading expressions and building them
+	 * (check schola_read(), newvirtualvector(), and got*() routines).
+	 */
+	schola_cell cellstack;
+	schola_cell vectorstack;
+
+	/*
+	 * Current ports
+	 */
 	schola_cell iport;              /* current input port */
 	schola_cell oport;              /* current output port */
 	schola_cell eport;              /* current error port */
-
-	/* are we in an interactive REPL? */
-	int isinteractive;
 } *schola_context;
 
-/* cell stack for the read procedure */
-typedef struct schola_cellstack {
-	struct schola_cellstack *next;
-	schola_cell cell;
-} *schola_cellstack;
-
-/* information of vector being building by read procedure */
-typedef struct schola_vectorinfo {
-	schola_cell parent;
-	schola_cell vector;
-	size_t size;
-	enum {
-		NOTATION_DOT,
-		NOTATION_VIRTUAL,
-		NOTATION_BRACE,
-	} type;
-} schola_vectorinfo;
-
-/* vector stack for the read procedure */
-typedef struct schola_vectorstack {
-	struct schola_vectorstack *next;
-	struct schola_vectorinfo v;
-} *schola_vectorstack;
-
-/* table of non-standard external representation */
-static char *representations[] = {
-	[TYPE_NIL]   = "()",
-	[TYPE_EOF]   = "#<eof>",
-	[TYPE_VOID]  = "#<void>",
-	[TYPE_TRUE]  = "#<true>",
-	[TYPE_FALSE] = "#<false>",
-};
-
 /* immediate types */
-static schola_cell schola_nil = &(struct schola_cell){.type = TYPE_NIL};
+static schola_cell schola_nil = &(struct schola_cell){.type = TYPE_NIL, .v.vector.arr = NULL, .v.vector.len = 0};
 static schola_cell schola_eof = &(struct schola_cell){.type = TYPE_EOF};
 static schola_cell schola_void = &(struct schola_cell){.type = TYPE_VOID};
 static schola_cell schola_true = &(struct schola_cell){.type = TYPE_TRUE};
@@ -277,73 +286,6 @@ warn(schola_context ctx, const char *fmt, ...)
 	(void)ctx;
 	(void)fmt;
 	// TODO: handle error
-}
-
-static schola_cell
-popcell(schola_context ctx, schola_cellstack *cellstack)
-{
-	schola_cellstack entry;
-	schola_cell cell;
-
-	(void)ctx;
-	if (*cellstack == NULL) {
-		abort();
-		// TODO: complain about empty stack;
-	}
-	entry = *cellstack;
-	cell = entry->cell;
-	*cellstack = (*cellstack)->next;
-	free(entry);
-	return cell;
-}
-
-static schola_vectorinfo
-popvector(schola_context ctx, schola_vectorstack *vectorstack)
-{
-	schola_vectorstack entry;
-	schola_vectorinfo v;
-
-	(void)ctx;
-	if (*vectorstack == NULL) {
-		abort();
-		// TODO: complain about empty stack;
-	}
-	entry = *vectorstack;
-	v = entry->v;
-	*vectorstack = (*vectorstack)->next;
-	free(entry);
-	return v;
-}
-
-static void
-pushcell(schola_context ctx, schola_cellstack *cellstack, schola_cell cell)
-{
-	schola_cellstack entry;
-
-	(void)ctx;
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		// TODO: complain about no memory
-	}
-	entry->next = *cellstack;
-	entry->cell = cell;
-	*cellstack = entry;
-}
-
-static void
-pushvector(schola_context ctx, schola_vectorstack *vectorstack, schola_cell parent, schola_cell vector, int type)
-{
-	schola_vectorstack entry;
-
-	(void)ctx;
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		// TODO: complain about no memory
-	}
-	entry->next = *vectorstack;
-	entry->v.size = 0;
-	entry->v.type = type;
-	entry->v.parent = parent;
-	entry->v.vector = vector;
-	*vectorstack = entry;
 }
 
 static void
@@ -727,6 +669,20 @@ newcell(schola_context ctx, int type)
 }
 
 static schola_cell
+newfixnum(schola_context ctx, size_t fixnum)
+{
+	schola_cell cell;
+
+	if ((cell = newcell(ctx, TYPE_FIXNUM)) == NULL)
+		goto error;
+	cell->v.fixnum = fixnum;
+	return cell;
+error:
+	warn(ctx, "allocation error");
+	return NULL;
+}
+
+static schola_cell
 newstr(schola_context ctx, char *tok, size_t len)
 {
 	schola_cell cell;
@@ -885,73 +841,93 @@ error:
 	return NULL;
 }
 
-static void
-fillvector(schola_context ctx, schola_cellstack *cellstack, schola_cell *vector, size_t len)
+static schola_cell
+fillvector(schola_context ctx, size_t len)
 {
+	schola_cell vector;
 	size_t i;
 
-	*vector = newvector(ctx, len, NULL);
-	for (i = 0; i < len; i++)
-		vector_set(ctx, *vector, len - i - 1, popcell(ctx, cellstack));
-}
-
-static void
-virtualvector(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
-{
-	schola_vectorinfo vectorinfo;
-	schola_cell vector;
-
-	vector = newvector(ctx, 0, NULL);
-	vectorinfo = popvector(ctx, vectorstack);
-	vectorinfo.size++;
-	pushcell(ctx, cellstack, vector);
-	fillvector(ctx, cellstack, &vectorinfo.vector, vectorinfo.size);
-	if (vectorinfo.parent == NULL) {
-		popcell(ctx, cellstack);
-		pushcell(ctx, cellstack, vectorinfo.vector);
-	} else {
-		vector_set(ctx, vectorinfo.parent, vector_len(ctx, vectorinfo.parent) - 1, vectorinfo.vector);
+	if (len == 0)
+		return schola_nil;
+	vector = newvector(ctx, len, NULL);
+	for (i = 0; i < len; i++) {
+		vector_set(ctx, vector, len - i - 1, car(ctx, ctx->cellstack));
+		ctx->cellstack = cdr(ctx, ctx->cellstack);
 	}
-	pushvector(ctx, vectorstack, vectorinfo.vector, vector, NOTATION_VIRTUAL);
+	return vector;
 }
 
 static void
-gotobject(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack, schola_cell cell)
+newvirtualvector(schola_context ctx)
 {
-	if (cell == NULL) {
-		// TODO: complain about no memory
+	schola_cell parent, vector, vhead, size;
+
+	ctx->cellstack = cons(ctx, schola_nil, ctx->cellstack);
+	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
+	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
+	size->v.fixnum++;
+	vector = fillvector(ctx, size->v.fixnum);
+	ctx->vectorstack = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NEXT);
+	if (schola_nil_p(ctx, parent))
+		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
+	else
+		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
+	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL);
+	size = newfixnum(ctx, 0);
+	vector_set(ctx, vhead, VECTORSTACK_PARENT, vector);
+	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, schola_true);
+	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
+	ctx->vectorstack = vhead;
+}
+
+static void
+gotobject(schola_context ctx, schola_cell cell)
+{
+	schola_cell size;
+
+	ctx->cellstack = cons(ctx, cell, ctx->cellstack);
+	if (ctx->vectorstack != schola_nil) {
+		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
+		size->v.fixnum++;
 	}
-	pushcell(ctx, cellstack, cell);
-	if (*vectorstack != NULL) {
-		(*vectorstack)->v.size++;
+}
+
+static void
+gotldelim(schola_context ctx, int isparens)
+{
+	schola_cell vhead, size;
+
+	/* push schola_nil into cellstack */
+	ctx->cellstack = cons(ctx, schola_nil, ctx->cellstack);
+	if (!schola_nil_p(ctx, ctx->vectorstack)) {
+		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
+		size->v.fixnum++;
 	}
+	size = newfixnum(ctx, 0);
+	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL);
+	vector_set(ctx, vhead, VECTORSTACK_PARENT, schola_nil);
+	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, isparens ? schola_true : schola_false);
+	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
+	ctx->vectorstack = vhead;
 }
 
 static void
-gotldelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack, int isbrace)
+gotrdelim(schola_context ctx)
 {
-	pushcell(ctx, cellstack, schola_nil);
-	if (*vectorstack != NULL)
-		(*vectorstack)->v.size++;
-	pushvector(ctx, vectorstack, NULL, schola_nil, isbrace ? NOTATION_BRACE : NOTATION_DOT);
-}
+	schola_cell parent, vector, size;
 
-static void
-gotrdelim(schola_context ctx, schola_cellstack *cellstack, schola_vectorstack *vectorstack)
-{
-	schola_vectorinfo vectorinfo;
-	schola_cell vector;
-
-	vectorinfo = popvector(ctx, vectorstack);
-	if (vectorinfo.size == 0)
+	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
+	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
+	ctx->vectorstack = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NEXT);
+	if (size->v.fixnum == 0)
 		return;
-	if (vectorinfo.type == NOTATION_VIRTUAL) {
-		fillvector(ctx, cellstack, &vector, vectorinfo.size);
-		vector_set(ctx, vectorinfo.parent, vector_len(ctx, vectorinfo.parent) - 1, vector);
+	vector = fillvector(ctx, size->v.fixnum);
+	if (!schola_nil_p(ctx, parent)) {
+		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
 	} else {
-		fillvector(ctx, cellstack, &vector, vectorinfo.size);
-		(void)popcell(ctx, cellstack);          /* pop nil vector */
-		pushcell(ctx, cellstack, vector);
+		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
 	}
 }
 
@@ -1000,71 +976,319 @@ schola_vector_p(schola_context ctx, schola_cell cell)
 schola_cell
 schola_read(schola_context ctx)
 {
-	schola_vectorstack vectorstack = NULL;
-	schola_cellstack cellstack = NULL;
 	size_t len;
 	char *tok;
-	int virtual, toktype, prevtok;
+	int toktype, prevtok;
 
+	/*
+	 * In order to make the reading process iterative (rather than
+	 * recursive), we need to keep two stacks: one for the cells
+	 * being read and one for the vectors/lists/pairs we created
+	 * while reading.
+	 *
+	 * In the following examples, I'll use #t rather than #<true>
+	 * and #f rather than #<false> to represent true and false.
+	 * I'll also use a slash (/) to represent nil inside a vector.
+	 *
+	 *
+	 *                  Example 1: reading (a b)
+	 *                  ========================
+	 *
+	 * (0) Before reading, both the vector stack and the cell
+	 * stack are empty.
+	 *
+	 *      cellstack----> nil
+	 *      vectorstack--> nil
+	 *
+	 * (1) We read a "(".  We call gotldelim(), which creates a new
+	 * empty vector (nil), and pushes it into the cell stack.  Since
+	 * we're building a vector, we push four objects into the vector
+	 * stack: the parent of the vector if it is virtual (nil, in
+	 * this case), the current number of elements (zero), and
+	 * whether the vector was created with a left parenthesis rather
+	 * than with a square bracket (which is true in this case).
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| / | / |
+	 *                    `-------'
+	 *                    ,---------------.
+	 *      vectorstack-->| / | 0 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (2) Since the type of the last read token is TOK_LPAREN,
+	 * virtual is false and a new virtual vector is not created.
+	 *
+	 * (3) We read an "a".  We call gotobject(), which gets a new
+	 * symbol for "a" and pushes it into the cell stack.  Since we
+	 * added a new object to a vector, we increment the count of
+	 * objects in the 4-tuple at the top of the vectorstack.
+	 *
+	 *                    ,-------.   ,-------.
+	 *      cellstack---->| a | +---->| / | / |
+	 *                    `-------'   `-------'
+	 *                    ,---------------.
+	 *      vectorstack-->| / | 1 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (4) Since we're building a list (we're using parentheses) and
+	 * the type of the last read token requires us to build a
+	 * virtual vector, we should build a virtual vector.  The
+	 * construction of a virtual vector occurs in four steps (see
+	 * the code on newvirtualvector() to see how these four steps
+	 * are implemented):
+	 *
+	 * (4.1) We get a new empty vector (nil), and push it into the
+	 * cell stack.  We also increment the counting of objects in the
+	 * 4-tuple at the top of the vectorstack.
+	 *
+	 *                    ,-------.   ,-------.   ,-------.
+	 *      cellstack---->| / | +---->| a | +---->| / | / |
+	 *                    `-------'   `-------'   `-------'
+	 *                    ,---------------.
+	 *      vectorstack-->| / | 2 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (4.2) We create a new vector whose size is equal to the
+	 * counter of objects in the 4-tuple at the top of the
+	 * vectorstack, we pop this much entries from the cell stack and
+	 * fill them into the new created vector (in reverse order).
+	 * We can then pop the vectorstack.  We save the object pointed
+	 * to by the VECTORSTACK_PARENT field of the top vector in the
+	 * vector stack into a parent variable.
+	 *
+	 *      parent------->nil
+	 *                    ,-------.
+	 *      newvector---->| a | / |
+	 *                    `-------'
+	 *                    ,-------.
+	 *      cellstack---->| / | / |
+	 *                    `-------'
+	 *      vectorstack-->nil
+	 *
+	 * (4.3) We're in the case where parent is nil, so we pop the
+	 * cellstack and push newvector into it.
+	 *
+	 *      parent------->nil
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.
+	 *                    | a | / |
+	 *                    `-------'
+	 *      vectorstack-->nil
+	 *
+	 * (4.4) We push a new 4-tuple vector into the vectorstack, to
+	 * indicate we're build a new vector into the cell stack.  This
+	 * 4-tuple has the following information:
+	 * - The vector we just built in the VECTORSTACK_PARENT field
+	 * - zero in the VECTORSTACK_NMEMB field.
+	 * - true in the VECTORSTACK_ISLIST field (we're in a list).
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.
+	 *                    | a | / |
+	 *                    `-------'
+	 *                      ^
+	 *                      |
+	 *                    ,-|-------------.
+	 *      vectorstack-->| + | 0 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (5) We read an "b".  We get a new symbol for "b" and push it
+	 * into the cell stack.  Since we added a new object to a
+	 * vector, we increment the count of objects in the 4-tuple at
+	 * the top of the vectorstack.
+	 *
+	 *                    ,-------.   ,-------.
+	 *      cellstack---->| b | +---->| + | / |
+	 *                    `-------'   `-|-----'
+	 *                                  |
+	 *                                  V
+	 *                                ,-------.
+	 *                                | a | / |
+	 *                                `-------'
+	 *                                  ^
+	 *                      .-----------'
+	 *                    ,-|-------------.
+	 *      vectorstack-->| + | 1 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (6) Since we're building a list and the type of the last read
+	 * token requires us to build a virtual vector, we should build
+	 * one.
+	 *
+	 * (6.1) We get a new empty vector (nil), and push it into the
+	 * cell stack.  We also increment the counting of objects in the
+	 * 4-tuple at the top of the vectorstack.
+	 *
+	 *                    ,-------.   ,-------.   ,-------.
+	 *      cellstack---->| / | +---->| b | +---->| + | / |
+	 *                    `-------'   `-------'   `-|-----'
+	 *                                              |
+	 *                                              V
+	 *                                            ,-------.
+	 *                                            | a | / |
+	 *                                            `-------'
+	 *                                              ^
+	 *                      .-----------------------'
+	 *                    ,-|-------------.
+	 *      vectorstack-->| + | 2 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (6.2) We create a new 2-tuple vector, we pop this much
+	 * entries from the cell stack and fill them into the new
+	 * created vector (in reverse order).  We then pop the
+	 * vectorstack, saving the object pointed to by the
+	 * VECTORSTACK_PARENT field into a parent variable.
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.
+	 *      parent------->| a | / |
+	 *                    `-------'
+	 *                    ,-------.
+	 *      newvector---->| b | / |
+	 *                    `-------'
+	 *      vectorstack-->nil
+	 *
+	 * (6.3) We're in the case where parent is not nil, so we set
+	 * it's last element to the new created vector.
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.   ,-------.
+	 *      parent------->| a | +---->| b | / |
+	 *                    `-------'   `-------'
+	 *      vectorstack-->nil
+	 *
+	 * (6.4) We push a new 4-tuple vector into the vectorstack, to
+	 * indicate we're build a new vector into the cell stack.  This
+	 * 4-tuple has the following information:
+	 * - The vector we just built in the VECTORSTACK_PARENT field
+	 * - zero in the VECTORSTACK_NMEMB field.
+	 * - true in the VECTORSTACK_ISLIST field (we're in a list).
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.   ,-------.
+	 *                    | a | +---->| b | / |
+	 *                    `-------'   `-------'
+	 *                                  ^
+	 *                      .-----------'
+	 *                    ,-|-------------.
+	 *      vectorstack-->| + | 0 | #t| / |
+	 *                    `---------------'
+	 *
+	 * (7) We read a ")".  We call gotrdelim(), which saves the
+	 * value at VECTORSTACK_PARENT of the topmost 4-tuple in
+	 * vectorstack into a `parent` variable, and the value at
+	 * VECTORSTACK_NMEMB into a `size` variable.  We then pop the
+	 * vectorstack.  If the size is zero, we can return (and jump to
+	 * step 8), that's the case.
+	 *
+	 *                    ,-------.
+	 *      cellstack---->| + | / |
+	 *                    `-|-----'
+	 *                      |
+	 *                      V
+	 *                    ,-------.   ,-------.
+	 *                    | a | +---->| b | / |
+	 *                    `-------'   `-------'
+	 *                                  ^
+	 *      parent----------------------'
+	 *      size--------->0
+	 *      vectorstack-->nil
+	 *
+	 * (8) cellstack is not nil, and vectorstack is nil.  We exit
+	 * the while loop.  We then return from this function returning
+	 * the car() of the top element of cellstack.
+	 *
+	 *                    ,-------.   ,-------.
+	 *      return:       | a | +---->| b | / |
+	 *                    `-------'   `-------'
+	 */
+
+	ctx->cellstack = schola_nil;
+	ctx->vectorstack = schola_nil;
 	toktype = TOK_DOT;
-	while (cellstack == NULL || vectorstack != NULL) {
+	while (ctx->cellstack == schola_nil || ctx->vectorstack != schola_nil) {
 		prevtok = toktype;
 		toktype = gettok(ctx, ctx->iport, &tok, &len);
-		virtual = (vectorstack == NULL || vectorstack->v.type != NOTATION_BRACE) &&
-		          toktype != TOK_DOT &&
-		          toktype != TOK_EOF &&
-		          prevtok != TOK_LPAREN &&
-		          prevtok != TOK_LBRACE &&
-		          prevtok != TOK_DOT;
-		if (virtual) {
-			virtualvector(ctx, &cellstack, &vectorstack);
+		if ((ctx->vectorstack == schola_nil ||
+		     schola_true_p(ctx, vector_ref(ctx, ctx->vectorstack, VECTORSTACK_ISLIST))) &&
+		    toktype != TOK_DOT &&
+		    toktype != TOK_EOF &&
+		    prevtok != TOK_LPAREN &&
+		    prevtok != TOK_LBRACE &&
+		    prevtok != TOK_DOT) {
+			newvirtualvector(ctx);
 		}
 		switch (toktype) {
 		case TOK_EOF:
-			if (cellstack != NULL) {
+			if (ctx->cellstack != schola_nil) {
 				fprintf(stderr, "unexpected EOF\n");
 				abort();
 			}
 			return schola_eof;
-		case TOK_SYMBOL:
-			gotobject(ctx, &cellstack, &vectorstack, newsym(ctx, tok, len));
-			free(tok);
-			break;
-		case TOK_STRING:
-			gotobject(ctx, &cellstack, &vectorstack, newstr(ctx, tok, len));
-			free(tok);
-			break;
 		case TOK_LPAREN:
-			gotldelim(ctx, &cellstack, &vectorstack, 0);
-			break;
-		case TOK_RPAREN:
-			gotrdelim(ctx, &cellstack, &vectorstack);
+			gotldelim(ctx, 1);
 			break;
 		case TOK_LBRACE:
-			gotldelim(ctx, &cellstack, &vectorstack, 1);
+			gotldelim(ctx, 0);
+			break;
+		case TOK_RPAREN:
+			gotrdelim(ctx);
 			break;
 		case TOK_RBRACE:
-			gotrdelim(ctx, &cellstack, &vectorstack);
+			gotrdelim(ctx);
+			break;
+		case TOK_SYMBOL:
+			gotobject(ctx, newsym(ctx, tok, len));
+			break;
+		case TOK_STRING:
+			gotobject(ctx, newstr(ctx, tok, len));
 			break;
 		case TOK_PLUS:
+			gotobject(ctx, newsym(ctx, "+", 1));
+			break;
 		case TOK_MINUS:
+			gotobject(ctx, newsym(ctx, "-", 1));
+			break;
 		case TOK_NUMBER:
-		case TOK_ERROR:
 			// TODO
 			break;
 		case TOK_DOT:
-			if (vectorstack == NULL) {
+			if (ctx->vectorstack == schola_nil) {
 				fprintf(stderr, "unexpected '.'\n");
 				abort();
 			}
+			break;
+		case TOK_ERROR:
+			// TODO
 			break;
 		default:
 			fprintf(stderr, "this should not happen\n");
 			abort();
 			break;
 		}
+		free(tok);
 	}
-	return popcell(ctx, &cellstack);
+	return car(ctx, ctx->cellstack);
 }
 
 schola_cell
@@ -1077,9 +1301,18 @@ schola_eval(schola_context ctx, schola_cell cell)
 schola_cell
 schola_write(schola_context ctx, schola_cell cell)
 {
+	static char *representations[] = {
+		[TYPE_NIL]   = "()",
+		[TYPE_EOF]   = "#<eof>",
+		[TYPE_VOID]  = "#<void>",
+		[TYPE_TRUE]  = "#<true>",
+		[TYPE_FALSE] = "#<false>",
+	};
 	schola_cell curr;
 	size_t len, i;
 	int space;
+
+	// TODO: make schola_write iterative/tail-recursive?
 
 	switch (cell->type) {
 	case TYPE_NIL:
@@ -1112,7 +1345,7 @@ schola_write(schola_context ctx, schola_cell cell)
 	case TYPE_VECTOR:
 		xprintf(ctx->oport, "(");
 		space = 0;
-		while (cell != NULL) {
+		while (!schola_nil_p(ctx, cell)) {
 			if (schola_nil_p(ctx, cell))
 				break;
 			if (space)
@@ -1129,7 +1362,7 @@ schola_write(schola_context ctx, schola_cell cell)
 							xprintf(ctx->oport, " . ");
 						schola_write(ctx, curr);
 						xprintf(ctx->oport, " .");
-						cell = NULL;
+						cell = schola_nil;
 					}
 					break;
 				} else {
@@ -1156,15 +1389,15 @@ schola_init(void)
 		warn(ctx, "allocation error");
 		return NULL;
 	}
-	ctx->isinteractive = 0;
 	ctx->symtab = newvector(ctx, SYMTABSIZE, schola_nil);
+	ctx->cellstack = schola_nil;
+	ctx->vectorstack = schola_nil;
 	return ctx;
 }
 
 void
 schola_interactive(schola_context ctx, FILE *ifp, FILE *ofp, FILE *efp)
 {
-	ctx->isinteractive = 1;
 	ctx->iport = newport(ctx, ifp, TYPE_INPUT_STREAM);
 	ctx->oport = newport(ctx, ofp, TYPE_OUTPUT_STREAM);
 	ctx->eport = newport(ctx, efp, TYPE_OUTPUT_STREAM);
