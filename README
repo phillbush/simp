@@ -55,7 +55,36 @@ Which is the same as this:
 	> (a . (b . (c . (d . () . ) . ) . ) . )
 	(a b c d)
 
-Here is a interesting structure:
+The logic behind the augmented dot notation is that, when we are between
+parentheses, a list is constructed.  When a list is being constructed, a
+new vector is created after an object.   So, for instance, when we write
+the list `(a b c)`, we create a new vector after `a`, a new vector after
+`b`, and a new (empty) vector after `c`.  Thus, `(a b c)` is the same as
+`[a [b [c []]]]`:
+
+	> [a [b [c []]]]
+	(a b c)
+
+But, when we place a dot after an object inside a list, we inhibit the
+creation of a new vector, and instead, we place the next element right
+after the current one.  In the list `(a . b c)`, the element `b` occurs
+right after `a` in the same vector.  Therefore, `(a . b c)` is the same
+as `[a b [c []]]`:
+
+	> [a b [c []]]
+	(a . b c)
+
+To inhibit the creation of the last, empty vector, we place a dot after
+the last element in a list.  `(a b . c .)` is the same as `[a [b c]]`.
+Notice that, in regular LISPs like scheme, this improper list would be
+constructed slightly differently, with no dot after the last element, as
+in `(a b . c)`.
+
+	> [a [b c]]
+	(a b . c .)
+
+Here is a interesting structure, a list build on triples rather than on
+pairs:
 
 	> [a b [c d []]]
 	(a . b c . d)
