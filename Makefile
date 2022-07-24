@@ -1,13 +1,13 @@
-CMD     = bin/schola
-CMDOBJS = bin/schola.o
-CMDSRCS = bin/schola.c
+CMD     = bin/simp
+CMDOBJS = bin/simp.o
+CMDSRCS = bin/simp.c
 
-AR      = lib/libschola.a
-SO      = lib/libschola.so
-LIBOBJS = lib/schola.o
-LIBSRCS = lib/schola.c
+AR      = lib/libsimp.a
+SO      = lib/libsimp.so
+LIBOBJS = lib/simp.o
+LIBSRCS = lib/simp.c
 
-INCS    = include/schola.h
+INCS    = include/simp.h
 
 OBJS = ${CMDOBJS} ${LIBOBJS}
 SRCS = ${CMDSRCS} ${LIBSRCS} ${INCS}

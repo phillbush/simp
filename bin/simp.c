@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "schola.h"
+#include "simp.h"
 
 static char *progname;
 
@@ -47,48 +47,48 @@ errx(int exitval, const char *fmt, ...)
 	exit(exitval);
 }
 
-static schola_context
+static simp_context
 init(int argc, char *argv[])
 {
-	schola_context ctx;
+	simp_context ctx;
 
 	(void)argc;
 	(void)argv;
-	if ((ctx = schola_init()) == NULL)
+	if ((ctx = simp_init()) == NULL)
 		errx(1, "could not initialize");
-	schola_interactive(ctx, stdin, stdout, stderr);
+	simp_interactive(ctx, stdin, stdout, stderr);
 	return ctx;
 }
 
-static schola_cell
-xread(schola_context ctx)
+static simp_cell
+xread(simp_context ctx)
 {
 	printf("> ");
 	fflush(stdout);
-	return schola_read(ctx);
+	return simp_read(ctx);
 }
 
-static schola_cell
-eval(schola_context ctx, schola_cell cell)
+static simp_cell
+eval(simp_context ctx, simp_cell cell)
 {
-	return schola_eval(ctx, cell);
+	return simp_eval(ctx, cell);
 }
 
 static int
-print(schola_context ctx, schola_cell cell)
+print(simp_context ctx, simp_cell cell)
 {
-	if (schola_eof_p(ctx, cell)) {
+	if (simp_eof_p(ctx, cell)) {
 		printf("\n");
 		return 0;
 	}
-	(void)schola_write(ctx, cell);
+	(void)simp_write(ctx, cell);
 	printf("\n");
 	fflush(stdout);
 	return 1;
 }
 
 static int
-clean(schola_context ctx)
+clean(simp_context ctx)
 {
 	(void)ctx;
 	// TODO
@@ -98,7 +98,7 @@ clean(schola_context ctx)
 int
 main(int argc, char *argv[])
 {
-	schola_context ctx;
+	simp_context ctx;
 
 	progname = *argv;
 	ctx = init(argc, argv);

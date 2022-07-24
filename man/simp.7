@@ -1,0 +1,256 @@
+.Dd July 23, 2022
+.Dt SIMP 7
+.Os
+.Sh NAME
+.Nm simp
+.Nd simplistic programming language
+.Sh DESCRIPTION
+The
+.Nm
+programming language is a
+minimalist (yet expressive),
+statically scoped,
+dynamically typed,
+properly tail-recursive,
+general-purpose
+LISP-1 programming language.
+.Pp
+All manipulable entities in
+.Nm
+are first-class objects.
+Imperative, functional, and message-passing programming styles (to name
+a few) may be conveniently expressed in the
+.Nm
+programming language.
+.Pp
+.Nm
+(like most dialects of Lisp)
+employs a fully parenthesized prefix notation for programs and other data.
+However, it is based on a variation of s-expressions that permits lists
+to be built not only by means of chained pairs, but by chaining vectors
+of any size.  In fact, it is the vector, not the pair, the primary mean
+of data combination.
+A pair is just a vector with two elements;
+a box is just a vector with one element;
+and nil is the vector with no element.
+A list is basically a chain of vectors, in which the last element of each
+vector is a pointer to the next vector.  The vector chain goes on until
+a zero-element vector (also known as nil) is found, terminating the list.
+.Sh PROGRAM STRUCTURE
+A
+.Nm
+program is a sequence of characters forming
+whitespace, comments, or tokens.
+The tokens in a program must form syntactically well formed expressions.
+Some characters, known as "delimiters", have special meaning during the the program parsing,
+because certain tokens require a delimiter to occur after them.
+Delimiters include all space characters and a few other characters (see below).
+See the section
+.Sx FORMAL SYNTAX
+below for a formal description of what is a program.
+.Ss Whitespace and Comments
+Whitespace characters include the
+space,
+horizontal tab,
+newline (line feed),
+form feed,
+carriage return, and
+vertical tab.
+.Pp
+Whitespace is used for improved readability and as necessary to separate tokens from each other.
+Whitespace can occur between any two tokens, but not within a token.
+Whitespace occurring inside a string literal is significant.
+.Pp
+Comments are annotations in the source code and are treated exactly like whitespace.
+.Pp
+A hash character (#) outside a string literal indicates the start of a comment.
+The comment continues to the end of the line on which the hash character appears.
+.Ss Tokens
+.Pp
+The end-of-file character is the token that terminates a program.
+The end-of-file character is also a delimiter.
+(The end-of-file is actually not a character, but is interpreted as if it were.)
+.Pp
+The open and close parenthesis characters are tokens used to write lists.
+The open and close square bracket characters are tokens used to write vectors.
+Those characters are also delimiters.
+.Pp
+The dot character
+.Sy \(dq.\(dq
+is a token used inside list to inhibit the
+creation of a new chained vector.
+.Pp
+A string literal is any sequence of characters enclosed within double quotation marks (").
+The double quotation mark character itself is a delimiter.
+A string literal is used to write strings (also known as bytevectors).
+Within a string literal, sequences of characters beginning with a backslash (\e) represent bytes other than the characters themselves.
+Most escape sequences represent a single byte,
+but some forms may represent more than one byte.
+An invalid escape sequence is equivalent to the character after the backslash;
+for example, the string literal
+.Sy \(dq\ej\(dq
+does not contain a valid escape sequence, so it is equivalent to
+.Sy \(dqj\(dq Ns .
+The valid escape sequences are as follows:
+.Bl -tag -width Ds -compact
+.It Cm \ea
+Alarm (U+0007).
+.It Cm \eb
+Backspace (U+0008).
+.It Cm \et
+Horizontal tab (U+0009).
+.It Cm \en
+Line feed (U+000A).
+.It Cm \ev
+Vertical tab (U+000B).
+.It Cm \ef
+Form feed (U+000C).
+.It Cm \er
+Carriage return (U+000D).
+.It Cm \ee
+Escape character (U+001B).
+.It Cm \e"
+Double quote (U+0022).
+.It Cm \e\e
+Backslash (U+005C).
+.It Cm \e Ns Ar num
+Byte whose value is the 1-, 2-, or 3-digit octal number
+.Ar num Ns .
+.It Cm \ex Ns Ar num
+Byte whose value is the 1- or 2-digit hexadecimal number
+.Ar num Ns .
+.It Cm \eu Ns Ar num
+Bytes encoding, in UTF-8, the 4-digit hexadecimal number
+.Ar num Ns .
+.It Cm \eU Ns Ar num
+Bytes encoding, in UTF-8, the 8-digit hexadecimal number
+.Ar num Ns .
+.El
+.Pp
+A number literal is a valid sequence of characters beginning with
+either a decimal digit,
+or a plus character (+) followed by a decimal digit,
+or a minus character (-) followed by a decimal digit.
+A delimiter character must occur after a number literal.
+There are two forms of number literals;
+a number literal can be either an integer literal or a real literal.
+.Bl -bullet -width Ds
+.It
+An integer literal has a zero character (0) as first decimal digit.
+This zero is followed by either:
+"B" or "b", and zero or more binary digits; or
+"O" or "o", and zero or more octal digits; or
+"D" or "d", and zero or more decimal digits; or
+"X" or "x", and zero or more hexadecimal digits.
+A integer literal may be suffixed by the character "E", "e", "I" or "i".
+.It
+A real literal consists of an integer part,
+a decimal point,
+a fraction part,
+an "e" or "E" character,
+an optionally signed integer exponent,
+and an optional suffix (one of "E", "e", "I" or "i").
+.El
+.Pp
+An identifier is any sequence of non-delimiter characters that does not form another type of token.
+A delimiter character must occur after an identifier.
+Different from certain versions of the Scheme programming language
+(which have case-insensitive identifiers);
+in the
+.Nm
+programming language, identifiers are case-sensitive.
+.Ss Expressions
+A well-formed expression (or just "expression" for short)
+is one of the following, and nothing more:
+.Bl -bullet -width Ds
+.It
+An identifier token.
+.It
+A string literal token.
+.It
+A number literal token.
+.It
+An open square bracket token;
+followed by any number of expressions
+followed by a close square bracket token;.
+.It
+An open parenthesis token;
+followed by any number of expressions,
+each one optionally followed by a single dot token;
+followed by a close parenthesis token.
+.El
+.Sh DATA TYPES
+[TODO]
+.Sh STANDARD LIBRARY
+[TODO]
+.Sh FORMAL SYNTAX
+[TODO]
+.Sh FORMAL SEMANTICS
+[TODO]
+.Sh EXAMPLES
+[TODO]
+.Sh SEE ALSO
+.Xr simp 1 ,
+.Xr simp 3
+.Rs
+.%A Harold Abelson
+.%A Gerald Jay Sussman
+.%A Julie Sussman
+.%B Structure and Interpretation of Computer Programms
+.%I The MIT Press
+.%D 1996
+.Re
+.Sh STANDARDS
+The
+.Nm
+programming language is compliant with nothing, as it has not been
+standardised yet.  It was influenced by the Scheme and Kernel LISP
+dialects.
+.Pp
+The syntax for comments and number literals breaks the usual LISP
+tradition, and are influenced by shell script comments and C constants,
+respectively.
+.Sh HISTORY
+The
+.NM
+programming language was developed as a personal playground for
+programming language theory, motivated by the reading of the Wizard Book
+(Abelson & Sussman).  It first appeared as a C library in 2022.
+.Sh AUTHORS
+The
+.Nm
+programming language was designed by
+.An Lucas de Sena Aq Mt lucas@seninha.org .
+.Sh BUGS
+The
+.Nm
+programming language implemented in
+.Xr simp 1
+and
+.Xr simp 3
+is not complete, and may not conform to this manpage.
+.Pp
+This manual page is also not complete, as the language is only
+informally specified, and may change significantly from one release to
+the other.
+.Pp
+This manual uses the terms "string" and "bytevector" interchangeably,
+as both refer to the same
+.Nm
+data structure.
+Note that "string" and "string literal" refer to different concepts;
+the former is a data type, while the latter is a token type.
+.Pp
+This manual avoids to use the word "character" to refer to the elements of a string.
+This manual uses the word "character" to refer solely to the units that compose tokens read by the parser.
+Strings in
+.Nm
+can possibly contain no valid character
+(in the sense of a UTF-8 encoded codepoint).
+This manual uses the term "byte" instead to refer to the elements of a string.
+.Pp
+There's no "character" data type,
+either in the C sense of a "byte",
+or in the sense of a UTF-8 encoded codepoint.
+A single byte can be represented as a one-element string.
+A UTF-8 encoded codepoint can be represented as a string containing the encoding bytes.

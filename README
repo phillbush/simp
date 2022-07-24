@@ -1,15 +1,10 @@
-                    The Schola Programming Language
+                     The Simp Programming Language
 
-Warning: this is ugly.
-
-Schola is my attempt to design and implement a minimalist lisp language.
+Simp is my attempt to design and implement a minimalist lisp language.
 For now, it only contains a REPL, whose evaluator only passes what is
 read to be print (so it is actually a RPL).
 
-
-§ Vectors
-
-One of the features of Schola that makes it different from other lisps
+One of the features of Simp that makes it different from other lisps
 is that it does not have pairs as a proper type.  It is the vector the
 basic mean of combination of data.
 
@@ -123,19 +118,11 @@ And in box-and-pointer notation:
 	           V   V   V
 	           b   c   d
 
-
-§ What needs to be done
-
-Everything.
+What needs to be done:
+• Everything.
 • Evaluation.
 • Procedures.
 • Garbage collection.
-• Numbers (Schola only supports strings, symbols, and vectors).
 • FFI
 • The library
 • Etc.
-
-
-§ How to test it
-
-Make and run ./bin/schola

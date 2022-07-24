@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <schola.h>
+#include <simp.h>
 
 #define STRBUFSIZE      1028
 #define NUMBUFSIZE      8
@@ -31,7 +31,7 @@ enum {
 enum {
 	/*
 	 * indexes for the entries of the vector stack (check
-	 * schola_read(), newvirtualvector(), and got*() routines).
+	 * simp_read(), newvirtualvector(), and got*() routines).
 	 */
 	VECTORSTACK_PARENT  = 0,
 	VECTORSTACK_NMEMB   = 1,
@@ -40,14 +40,14 @@ enum {
 	VECTORSTACK_SIZE    = 4,
 };
 
-typedef struct schola_cell {
+typedef struct simp_cell {
 
 	/*
-	 * The schola_cell, along with the schola_context, are the two
-	 * main data types used in schola code.
+	 * The simp_cell, along with the simp_context, are the two
+	 * main data types used in simp code.
 	 *
-	 * A schola_cell is a pointer to a struct schola_cell, which
-	 * maintains the type and the data of a schola object.
+	 * A simp_cell is a pointer to a struct simp_cell, which
+	 * maintains the type and the data of a simp object.
 	 */
 
 	enum {
@@ -75,7 +75,7 @@ typedef struct schola_cell {
 
 		/* vector length */
 		struct {
-			struct schola_cell **arr;
+			struct simp_cell **arr;
 			size_t len;
 		} vector;
 
@@ -97,52 +97,52 @@ typedef struct schola_cell {
 			char *curr;
 		} sport;
 	} v;
-} *schola_cell;
+} *simp_cell;
 
-typedef struct schola_context {
+typedef struct simp_context {
 
 	/*
-	 * The schola_context, along with the schola_cell, are the two
-	 * main data types used in schola code.
+	 * The simp_context, along with the simp_cell, are the two
+	 * main data types used in simp code.
 	 *
-	 * A schola_context is a pointer to a struct schola_context,
+	 * A simp_context is a pointer to a struct simp_context,
 	 * which maintains all the data required for the interpreter to
 	 * run, such as the stack, the environment, the symbol table,
 	 * the current I/O ports, etc.  This object allows the
 	 * co-existence of multiple interpreter instances in a single
 	 * program.
 	 *
-	 * A schola_context is created by the schola_init() function and
-	 * destroyed by the schola_clean() procedure.  Each interpreter
-	 * should have a single schola_context that should be passed
+	 * A simp_context is created by the simp_init() function and
+	 * destroyed by the simp_clean() procedure.  Each interpreter
+	 * should have a single simp_context that should be passed
 	 * around to virtually all the functions in the library.
 	 */
 
-	schola_cell stack;
-	schola_cell env;
-	schola_cell symtab;             /* symbol hash table */
+	simp_cell stack;
+	simp_cell env;
+	simp_cell symtab;             /* symbol hash table */
 
 	/*
 	 * Stacks used while reading expressions and building them
-	 * (check schola_read(), newvirtualvector(), and got*() routines).
+	 * (check simp_read(), newvirtualvector(), and got*() routines).
 	 */
-	schola_cell cellstack;
-	schola_cell vectorstack;
+	simp_cell cellstack;
+	simp_cell vectorstack;
 
 	/*
 	 * Current ports
 	 */
-	schola_cell iport;              /* current input port */
-	schola_cell oport;              /* current output port */
-	schola_cell eport;              /* current error port */
-} *schola_context;
+	simp_cell iport;              /* current input port */
+	simp_cell oport;              /* current output port */
+	simp_cell eport;              /* current error port */
+} *simp_context;
 
 /* immediate types */
-static schola_cell schola_nil = &(struct schola_cell){.type = TYPE_NIL, .v.vector.arr = NULL, .v.vector.len = 0};
-static schola_cell schola_eof = &(struct schola_cell){.type = TYPE_EOF};
-static schola_cell schola_void = &(struct schola_cell){.type = TYPE_VOID};
-static schola_cell schola_true = &(struct schola_cell){.type = TYPE_TRUE};
-static schola_cell schola_false = &(struct schola_cell){.type = TYPE_FALSE};
+static simp_cell simp_nil = &(struct simp_cell){.type = TYPE_NIL, .v.vector.arr = NULL, .v.vector.len = 0};
+static simp_cell simp_eof = &(struct simp_cell){.type = TYPE_EOF};
+static simp_cell simp_void = &(struct simp_cell){.type = TYPE_VOID};
+static simp_cell simp_true = &(struct simp_cell){.type = TYPE_TRUE};
+static simp_cell simp_false = &(struct simp_cell){.type = TYPE_FALSE};
 
 static int
 isspace(int c)
@@ -232,7 +232,7 @@ xrealloc(void *p, size_t size)
 }
 
 static int
-xgetc(schola_cell port)
+xgetc(simp_cell port)
 {
 	int c;
 
@@ -252,7 +252,7 @@ xgetc(schola_cell port)
 }
 
 static void
-xungetc(schola_cell port, int c)
+xungetc(simp_cell port, int c)
 {
 	if (c == EOF)
 		return;
@@ -266,7 +266,7 @@ xungetc(schola_cell port, int c)
 }
 
 static void
-xprintf(schola_cell port, const char *fmt, ...)
+xprintf(simp_cell port, const char *fmt, ...)
 {
 	va_list ap;
 
@@ -291,7 +291,7 @@ symtabhash(const char *str, size_t len)
 }
 
 static int
-peekc(schola_cell port)
+peekc(simp_cell port)
 {
 	int c;
 
@@ -301,7 +301,7 @@ peekc(schola_cell port)
 }
 
 static void
-warn(schola_context ctx, const char *fmt, ...)
+warn(simp_context ctx, const char *fmt, ...)
 {
 	(void)ctx;
 	(void)fmt;
@@ -309,7 +309,7 @@ warn(schola_context ctx, const char *fmt, ...)
 }
 
 static void
-putstr(schola_context ctx, schola_cell port, schola_cell cell)
+putstr(simp_context ctx, simp_cell port, simp_cell cell)
 {
 	size_t i;
 
@@ -354,7 +354,7 @@ putstr(schola_context ctx, schola_cell port, schola_cell cell)
 }
 
 static char *
-getstr(schola_context ctx, schola_cell port, size_t *len)
+getstr(simp_context ctx, simp_cell port, size_t *len)
 {
 	size_t j, size;
 	int c;
@@ -444,7 +444,7 @@ getstr(schola_context ctx, schola_cell port, size_t *len)
 }
 
 static char *
-getnum(schola_context ctx, schola_cell port, size_t *len, int c)
+getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 {
 	enum {
 		NUM_BINARY,
@@ -601,7 +601,7 @@ checkdelimiter:
 }
 
 static char *
-getident(schola_context ctx, schola_cell port, size_t *len, int c)
+getident(simp_context ctx, simp_cell port, size_t *len, int c)
 {
 	size_t size;
 	char *buf;
@@ -629,7 +629,7 @@ getident(schola_context ctx, schola_cell port, size_t *len, int c)
 }
 
 static int
-gettok(schola_context ctx, schola_cell port, char **tok, size_t *len)
+gettok(simp_context ctx, simp_cell port, char **tok, size_t *len)
 {
 	int ret, c;
 
@@ -676,10 +676,10 @@ gettok(schola_context ctx, schola_cell port, char **tok, size_t *len)
 	return ret;
 }
 
-static schola_cell
-newcell(schola_context ctx, int type)
+static simp_cell
+newcell(simp_context ctx, int type)
 {
-	schola_cell cell;
+	simp_cell cell;
 
 	(void)ctx;              // TODO: garbage collection
 	if ((cell = malloc(sizeof(*cell))) == NULL)
@@ -688,10 +688,10 @@ newcell(schola_context ctx, int type)
 	return cell;
 }
 
-static schola_cell
-newfixnum(schola_context ctx, size_t fixnum)
+static simp_cell
+newfixnum(simp_context ctx, size_t fixnum)
 {
-	schola_cell cell;
+	simp_cell cell;
 
 	if ((cell = newcell(ctx, TYPE_FIXNUM)) == NULL)
 		goto error;
@@ -702,10 +702,10 @@ error:
 	return NULL;
 }
 
-static schola_cell
-newstr(schola_context ctx, char *tok, size_t len)
+static simp_cell
+newstr(simp_context ctx, char *tok, size_t len)
 {
-	schola_cell cell;
+	simp_cell cell;
 	char *sp;
 
 	if ((sp = malloc(len + 1)) == NULL)
@@ -722,15 +722,15 @@ error:
 	return NULL;
 }
 
-static schola_cell
-newvector(schola_context ctx, size_t len, schola_cell value)
+static simp_cell
+newvector(simp_context ctx, size_t len, simp_cell value)
 {
-	schola_cell cell;
-	schola_cell *arr;
+	simp_cell cell;
+	simp_cell *arr;
 	size_t i;
 
 	if (len == 0)
-		return schola_nil;
+		return simp_nil;
 	if ((cell = newcell(ctx, TYPE_VECTOR)) == NULL)
 		goto error;
 	if ((arr = calloc(len, sizeof(*arr))) == NULL)
@@ -746,10 +746,10 @@ error:
 	return NULL;
 }
 
-static schola_cell
-newport(schola_context ctx, void *p, int type)
+static simp_cell
+newport(simp_context ctx, void *p, int type)
 {
-	schola_cell cell;
+	simp_cell cell;
 
 	switch (type) {
 	case TYPE_INPUT_STREAM:
@@ -774,42 +774,42 @@ error:
 }
 
 static void
-vector_set(schola_context ctx, schola_cell vector, size_t index, schola_cell value)
+vector_set(simp_context ctx, simp_cell vector, size_t index, simp_cell value)
 {
 	(void)ctx;
 	vector->v.vector.arr[index] = value;
 }
 
-static schola_cell
-vector_ref(schola_context ctx, schola_cell vector, size_t index)
+static simp_cell
+vector_ref(simp_context ctx, simp_cell vector, size_t index)
 {
 	(void)ctx;
 	return vector->v.vector.arr[index];
 }
 
 static size_t
-vector_len(schola_context ctx, schola_cell vector)
+vector_len(simp_context ctx, simp_cell vector)
 {
 	(void)ctx;
 	return vector->v.vector.len;
 }
 
 static void
-set_car(schola_context ctx, schola_cell pair, schola_cell value)
+set_car(simp_context ctx, simp_cell pair, simp_cell value)
 {
 	vector_set(ctx, pair, 0, value);
 }
 
 static void
-set_cdr(schola_context ctx, schola_cell pair, schola_cell value)
+set_cdr(simp_context ctx, simp_cell pair, simp_cell value)
 {
 	vector_set(ctx, pair, 1, value);
 }
 
-static schola_cell
-cons(schola_context ctx, schola_cell a, schola_cell b)
+static simp_cell
+cons(simp_context ctx, simp_cell a, simp_cell b)
 {
-	schola_cell pair;
+	simp_cell pair;
 
 	pair = newvector(ctx, 2, NULL);
 	set_car(ctx, pair, a);
@@ -817,28 +817,28 @@ cons(schola_context ctx, schola_cell a, schola_cell b)
 	return pair;
 }
 
-static schola_cell
-car(schola_context ctx, schola_cell pair)
+static simp_cell
+car(simp_context ctx, simp_cell pair)
 {
 	return vector_ref(ctx, pair, 0);
 }
 
-static schola_cell
-cdr(schola_context ctx, schola_cell pair)
+static simp_cell
+cdr(simp_context ctx, simp_cell pair)
 {
 	return vector_ref(ctx, pair, 1);
 }
 
-static schola_cell
-newsym(schola_context ctx, char *tok, size_t len)
+static simp_cell
+newsym(simp_context ctx, char *tok, size_t len)
 {
-	schola_cell pair, list, sym;
+	simp_cell pair, list, sym;
 	size_t bucket;
 	char *sp;
 
 	bucket = symtabhash(tok, len);
 	list = vector_ref(ctx, ctx->symtab, bucket);
-	for (pair = list; !schola_nil_p(ctx, pair); pair = cdr(ctx, pair)) {
+	for (pair = list; !simp_nil_p(ctx, pair); pair = cdr(ctx, pair)) {
 		sym = car(ctx, pair);
 		if (memcmp(tok, sym->v.str.sp, len) == 0) {
 			return sym;
@@ -861,14 +861,14 @@ error:
 	return NULL;
 }
 
-static schola_cell
-fillvector(schola_context ctx, size_t len)
+static simp_cell
+fillvector(simp_context ctx, size_t len)
 {
-	schola_cell vector;
+	simp_cell vector;
 	size_t i;
 
 	if (len == 0)
-		return schola_nil;
+		return simp_nil;
 	vector = newvector(ctx, len, NULL);
 	for (i = 0; i < len; i++) {
 		vector_set(ctx, vector, len - i - 1, car(ctx, ctx->cellstack));
@@ -878,17 +878,17 @@ fillvector(schola_context ctx, size_t len)
 }
 
 static void
-newvirtualvector(schola_context ctx)
+newvirtualvector(simp_context ctx)
 {
-	schola_cell parent, vector, vhead, size;
+	simp_cell parent, vector, vhead, size;
 
-	ctx->cellstack = cons(ctx, schola_nil, ctx->cellstack);
+	ctx->cellstack = cons(ctx, simp_nil, ctx->cellstack);
 	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
 	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
 	size->v.fixnum++;
 	vector = fillvector(ctx, size->v.fixnum);
 	ctx->vectorstack = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NEXT);
-	if (schola_nil_p(ctx, parent))
+	if (simp_nil_p(ctx, parent))
 		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
 	else
 		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
@@ -896,47 +896,47 @@ newvirtualvector(schola_context ctx)
 	size = newfixnum(ctx, 0);
 	vector_set(ctx, vhead, VECTORSTACK_PARENT, vector);
 	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
-	vector_set(ctx, vhead, VECTORSTACK_ISLIST, schola_true);
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, simp_true);
 	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
 	ctx->vectorstack = vhead;
 }
 
 static void
-gotobject(schola_context ctx, schola_cell cell)
+gotobject(simp_context ctx, simp_cell cell)
 {
-	schola_cell size;
+	simp_cell size;
 
 	ctx->cellstack = cons(ctx, cell, ctx->cellstack);
-	if (ctx->vectorstack != schola_nil) {
+	if (ctx->vectorstack != simp_nil) {
 		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
 		size->v.fixnum++;
 	}
 }
 
 static void
-gotldelim(schola_context ctx, int isparens)
+gotldelim(simp_context ctx, int isparens)
 {
-	schola_cell vhead, size;
+	simp_cell vhead, size;
 
-	/* push schola_nil into cellstack */
-	ctx->cellstack = cons(ctx, schola_nil, ctx->cellstack);
-	if (!schola_nil_p(ctx, ctx->vectorstack)) {
+	/* push simp_nil into cellstack */
+	ctx->cellstack = cons(ctx, simp_nil, ctx->cellstack);
+	if (!simp_nil_p(ctx, ctx->vectorstack)) {
 		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
 		size->v.fixnum++;
 	}
 	size = newfixnum(ctx, 0);
 	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL);
-	vector_set(ctx, vhead, VECTORSTACK_PARENT, schola_nil);
+	vector_set(ctx, vhead, VECTORSTACK_PARENT, simp_nil);
 	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
-	vector_set(ctx, vhead, VECTORSTACK_ISLIST, isparens ? schola_true : schola_false);
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, isparens ? simp_true : simp_false);
 	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
 	ctx->vectorstack = vhead;
 }
 
 static void
-gotrdelim(schola_context ctx)
+gotrdelim(simp_context ctx)
 {
-	schola_cell parent, vector, size;
+	simp_cell parent, vector, size;
 
 	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
 	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
@@ -944,7 +944,7 @@ gotrdelim(schola_context ctx)
 	if (size->v.fixnum == 0)
 		return;
 	vector = fillvector(ctx, size->v.fixnum);
-	if (!schola_nil_p(ctx, parent)) {
+	if (!simp_nil_p(ctx, parent)) {
 		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
 	} else {
 		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
@@ -952,49 +952,49 @@ gotrdelim(schola_context ctx)
 }
 
 int
-schola_eof_p(schola_context ctx, schola_cell cell)
+simp_eof_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell == schola_eof;
+	return cell == simp_eof;
 }
 
 int
-schola_void_p(schola_context ctx, schola_cell cell)
+simp_void_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell == schola_void;
+	return cell == simp_void;
 }
 
 int
-schola_true_p(schola_context ctx, schola_cell cell)
+simp_true_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell == schola_true;
+	return cell == simp_true;
 }
 
 int
-schola_false_p(schola_context ctx, schola_cell cell)
+simp_false_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell == schola_false;
+	return cell == simp_false;
 }
 
 int
-schola_nil_p(schola_context ctx, schola_cell cell)
+simp_nil_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell == schola_nil;
+	return cell == simp_nil;
 }
 
 int
-schola_vector_p(schola_context ctx, schola_cell cell)
+simp_vector_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
 	return cell->type == TYPE_NIL || cell->type == TYPE_VECTOR;
 }
 
-schola_cell
-schola_read(schola_context ctx)
+simp_cell
+simp_read(simp_context ctx)
 {
 	size_t len;
 	char *tok;
@@ -1243,14 +1243,14 @@ schola_read(schola_context ctx)
 	 *                    `-------'   `-------'
 	 */
 
-	ctx->cellstack = schola_nil;
-	ctx->vectorstack = schola_nil;
+	ctx->cellstack = simp_nil;
+	ctx->vectorstack = simp_nil;
 	toktype = TOK_DOT;
-	while (ctx->cellstack == schola_nil || ctx->vectorstack != schola_nil) {
+	while (ctx->cellstack == simp_nil || ctx->vectorstack != simp_nil) {
 		prevtok = toktype;
 		toktype = gettok(ctx, ctx->iport, &tok, &len);
-		if ((ctx->vectorstack == schola_nil ||
-		     schola_true_p(ctx, vector_ref(ctx, ctx->vectorstack, VECTORSTACK_ISLIST))) &&
+		if ((ctx->vectorstack == simp_nil ||
+		     simp_true_p(ctx, vector_ref(ctx, ctx->vectorstack, VECTORSTACK_ISLIST))) &&
 		    toktype != TOK_DOT &&
 		    toktype != TOK_EOF &&
 		    prevtok != TOK_LPAREN &&
@@ -1260,11 +1260,11 @@ schola_read(schola_context ctx)
 		}
 		switch (toktype) {
 		case TOK_EOF:
-			if (ctx->cellstack != schola_nil) {
+			if (ctx->cellstack != simp_nil) {
 				fprintf(stderr, "unexpected EOF\n");
 				abort();
 			}
-			return schola_eof;
+			return simp_eof;
 		case TOK_LPAREN:
 			gotldelim(ctx, 1);
 			break;
@@ -1293,7 +1293,7 @@ schola_read(schola_context ctx)
 			// TODO
 			break;
 		case TOK_DOT:
-			if (ctx->vectorstack == schola_nil) {
+			if (ctx->vectorstack == simp_nil) {
 				fprintf(stderr, "unexpected '.'\n");
 				abort();
 			}
@@ -1311,15 +1311,15 @@ schola_read(schola_context ctx)
 	return car(ctx, ctx->cellstack);
 }
 
-schola_cell
-schola_eval(schola_context ctx, schola_cell cell)
+simp_cell
+simp_eval(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
 	return cell;
 }
 
-schola_cell
-schola_write(schola_context ctx, schola_cell cell)
+simp_cell
+simp_write(simp_context ctx, simp_cell cell)
 {
 	static char *representations[] = {
 		[TYPE_NIL]   = "()",
@@ -1328,11 +1328,11 @@ schola_write(schola_context ctx, schola_cell cell)
 		[TYPE_TRUE]  = "#<true>",
 		[TYPE_FALSE] = "#<false>",
 	};
-	schola_cell curr;
+	simp_cell curr;
 	size_t len, i;
 	int space;
 
-	// TODO: make schola_write iterative/tail-recursive?
+	// TODO: make simp_write iterative/tail-recursive?
 
 	switch (cell->type) {
 	case TYPE_NIL:
@@ -1365,8 +1365,8 @@ schola_write(schola_context ctx, schola_cell cell)
 	case TYPE_VECTOR:
 		xprintf(ctx->oport, "(");
 		space = 0;
-		while (!schola_nil_p(ctx, cell)) {
-			if (schola_nil_p(ctx, cell))
+		while (!simp_nil_p(ctx, cell)) {
+			if (simp_nil_p(ctx, cell))
 				break;
 			if (space)
 				xprintf(ctx->oport, " ");
@@ -1375,20 +1375,20 @@ schola_write(schola_context ctx, schola_cell cell)
 			for (i = 0; i < len; i++) {
 				curr = vector_ref(ctx, cell, i);
 				if (i + 1 == len) {
-					if (i > 0 && schola_vector_p(ctx, curr)) {
+					if (i > 0 && simp_vector_p(ctx, curr)) {
 						cell = curr;
 					} else {
 						if (i > 0)
 							xprintf(ctx->oport, " . ");
-						schola_write(ctx, curr);
+						simp_write(ctx, curr);
 						xprintf(ctx->oport, " .");
-						cell = schola_nil;
+						cell = simp_nil;
 					}
 					break;
 				} else {
 					if (i > 0)
 						xprintf(ctx->oport, " . ");
-					schola_write(ctx, curr);
+					simp_write(ctx, curr);
 				}
 			}
 		}
@@ -1397,26 +1397,26 @@ schola_write(schola_context ctx, schola_cell cell)
 	default:
 		break;
 	}
-	return schola_void;
+	return simp_void;
 }
 
-schola_context
-schola_init(void)
+simp_context
+simp_init(void)
 {
-	schola_context ctx;
+	simp_context ctx;
 
 	if ((ctx = malloc(sizeof(*ctx))) == NULL) {
 		warn(ctx, "allocation error");
 		return NULL;
 	}
-	ctx->symtab = newvector(ctx, SYMTABSIZE, schola_nil);
-	ctx->cellstack = schola_nil;
-	ctx->vectorstack = schola_nil;
+	ctx->symtab = newvector(ctx, SYMTABSIZE, simp_nil);
+	ctx->cellstack = simp_nil;
+	ctx->vectorstack = simp_nil;
 	return ctx;
 }
 
 void
-schola_interactive(schola_context ctx, FILE *ifp, FILE *ofp, FILE *efp)
+simp_interactive(simp_context ctx, FILE *ifp, FILE *ofp, FILE *efp)
 {
 	ctx->iport = newport(ctx, ifp, TYPE_INPUT_STREAM);
 	ctx->oport = newport(ctx, ofp, TYPE_OUTPUT_STREAM);
