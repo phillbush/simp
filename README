@@ -17,8 +17,6 @@ A pair is just a vector with two elements.
 A box is just a vector with one element.
 And nil is a vector with no element.
 
-A list is still defined in terms of pairs (two-element vectors).
-
 Since pairs are vectors, we need a notation to express both data
 structures at the same time.
 

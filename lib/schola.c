@@ -1,4 +1,3 @@
-#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,9 +23,9 @@ enum {
 	TOK_DOT,
 	TOK_STRING,
 	TOK_NUMBER,
-	TOK_SYMBOL,
-	TOK_PLUS,       /* special symbol */
-	TOK_MINUS,      /* special symbol */
+	TOK_IDENTIFIER,
+	TOK_PLUS,       /* special identifier */
+	TOK_MINUS,      /* special identifier */
 };
 
 enum {
@@ -146,6 +145,19 @@ static schola_cell schola_true = &(struct schola_cell){.type = TYPE_TRUE};
 static schola_cell schola_false = &(struct schola_cell){.type = TYPE_FALSE};
 
 static int
+isspace(int c)
+{
+	return c == '\f' || c == '\n' || c == '\r' ||
+	       c == '\t' || c == '\v' || c == ' ';
+}
+
+static int
+iscntrl(int c)
+{
+	return c == '\x7f' || (c >= '\x00' && c <= '\x1f');
+}
+
+static int
 isdelimiter(int c)
 {
 	return isspace(c) || c == EOF || c == '(' || c == ')' ||
@@ -162,7 +174,11 @@ isoctal(int c)
 static int
 isdecimal(int c)
 {
-	/* Is this function really needed? Does locale affect isdigit(3)? */
+	/*
+	 * Is this function really needed?
+	 * Does locale affect isdigit(3)?
+	 * Should we #include <ctype.h> again?
+	 */
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
 }
@@ -170,7 +186,11 @@ isdecimal(int c)
 static int
 ishex(int c)
 {
-	/* Is this function really needed? Does locale affect isxdigit(3)? */
+	/*
+	 * Is this function really needed?
+	 * Does locale affect isxdigit(3)?
+	 * Should we #include <ctype.h> again?
+	 */
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9' ||
 	       c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' ||
@@ -524,7 +544,7 @@ done:
 			isexact = 0;
 			buf[2] = 'F';
 			buf[(*len)++] = '.';
-			while (isdigit(c = xgetc(port))) {
+			while (isdecimal(c = xgetc(port))) {
 				if (*len + 2 >= size) {
 					size <<= 2;
 					if ((buf = xrealloc(buf, size)) == NULL) {
@@ -544,7 +564,7 @@ done:
 				sign = c;
 				c = xgetc(port);
 			}
-			if (!isdigit(c)) {
+			if (!isdecimal(c)) {
 				isexact = 1;
 				goto checkdelimiter;
 			}
@@ -558,7 +578,7 @@ done:
 					}
 				}
 				buf[(*len)++] = c;
-			} while (isdigit(c = xgetc(port)));
+			} while (isdecimal(c = xgetc(port)));
 		}
 	}
 	if (c == 'E' || c == 'e') {
@@ -581,7 +601,7 @@ checkdelimiter:
 }
 
 static char *
-getsym(schola_context ctx, schola_cell port, size_t *len, int c)
+getident(schola_context ctx, schola_cell port, size_t *len, int c)
 {
 	size_t size;
 	char *buf;
@@ -638,7 +658,7 @@ gettok(schola_context ctx, schola_cell port, char **tok, size_t *len)
 		ret = TOK_STRING;
 		break;
 	case '+': case '-':
-		if (!isdigit((unsigned int)peekc(port)))
+		if (!isdecimal((unsigned int)peekc(port)))
 			return (c == '+') ? TOK_PLUS : TOK_MINUS;
 		/* FALLTHROUGH */
 	case '0': case '1': case '2': case '3': case '4':
@@ -647,8 +667,8 @@ gettok(schola_context ctx, schola_cell port, char **tok, size_t *len)
 		ret = TOK_NUMBER;
 		break;
 	default:
-		*tok = getsym(ctx, port, len, c);
-		ret = TOK_SYMBOL;
+		*tok = getident(ctx, port, len, c);
+		ret = TOK_IDENTIFIER;
 		break;
 	}
 	if (*tok == NULL)
@@ -1257,7 +1277,7 @@ schola_read(schola_context ctx)
 		case TOK_RBRACE:
 			gotrdelim(ctx);
 			break;
-		case TOK_SYMBOL:
+		case TOK_IDENTIFIER:
 			gotobject(ctx, newsym(ctx, tok, len));
 			break;
 		case TOK_STRING:
