@@ -1,8 +1,33 @@
-                     The Simp Programming Language
+# Simp: A Simplistic Programming Language
+
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/63266536/181057400-9c4a447b-755b-4c72-806a-4a28f968be2d.png", title="simp"/>
+</p>
 
 Simp is my attempt to design and implement a minimalist lisp language.
 For now, it only contains a REPL, whose evaluator only passes what is
 read to be print (so it is actually a RPL).
+
+## Documentation
+
+The Simp Programming Language syntax and semantics are specified in
+the mandoc manual page at `man/simp.7`.
+
+The Simp interpreter command and its invocation is described in the
+mandoc manual page at `man/simp.1`.
+
+The Simp C API is described in the mandoc manual page at `man/simp.3`.
+
+The Simp implementation is described by the code itself.
+The code is the manual.
+Although the code is sparsely commented, descriptive blocks of
+comments are used to annotate nontrivial algorithms, intricate
+data structures, and nonobvious globals.  The choice for a given
+construct or technique in favor of another is also described in
+comments.
+
+
+## Differences from other LISPs
 
 One of the features of Simp that makes it different from other lisps
 is that it does not have pairs as a proper type.  It is the vector the
@@ -117,12 +142,3 @@ And in box-and-pointer notation:
 	         └─┼─┴─┼─┴─┼─┘
 	           V   V   V
 	           b   c   d
-
-What needs to be done:
-• Everything.
-• Evaluation.
-• Procedures.
-• Garbage collection.
-• FFI
-• The library
-• Etc.

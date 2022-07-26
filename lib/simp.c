@@ -24,8 +24,6 @@ enum {
 	TOK_STRING,
 	TOK_NUMBER,
 	TOK_IDENTIFIER,
-	TOK_PLUS,       /* special identifier */
-	TOK_MINUS,      /* special identifier */
 };
 
 enum {
@@ -52,9 +50,8 @@ typedef struct simp_cell {
 
 	enum {
 		/* immediate types without standard external representation */
-		TYPE_NIL,
-		TYPE_EOF,
 		TYPE_VOID,
+		TYPE_EOF,
 		TYPE_TRUE,
 		TYPE_FALSE,
 
@@ -137,8 +134,8 @@ typedef struct simp_context {
 	simp_cell eport;              /* current error port */
 } *simp_context;
 
-/* immediate types */
-static simp_cell simp_nil = &(struct simp_cell){.type = TYPE_NIL, .v.vector.arr = NULL, .v.vector.len = 0};
+/* immediate object */
+static simp_cell simp_nil = &(struct simp_cell){.type = TYPE_VECTOR, .v.vector.arr = NULL, .v.vector.len = 0};
 static simp_cell simp_eof = &(struct simp_cell){.type = TYPE_EOF};
 static simp_cell simp_void = &(struct simp_cell){.type = TYPE_VOID};
 static simp_cell simp_true = &(struct simp_cell){.type = TYPE_TRUE};
@@ -659,7 +656,7 @@ gettok(simp_context ctx, simp_cell port, char **tok, size_t *len)
 		break;
 	case '+': case '-':
 		if (!isdecimal((unsigned int)peekc(port)))
-			return (c == '+') ? TOK_PLUS : TOK_MINUS;
+			goto token;
 		/* FALLTHROUGH */
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
@@ -667,6 +664,7 @@ gettok(simp_context ctx, simp_cell port, char **tok, size_t *len)
 		ret = TOK_NUMBER;
 		break;
 	default:
+token:
 		*tok = getident(ctx, port, len, c);
 		ret = TOK_IDENTIFIER;
 		break;
@@ -990,7 +988,7 @@ int
 simp_vector_p(simp_context ctx, simp_cell cell)
 {
 	(void)ctx;
-	return cell->type == TYPE_NIL || cell->type == TYPE_VECTOR;
+	return cell->type == TYPE_VECTOR;
 }
 
 simp_cell
@@ -1283,12 +1281,6 @@ simp_read(simp_context ctx)
 		case TOK_STRING:
 			gotobject(ctx, newstr(ctx, tok, len));
 			break;
-		case TOK_PLUS:
-			gotobject(ctx, newsym(ctx, "+", 1));
-			break;
-		case TOK_MINUS:
-			gotobject(ctx, newsym(ctx, "-", 1));
-			break;
 		case TOK_NUMBER:
 			// TODO
 			break;
@@ -1322,9 +1314,7 @@ simp_cell
 simp_write(simp_context ctx, simp_cell cell)
 {
 	static char *representations[] = {
-		[TYPE_NIL]   = "()",
 		[TYPE_EOF]   = "#<eof>",
-		[TYPE_VOID]  = "#<void>",
 		[TYPE_TRUE]  = "#<true>",
 		[TYPE_FALSE] = "#<false>",
 	};
@@ -1335,9 +1325,9 @@ simp_write(simp_context ctx, simp_cell cell)
 	// TODO: make simp_write iterative/tail-recursive?
 
 	switch (cell->type) {
-	case TYPE_NIL:
-	case TYPE_EOF:
 	case TYPE_VOID:
+		break;
+	case TYPE_EOF:
 	case TYPE_TRUE:
 	case TYPE_FALSE:
 		xprintf(ctx->oport, "%s", representations[cell->type]);
@@ -1363,6 +1353,10 @@ simp_write(simp_context ctx, simp_cell cell)
 		xprintf(ctx->oport, "#<output-port %p>", cell->v.sport.start);
 		break;
 	case TYPE_VECTOR:
+		if (simp_nil_p(ctx, cell)) {
+			xprintf(ctx->oport, "()");
+			break;
+		}
 		xprintf(ctx->oport, "(");
 		space = 0;
 		while (!simp_nil_p(ctx, cell)) {
