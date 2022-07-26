@@ -1,7 +1,7 @@
 # Simp: A Simplistic Programming Language
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/63266536/181057400-9c4a447b-755b-4c72-806a-4a28f968be2d.png", title="simp"/>
+  <img src="https://user-images.githubusercontent.com/63266536/181057400-9c4a447b-755b-4c72-806a-4a28f968be2d.png", title="A wizard kneeling in front of a down pointing witch"/>
 </p>
 
 Simp is my attempt to design and implement a minimalist lisp language.
