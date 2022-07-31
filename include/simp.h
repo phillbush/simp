@@ -1,18 +1,10 @@
 #ifndef _SIMP_H
 #define _SIMP_H
 
-typedef struct simp_cell *simp_cell;
-typedef struct simp_context *simp_context;
+typedef struct simpctx_t *simpctx_t;
 
-int simp_nil_p(simp_context, simp_cell);
-int simp_eof_p(simp_context, simp_cell);
-int simp_void_p(simp_context, simp_cell);
-int simp_true_p(simp_context, simp_cell);
-int simp_false_p(simp_context, simp_cell);
-simp_context simp_init(void);
-simp_cell simp_read(simp_context);
-simp_cell simp_eval(simp_context, simp_cell);
-simp_cell simp_write(simp_context, simp_cell);
-void simp_interactive(simp_context, FILE *, FILE *, FILE *);
+simpctx_t simp_init(FILE *, FILE *, FILE *);
+void simp_repl(simpctx_t);
+void simp_clean(simpctx_t);
 
 #endif /* _SIMP_H */

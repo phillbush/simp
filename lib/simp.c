@@ -1,17 +1,148 @@
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+/*
+ *               Simp: A Simplistic Programming Language
+ *
+ * An object in The Simp Programing Language can be classifyed as an
+ * immediate object or a heap object based on whether it is necessary
+ * to allocate memory for representing this object:
+ *
+ * - An immediate object fits in our object representation, and thus
+ *   needs not be allocated in the heap.  A value for an immediate
+ *   object holds the encoded (packed) form of the immediate object.
+ *   Macros such as SIMP_UNPACK_FIXNUM must be used to extract (unpack)
+ *   an immediate object from a value.  The macro SIMP_IS_IMMEDIATE
+ *   tests whether a given value represents an immediate object.
+ *
+ * - A heap object may not fit in our object representation, and thus
+ *   needs to be allocated in the heap.  A value for a heap object
+ *   actually holds the address in the memory to the data encoding the
+ *   heap object.  The macro SIMP_UNPACK_HEAPOBJ must be used to extract
+ *   (unpack) the address to the heap object from a value.  The macro
+ *   SIMP_IS_HEAPOBJ tests whether a given value represents a heap
+ *   object.
+ *
+ * We use three types (simpptr_t, usimpint_t and simpint_t) for
+ * representing Simp objects.
+ *
+ * - A `simpptr_t` is a pointer value that can ONLY represent a
+ *   Simp object.  It can be converted into a `usimpint_t` with the
+ *   SIMP_TOINT macro.
+ *
+ * - A `usimpint_t` is an unsigned integer value that represents either
+ *   a plain integer, or the comparable and manipulable integer form of
+ *   a simp object.  It can be converted into a `simpptr_t` using the
+ *   SIMP_TOPTR macro.
+ *
+ * - A `simpint_t` is a signed integer value of the same size of
+ *   a `usimpint_t`.
+ *
+ * We use two tagging layers to associate metadata with objects: pointer
+ * tagging and "memory tagging" (this is in quotes for I coined this
+ * term in the lack of an actual name for it).
+ *
+ * - Pointer tagging (our first tagging layer) is the technique of using
+ *   a few bits in the representation of an object for holding metadata.
+ *   We use two bits for pointer tagging.  One bit distinguishes whether
+ *   a value represents a heap object or an immediate object.  The other
+ *   bit, on heap objects, represents whether the object is marked by
+ *   the garbage collector; and, on immediate objects, distinguishes
+ *   whether it is a fixnum or not.  Pointer tagging depends on the
+ *   assumption that heap objects are allocated at addresses aligned by
+ *   a given number of bytes, leaving a few least significant bits
+ *   meaningless and available for tagging.  We enforce such alignment
+ *   by using posix_memalign(3) in POSIX systems, and mallocalign(2) on
+ *   Plan 9 systems.
+ *
+ * - Memory tagging (our second tagging layer) is the technique of
+ *   allocating, before the heap object payload, an identifier header
+ *   for holding metadata.  Memory tagging is only used on heap objects.
+ *   We use a whole usimpint_t for memory tagging.  The least
+ *   significant byte of this usimpint_t informs the structure of the
+ *   memory for the object (see below); the remaining part stores
+ *   additional information.
+ *
+ * We arrange the allocated memory for a heap object as an array of
+ * `usimpint_t` values.  The macro SIMP_ACCESS_ELEM access an element of
+ * this array.  Each heap object has an idiosyncratic structure for its
+ * memory, as follows (in general, it's an identifier header, a size
+ * header, and the object payload):
+ *
+ * - The allocated memory area of a vector has the following format.
+ *   The macro SIMP_CALCSIZE_VECTOR must be used to compute the size
+ *   of the memory to be allocated given the number of elements in the
+ *   vector.
+ *
+ *       ,------------   ----.
+ *       |   |   |    ...    |
+ *       `------------   ----'
+ *        ~~~ ~~~ ~~~~~~~~~~~
+ *         |   |       |
+ *         |   |       `--> The payload
+ *         |   |            (Array of usimpint_t objects).
+ *         |   |
+ *         |   `--> The size header
+ *         |        (unpacked simpint_t with the number of usimpint_t
+ *         |        elements in the payload).
+ *         |
+ *         `--> The identifier header.
+ *              (SIMP_MEMTAG_VECTOR on least significant byte).
+ *
+ * - The allocated memory area of a string (aka bytevectors) has the
+ *   following format.  The macro SIMP_CALCSIZE_STRING must be used to
+ *   compute the size of the memory to be allocated given the number of
+ *   bytes in the string.
+ *
+ *       ,------------   ----.
+ *       |   |   |    ...    |
+ *       `------------   ----'
+ *        ~~~ ~~~ ~~~~~~~~~~~
+ *         |   |       |
+ *         |   |       `--> The payload
+ *         |   |            (Array of chars).
+ *         |   |
+ *         |   `--> The size header
+ *         |        (unpacked simpint_t with the number of characters
+ *         |        in the payload).
+ *         |
+ *         `--> The identifier header.
+ *              (SIMP_MEMTAG_STRING on least significant byte).
+ *
+ * - The allocated memory area of a non-immediate number has the
+ *   following format:
+ *
+ *       [TODO: number heap objects are not implemented yet]
+ *
+ * - The allocated memory area of a port has the following format.  The
+ *   macro SIMP_CALCSIZE_PORT must be used to compute the size of the
+ *   memory to be allocated for a port.
+ *
+ *       ,-----------.
+ *       |   |   |   |
+ *       `-----------'
+ *        ~~~ ~~~ ~~~
+ *         |   |   |
+ *         |   |   `--> The payload
+ *         |   |        Pointer to the I/O stream (FILE * in POSIX).
+ *         |   |
+ *         |   `--> The line number
+ *         |        (The number of lines read from the port).
+ *         |
+ *         `--> The identifier header
+ *              (SIMP_MEMTAG_PORT on least significant byte).
+ *
+ */
+
+#ifdef plan9
+#include "plan9.h"
+#else
+#include "posix.h"
+#endif
 
 #include <simp.h>
 
-#define STRBUFSIZE      1028
-#define NUMBUFSIZE      8
-#define MAXOCTALESCAPE  3
-#define MAXHEX4ESCAPE   4
-#define MAXHEX8ESCAPE   8
-#define SYMTABSIZE      389
-#define SYMTABMULT      37
+#define STRBUFSIZE              1028
+#define MAXOCTALESCAPE          3
+#define SYMTABSIZE              389
+#define SYMTABMULT              37
 
 enum {
 	TOK_ERROR,
@@ -28,7 +159,7 @@ enum {
 
 enum {
 	/*
-	 * indexes for the entries of the vector stack (check
+	 * indices for the entries of the vector stack (check
 	 * simp_read(), newvirtualvector(), and got*() routines).
 	 */
 	VECTORSTACK_PARENT  = 0,
@@ -38,108 +169,117 @@ enum {
 	VECTORSTACK_SIZE    = 4,
 };
 
-typedef struct simp_cell {
+/* pointer tags (2 bits long) */
+enum {
+	SIMP_PTRTAG_HEAPOBJ     = 0x00,    /* non-marked heap object */
+	SIMP_PTRTAG_HEAPOBJMARK = 0x01,    /* marked heap object */
+	SIMP_PTRTAG_CONSTANT    = 0x02,    /* non-integer immediate */
+	SIMP_PTRTAG_FIXNUM      = 0x03,    /* integer immediate */
+};
+
+/* memory tags (1 byte long) */
+enum {
+	SIMP_MEMTAG_VECTOR      = 0x01,
+	SIMP_MEMTAG_STRING      = 0x02,
+	SIMP_MEMTAG_NUMBER      = 0x03,
+	SIMP_MEMTAG_PORT        = 0x04,
+};
+
+/* memory tag bit masks (applied to the actual memory tags) */
+#define SIMP_VECTOR_ISMUTABLE   (0x01 << SIMP_MEMTAG_SIZE)
+#define SIMP_STRING_ISMUTABLE   (0x01 << SIMP_MEMTAG_SIZE)
+#define SIMP_STRING_ISSYMBOL    (0x02 << SIMP_MEMTAG_SIZE)
+#define SIMP_PORT_ISOPEN        (0x01 << SIMP_MEMTAG_SIZE)
+#define SIMP_PORT_ISREADING     (0x02 << SIMP_MEMTAG_SIZE)
+#define SIMP_PORT_ISWRITING     (0x04 << SIMP_MEMTAG_SIZE)
+
+/* tag sizes, masks and getters */
+#define SIMP_PTRTAG_SIZE        2
+#define SIMP_PTRTAG_MASK        0x03
+#define SIMP_MEMTAG_SIZE        8
+#define SIMP_MEMTAG_MASK        0xFF
+#define SIMP_GET_PTRTAG(x)      ((usimpint_t)(SIMP_TOINT(x) & SIMP_PTRTAG_MASK))
+#define SIMP_GET_MEMTAG(x)      ((usimpint_t)(SIMP_ACCESS_HEADER(x) & SIMP_MEMTAG_MASK))
+
+/* object checkers */
+#define SIMP_IS_SAME(x, y)      (SIMP_TOINT(x) == SIMP_TOINT(y))
+#define SIMP_IS_FIXNUM(x)       (SIMP_GET_PTRTAG(x) == SIMP_PTRTAG_FIXNUM)
+#define SIMP_IS_CONSTANT(x)     (SIMP_GET_PTRTAG(x) == SIMP_PTRTAG_CONSTANT)
+#define SIMP_IS_IMMEDIATE(x)    (SIMP_IS_FIXNUM(x) || SIMP_IS_CONSTANT(x))
+#define SIMP_IS_HEAPOBJ(x)      (!SIMP_IS_IMMEDIATE(x))
+
+/* object representation conversors */
+#define SIMP_TOINT(x)           ((usimpint_t)(x))
+#define SIMP_TOPTR(x)           ((simpptr_t)(x))
+
+/* object packers */
+#define SIMP_PACK_HEAPOBJ(x)    (SIMP_TOPTR(x))
+#define SIMP_PACK_FIXNUM(x)     (SIMP_TOPTR((((usimpint_t)(x))<<SIMP_PTRTAG_SIZE)|SIMP_PTRTAG_FIXNUM))
+
+/* object unpackers */
+#define SIMP_UNPACK_HEAPOBJ(x)  ((usimpint_t *)SIMP_TOPTR(x))
+#define SIMP_UNPACK_FIXNUM(x)   ((SIMP_TOINT(x) > SIMP_MAX)                             \
+                                ? (-1 - (simpint_t)(~SIMP_TOINT(x)>>SIMP_PTRTAG_SIZE))  \
+                                : (simpint_t)(SIMP_TOINT(x)>>SIMP_PTRTAG_SIZE))
+
+/* heap object accessors */
+#define SIMP_ACCESS_ELEM(x, n)  (SIMP_UNPACK_HEAPOBJ(x)[(n)])
+#define SIMP_ACCESS_REST(x)     (SIMP_UNPACK_HEAPOBJ(x)+2)
+#define SIMP_ACCESS_HEADER(x)   (SIMP_ACCESS_ELEM(x, 0))
+#define SIMP_ACCESS_NMEMB(x)    (SIMP_ACCESS_ELEM(x, 1))
+#define SIMP_ACCESS_VECTOR(x)   ((simpptr_t *)SIMP_ACCESS_REST(x))
+#define SIMP_ACCESS_STRING(x)   ((char *)SIMP_ACCESS_REST(x))
+#define SIMP_ACCESS_PORT(x)     (((void **)(SIMP_ACCESS_REST(x)))[0])  /* access port stream */
+#define SIMP_ACCESS_LINENO(x)   (SIMP_ACCESS_ELEM(x, 1))               /* access port line number */
+
+/* heap object memory size calculator */
+#define SIMP_CALCSIZE_STRING(x)  (2 * sizeof(usimpint_t) + (x) + 1)
+#define SIMP_CALCSIZE_VECTOR(x)  ((2 + (x)) * sizeof(usimpint_t))
+#define SIMP_CALCSIZE_PORT(x)    (2 * sizeof(usimpint_t) + sizeof(void *))
+
+/* non-integer immediates */
+#define SIMP_MAKE_IMMEDIATE(x)   (SIMP_TOPTR(((x)<<SIMP_PTRTAG_SIZE)|SIMP_PTRTAG_CONSTANT))
+#define SIMP_IMM_VOID            (SIMP_MAKE_IMMEDIATE(0x01))
+#define SIMP_IMM_NIL             (SIMP_MAKE_IMMEDIATE(0x02))
+#define SIMP_IMM_EMPTYSTR        (SIMP_MAKE_IMMEDIATE(0x03))
+#define SIMP_IMM_UNDEF           (SIMP_MAKE_IMMEDIATE(0x04))
+#define SIMP_IMM_TRUE            (SIMP_MAKE_IMMEDIATE(0x05))
+#define SIMP_IMM_FALSE           (SIMP_MAKE_IMMEDIATE(0x06))
+#define SIMP_IMM_EOF             (SIMP_MAKE_IMMEDIATE(0x07))
+
+typedef struct simpctx_t {
 
 	/*
-	 * The simp_cell, along with the simp_context, are the two
-	 * main data types used in simp code.
+	 * A simpctx_t is a pointer to a struct simpctx_t, which
+	 * maintains all the data required for the interpreter to run,
+	 * such as the stack, the environment, the symbol table, the
+	 * current I/O ports, etc.  This object allows the co-existence
+	 * of multiple interpreter instances in a single program.
 	 *
-	 * A simp_cell is a pointer to a struct simp_cell, which
-	 * maintains the type and the data of a simp object.
-	 */
-
-	enum {
-		/* immediate types without standard external representation */
-		TYPE_VOID,
-		TYPE_EOF,
-		TYPE_TRUE,
-		TYPE_FALSE,
-
-		/* non-immediate types without standard external representation */
-		TYPE_INPUT_STREAM,
-		TYPE_INPUT_STRING,
-		TYPE_OUTPUT_STREAM,
-		TYPE_OUTPUT_STRING,
-
-		/* types with standard external representation */
-		TYPE_SYMBOL,
-		TYPE_STRING,
-		TYPE_VECTOR,
-		TYPE_FIXNUM,
-	} type;
-	union {
-		size_t fixnum;
-
-		/* vector length */
-		struct {
-			struct simp_cell **arr;
-			size_t len;
-		} vector;
-
-		/* string or symbol */
-		struct {
-			char *sp;
-			size_t len;
-		} str;
-
-		/* file port */
-		struct {
-			FILE *fp;
-			size_t lineno;
-		} fport;
-
-		/* string port */
-		struct {
-			char *start;
-			char *curr;
-		} sport;
-	} v;
-} *simp_cell;
-
-typedef struct simp_context {
-
-	/*
-	 * The simp_context, along with the simp_cell, are the two
-	 * main data types used in simp code.
-	 *
-	 * A simp_context is a pointer to a struct simp_context,
-	 * which maintains all the data required for the interpreter to
-	 * run, such as the stack, the environment, the symbol table,
-	 * the current I/O ports, etc.  This object allows the
-	 * co-existence of multiple interpreter instances in a single
-	 * program.
-	 *
-	 * A simp_context is created by the simp_init() function and
+	 * A simpctx_t is created by the simp_init() function and
 	 * destroyed by the simp_clean() procedure.  Each interpreter
-	 * should have a single simp_context that should be passed
+	 * should have a single simpctx_t that should be passed
 	 * around to virtually all the functions in the library.
 	 */
 
-	simp_cell stack;
-	simp_cell env;
-	simp_cell symtab;             /* symbol hash table */
+	simpptr_t stack;
+	simpptr_t env;
+	simpptr_t symtab;             /* symbol hash table */
 
 	/*
 	 * Stacks used while reading expressions and building them
 	 * (check simp_read(), newvirtualvector(), and got*() routines).
 	 */
-	simp_cell cellstack;
-	simp_cell vectorstack;
+	simpptr_t readstack;
+	simpptr_t vectorstack;
 
 	/*
 	 * Current ports
 	 */
-	simp_cell iport;              /* current input port */
-	simp_cell oport;              /* current output port */
-	simp_cell eport;              /* current error port */
-} *simp_context;
-
-/* immediate object */
-static simp_cell simp_nil = &(struct simp_cell){.type = TYPE_VECTOR, .v.vector.arr = NULL, .v.vector.len = 0};
-static simp_cell simp_eof = &(struct simp_cell){.type = TYPE_EOF};
-static simp_cell simp_void = &(struct simp_cell){.type = TYPE_VOID};
-static simp_cell simp_true = &(struct simp_cell){.type = TYPE_TRUE};
-static simp_cell simp_false = &(struct simp_cell){.type = TYPE_FALSE};
+	simpptr_t iport;              /* current input port */
+	simpptr_t oport;              /* current output port */
+	simpptr_t eport;              /* current error port */
+} *simpctx_t;
 
 static int
 isspace(int c)
@@ -171,11 +311,6 @@ isoctal(int c)
 static int
 isdecimal(int c)
 {
-	/*
-	 * Is this function really needed?
-	 * Does locale affect isdigit(3)?
-	 * Should we #include <ctype.h> again?
-	 */
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
 }
@@ -183,11 +318,6 @@ isdecimal(int c)
 static int
 ishex(int c)
 {
-	/*
-	 * Is this function really needed?
-	 * Does locale affect isxdigit(3)?
-	 * Should we #include <ctype.h> again?
-	 */
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9' ||
 	       c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' ||
@@ -218,68 +348,41 @@ ctoi(int c)
 	return 0;
 }
 
-static void *
-xrealloc(void *p, size_t size)
-{
-	void *newp;
-
-	if ((newp = realloc(p, size)) == NULL)
-		free(p);
-	return newp;
-}
-
 static int
-xgetc(simp_cell port)
+readbyte(simpctx_t ctx, simpptr_t port)
 {
 	int c;
 
-	if (port->type == TYPE_INPUT_STRING) {
-		if (*port->v.sport.curr == '\0') {
-			return EOF;
-		} else {
-			return *port->v.sport.curr++;
-		}
-	} else {
-		c = fgetc(port->v.fport.fp);
-		if (c == '\n')
-			port->v.fport.lineno++;
-		return c;
-	}
-	// TODO: check for error
+	(void)ctx;
+	c = GETC(SIMP_ACCESS_PORT(port));
+	if (c == '\n')
+		SIMP_ACCESS_NMEMB(port)++;
+	return c;
 }
 
 static void
-xungetc(simp_cell port, int c)
+unreadbyte(simpctx_t ctx, simpptr_t port, int c)
 {
+	(void)ctx;
 	if (c == EOF)
 		return;
-	if (port->type == TYPE_INPUT_STRING) {
-		if (port->v.sport.curr > port->v.sport.start) {
-			*--port->v.sport.curr = c;
-		}
-	} else {
-		ungetc(c, port->v.fport.fp);
-	}
+	UNGETC(SIMP_ACCESS_PORT(port), c);
 }
 
-static void
-xprintf(simp_cell port, const char *fmt, ...)
+static int
+peekc(simpctx_t ctx, simpptr_t port)
 {
-	va_list ap;
+	int c;
 
-	if (port->type == TYPE_INPUT_STRING) {
-		// TODO: write to string
-	} else {
-		va_start(ap, fmt);
-		(void)vfprintf(port->v.fport.fp, fmt, ap);
-		va_end(ap);
-	}
+	c = readbyte(ctx, port);
+	unreadbyte(ctx, port, c);
+	return c;
 }
 
-static size_t
-symtabhash(const char *str, size_t len)
+static simpint_t
+symtabhash(const char *str, simpint_t len)
 {
-	size_t i, h;
+	simpint_t i, h;
 
 	h = 0;
 	for (i = 0; i < len; i++)
@@ -287,87 +390,33 @@ symtabhash(const char *str, size_t len)
 	return h % SYMTABSIZE;
 }
 
-static int
-peekc(simp_cell port)
-{
-	int c;
-
-	c = xgetc(port);
-	xungetc(port, c);
-	return c;
-}
-
 static void
-warn(simp_context ctx, const char *fmt, ...)
+warn(simpctx_t ctx, const char *fmt, ...)
 {
 	(void)ctx;
 	(void)fmt;
 	// TODO: handle error
 }
 
-static void
-putstr(simp_context ctx, simp_cell port, simp_cell cell)
-{
-	size_t i;
-
-	for (i = 0; i < cell->v.str.len; i++) {
-		switch (cell->v.str.sp[i]) {
-		case '\"':
-			xprintf(port, "\\\"");
-			break;
-		case '\a':
-			xprintf(port, "\\a");
-			break;
-		case '\b':
-			xprintf(port, "\\b");
-			break;
-		case '\033':
-			xprintf(port, "\\e");
-			break;
-		case '\f':
-			xprintf(port, "\\f");
-			break;
-		case '\n':
-			xprintf(port, "\\n");
-			break;
-		case '\r':
-			xprintf(port, "\\r");
-			break;
-		case '\t':
-			xprintf(port, "\\t");
-			break;
-		case '\v':
-			xprintf(port, "\\v");
-			break;
-		default:
-			if (iscntrl(cell->v.str.sp[i])) {
-				xprintf(ctx->oport, "\\x%x", cell->v.str.sp[i]);
-			} else {
-				xprintf(ctx->oport, "%c", cell->v.str.sp[i]);
-			}
-			break;
-		}
-	}
-}
-
 static char *
-getstr(simp_context ctx, simp_cell port, size_t *len)
+getstr(simpctx_t ctx, simpptr_t port, size_t *len)
 {
 	size_t j, size;
 	int c;
 	char *buf;
 
 	size = STRBUFSIZE;
-	if ((buf = malloc(size)) == NULL) {
+	if ((buf = MALLOC(size)) == NULL) {
 		warn(ctx, "allocation error");
 		return NULL;
 	}
 	*len = 0;
 	for (;;) {
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 		if (*len + 1 >= size) {
 			size <<= 2;
-			if ((buf = xrealloc(buf, size)) == NULL) {
+			if ((buf = REALLOC(buf, size)) == NULL) {
+				free(buf);
 				warn(ctx, "allocation error");
 				return NULL;
 			}
@@ -378,7 +427,7 @@ getstr(simp_context ctx, simp_cell port, size_t *len)
 			buf[(*len)++] = c;
 			continue;
 		}
-		switch ((c = xgetc(port))) {
+		switch ((c = readbyte(ctx, port))) {
 		case '"':
 			buf[(*len)++] = '\"';
 			break;
@@ -409,20 +458,20 @@ getstr(simp_context ctx, simp_cell port, size_t *len)
 		case '0': case '1': case '2': case '3':
 		case '4': case '5': case '6': case '7':
 			buf[*len] = 0;
-			for (j = 0; j < MAXOCTALESCAPE && isoctal(c); j++, c = xgetc(port))
+			for (j = 0; j < MAXOCTALESCAPE && isoctal(c); j++, c = readbyte(ctx, port))
 				buf[*len] = (buf[*len] << 3) + ctoi(c);
-			xungetc(port, c);
+			unreadbyte(ctx, port, c);
 			(*len)++;
 			break;
 		case 'x':
-			if (!ishex(c = xgetc(port))) {
+			if (!ishex(c = readbyte(ctx, port))) {
 				buf[(*len)++] = 'x';
-				xungetc(port, c);
+				unreadbyte(ctx, port, c);
 				break;
 			}
-			for (; ishex(c); c = xgetc(port))
+			for (; ishex(c); c = readbyte(ctx, port))
 				buf[*len] = (buf[*len] << 4) + ctoi(c);
-			xungetc(port, c);
+			unreadbyte(ctx, port, c);
 			(*len)++;
 			break;
 		case 'u':
@@ -441,7 +490,7 @@ getstr(simp_context ctx, simp_cell port, size_t *len)
 }
 
 static char *
-getnum(simp_context ctx, simp_cell port, size_t *len, int c)
+getnum(simpctx_t ctx, simpptr_t port, size_t *len, int c)
 {
 	enum {
 		NUM_BINARY,
@@ -467,7 +516,7 @@ getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 	 * into a number.
 	 */
 	size = STRBUFSIZE;
-	if ((buf = malloc(size)) == NULL) {
+	if ((buf = MALLOC(size)) == NULL) {
 		warn(ctx, "allocation error");
 		return NULL;
 	}
@@ -475,12 +524,12 @@ getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 	*len = 1;
 	if (c == '+' || c == '-') {
 		buf[(*len)++] = c;
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 	} else {
 		buf[(*len)++] = '+';
 	}
 	if (c == '0') {
-		switch (c = xgetc(port)) {
+		switch (c = readbyte(ctx, port)) {
 		case 'B': case 'b':
 			buf[(*len)++] = 'B';
 			numtype = NUM_BINARY;
@@ -499,7 +548,7 @@ getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 			break;
 		default:
 			buf[(*len)++] = 'D';
-			xungetc(port, c);
+			unreadbyte(ctx, port, c);
 			numtype = NUM_DECIMAL;
 			break;
 		}
@@ -507,7 +556,8 @@ getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 	for (;;) {
 		if (*len + 2 >= size) {
 			size <<= 2;
-			if ((buf = xrealloc(buf, size)) == NULL) {
+			if ((buf = REALLOC(buf, size)) == NULL) {
+				free(buf);
 				warn(ctx, "allocation error");
 				return NULL;
 			}
@@ -533,7 +583,7 @@ getnum(simp_context ctx, simp_cell port, size_t *len, int c)
 			goto done;
 		}
 		buf[(*len)++] = c;
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 	}
 done:
 	if (numtype == NUM_DECIMAL) {
@@ -541,10 +591,11 @@ done:
 			isexact = 0;
 			buf[2] = 'F';
 			buf[(*len)++] = '.';
-			while (isdecimal(c = xgetc(port))) {
+			while (isdecimal(c = readbyte(ctx, port))) {
 				if (*len + 2 >= size) {
 					size <<= 2;
-					if ((buf = xrealloc(buf, size)) == NULL) {
+					if ((buf = REALLOC(buf, size)) == NULL) {
+						free(buf);
 						warn(ctx, "allocation error");
 						return NULL;
 					}
@@ -555,11 +606,11 @@ done:
 		if (c == 'e' || c == 'E') {
 			isexact = 0;
 			buf[2] = 'F';
-			c = xgetc(port);
+			c = readbyte(ctx, port);
 			sign = '+';
 			if (c == '+' || c == '-') {
 				sign = c;
-				c = xgetc(port);
+				c = readbyte(ctx, port);
 			}
 			if (!isdecimal(c)) {
 				isexact = 1;
@@ -569,21 +620,22 @@ done:
 			do {
 				if (*len + 2 >= size) {
 					size <<= 2;
-					if ((buf = xrealloc(buf, size)) == NULL) {
+					if ((buf = REALLOC(buf, size)) == NULL) {
+						free(buf);
 						warn(ctx, "allocation error");
 						return NULL;
 					}
 				}
 				buf[(*len)++] = c;
-			} while (isdecimal(c = xgetc(port)));
+			} while (isdecimal(c = readbyte(ctx, port)));
 		}
 	}
 	if (c == 'E' || c == 'e') {
 		isexact = 1;
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 	} else if (c == 'I' || c == 'i') {
 		isexact = 0;
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 	}
 checkdelimiter:
 	if (!(isdelimiter(c))) {
@@ -591,20 +643,20 @@ checkdelimiter:
 		warn(ctx, "invalid numeric syntax: \"%c\"", c);
 		return NULL;
 	}
-	xungetc(port, c);
+	unreadbyte(ctx, port, c);
 	buf[0] = isexact ? 'E' : 'I';
 	buf[*len] = '\0';
 	return buf;
 }
 
 static char *
-getident(simp_context ctx, simp_cell port, size_t *len, int c)
+getident(simpctx_t ctx, simpptr_t port, size_t *len, int c)
 {
 	size_t size;
 	char *buf;
 
 	size = STRBUFSIZE;
-	if ((buf = malloc(size)) == NULL) {
+	if ((buf = MALLOC(size)) == NULL) {
 		warn(ctx, "allocation error");
 		return NULL;
 	}
@@ -612,30 +664,31 @@ getident(simp_context ctx, simp_cell port, size_t *len, int c)
 	while (!isdelimiter(c)) {
 		if (*len + 1 >= size) {
 			size <<= 2;
-			if ((buf = xrealloc(buf, size)) == NULL) {
+			if ((buf = REALLOC(buf, size)) == NULL) {
+				free(buf);
 				warn(ctx, "allocation error");
 				return NULL;
 			}
 		}
 		buf[(*len)++] = c;
-		c = xgetc(port);
+		c = readbyte(ctx, port);
 	}
-	xungetc(port, c);
+	unreadbyte(ctx, port, c);
 	buf[*len] = '\0';
 	return buf;
 }
 
 static int
-gettok(simp_context ctx, simp_cell port, char **tok, size_t *len)
+gettok(simpctx_t ctx, simpptr_t port, char **tok, size_t *len)
 {
 	int ret, c;
 
 	*tok = NULL;
 	*len = 0;
-	while ((c = xgetc(port)) != EOF && isspace((unsigned char)c))
+	while ((c = readbyte(ctx, port)) != EOF && isspace((unsigned char)c))
 		;
 	if (c == '#')
-		while ((c = xgetc(port)) != '\n' && c != EOF)
+		while ((c = readbyte(ctx, port)) != '\n' && c != EOF)
 			;
 	switch (c) {
 	case EOF:
@@ -655,7 +708,7 @@ gettok(simp_context ctx, simp_cell port, char **tok, size_t *len)
 		ret = TOK_STRING;
 		break;
 	case '+': case '-':
-		if (!isdecimal((unsigned int)peekc(port)))
+		if (!isdecimal((unsigned int)peekc(ctx, port)))
 			goto token;
 		/* FALLTHROUGH */
 	case '0': case '1': case '2': case '3': case '4':
@@ -674,333 +727,314 @@ token:
 	return ret;
 }
 
-static simp_cell
-newcell(simp_context ctx, int type)
+static int
+iseof(simpptr_t obj)
 {
-	simp_cell cell;
-
-	(void)ctx;              // TODO: garbage collection
-	if ((cell = malloc(sizeof(*cell))) == NULL)
-		return NULL;
-	cell->type = type;
-	return cell;
+	return SIMP_IS_SAME(obj, SIMP_IMM_EOF);
 }
 
-static simp_cell
-newfixnum(simp_context ctx, size_t fixnum)
+static int
+isfalse(simpptr_t obj)
 {
-	simp_cell cell;
-
-	if ((cell = newcell(ctx, TYPE_FIXNUM)) == NULL)
-		goto error;
-	cell->v.fixnum = fixnum;
-	return cell;
-error:
-	warn(ctx, "allocation error");
-	return NULL;
+	return SIMP_IS_SAME(obj, SIMP_IMM_FALSE);
 }
 
-static simp_cell
-newstr(simp_context ctx, char *tok, size_t len)
+static int
+istrue(simpptr_t obj)
 {
-	simp_cell cell;
-	char *sp;
-
-	if ((sp = malloc(len + 1)) == NULL)
-		goto error;
-	memcpy(sp, tok, len);
-	sp[len] = '\0';
-	if ((cell = newcell(ctx, TYPE_STRING)) == NULL)
-		goto error;
-	cell->v.str.sp = sp;
-	cell->v.str.len = len;
-	return cell;
-error:
-	warn(ctx, "allocation error");
-	return NULL;
+	return SIMP_IS_SAME(obj, SIMP_IMM_TRUE);
 }
 
-static simp_cell
-newvector(simp_context ctx, size_t len, simp_cell value)
+static int
+isnil(simpptr_t obj)
 {
-	simp_cell cell;
-	simp_cell *arr;
-	size_t i;
-
-	if (len == 0)
-		return simp_nil;
-	if ((cell = newcell(ctx, TYPE_VECTOR)) == NULL)
-		goto error;
-	if ((arr = calloc(len, sizeof(*arr))) == NULL)
-		goto error;
-	if (value != NULL)
-		for (i = 0; i < len; i++)
-			arr[i] = value;
-	cell->v.vector.arr = arr;
-	cell->v.vector.len = len;
-	return cell;
-error:
-	warn(ctx, "allocation error");
-	return NULL;
+	return SIMP_IS_SAME(obj, SIMP_IMM_NIL);
 }
 
-static simp_cell
-newport(simp_context ctx, void *p, int type)
+static int
+isvector(simpptr_t obj)
 {
-	simp_cell cell;
+	return isnil(obj) || (SIMP_IS_HEAPOBJ(obj) && SIMP_GET_MEMTAG(obj) == SIMP_MEMTAG_VECTOR);
+}
 
-	switch (type) {
-	case TYPE_INPUT_STREAM:
-	case TYPE_OUTPUT_STREAM:
-		if ((cell = newcell(ctx, type)) == NULL)
-			goto error;
-		cell->v.fport.fp = (FILE *)p;
-		cell->v.fport.lineno = 0;
-		break;
-	case TYPE_INPUT_STRING:
-	case TYPE_OUTPUT_STRING:
-		if ((cell = newcell(ctx, type)) == NULL)
-			goto error;
-		cell->v.sport.start = (char *)p;
-		cell->v.sport.curr = cell->v.sport.start;
-		break;
-	}
-	return cell;
-error:
-	warn(ctx, "allocation error");
-	return NULL;
+static simpptr_t
+newstr(simpctx_t ctx, char *tok, simpint_t len, usimpint_t attrs)
+{
+	simpptr_t obj;
+
+	(void)ctx;
+	obj = SIMP_PACK_HEAPOBJ(MALLOCALIGN(SIMP_CALCSIZE_STRING(len)));
+	MEMCPY(SIMP_ACCESS_REST(obj), tok, len + 1);           /* +1 for '\0' */
+	SIMP_ACCESS_HEADER(obj) = SIMP_MEMTAG_STRING | attrs;
+	SIMP_ACCESS_NMEMB(obj) = len;
+	return obj;
+}
+
+static simpptr_t
+newvector(simpctx_t ctx, simpint_t len, simpptr_t fill, usimpint_t attrs)
+{
+	simpptr_t obj;
+	simpint_t i;
+
+	(void)ctx;
+	obj = SIMP_PACK_HEAPOBJ(MALLOCALIGN(SIMP_CALCSIZE_VECTOR(len)));
+	SIMP_ACCESS_HEADER(obj) = SIMP_MEMTAG_VECTOR | attrs;
+	SIMP_ACCESS_NMEMB(obj) = len;
+	for (i = 0; i < len; i++)
+		SIMP_ACCESS_VECTOR(obj)[i] = fill;
+	return obj;
+}
+
+static simpptr_t
+newport(simpctx_t ctx, void *p, usimpint_t attrs)
+{
+	simpptr_t obj;
+
+	(void)ctx;
+	obj = SIMP_PACK_HEAPOBJ(MALLOCALIGN(SIMP_CALCSIZE_PORT(1)));
+	SIMP_ACCESS_HEADER(obj) = SIMP_MEMTAG_PORT | attrs;
+	SIMP_ACCESS_LINENO(obj) = 0;
+	SIMP_ACCESS_PORT(obj) = p;
+	return obj;
 }
 
 static void
-vector_set(simp_context ctx, simp_cell vector, size_t index, simp_cell value)
+vector_set(simpctx_t ctx, simpptr_t vector, simpint_t index, simpptr_t value)
 {
 	(void)ctx;
-	vector->v.vector.arr[index] = value;
+	SIMP_ACCESS_VECTOR(vector)[index] = value;
 }
 
-static simp_cell
-vector_ref(simp_context ctx, simp_cell vector, size_t index)
+static simpptr_t
+vector_ref(simpctx_t ctx, simpptr_t vector, simpint_t index)
 {
 	(void)ctx;
-	return vector->v.vector.arr[index];
+	return SIMP_ACCESS_VECTOR(vector)[index];
 }
 
-static size_t
-vector_len(simp_context ctx, simp_cell vector)
+static simpint_t
+vector_len(simpctx_t ctx, simpptr_t vector)
 {
 	(void)ctx;
-	return vector->v.vector.len;
+	return SIMP_ACCESS_NMEMB(vector);
+}
+
+static simpint_t
+string_len(simpctx_t ctx, simpptr_t str)
+{
+	(void)ctx;
+	return SIMP_ACCESS_NMEMB(str);
 }
 
 static void
-set_car(simp_context ctx, simp_cell pair, simp_cell value)
+set_car(simpctx_t ctx, simpptr_t pair, simpptr_t value)
 {
 	vector_set(ctx, pair, 0, value);
 }
 
 static void
-set_cdr(simp_context ctx, simp_cell pair, simp_cell value)
+set_cdr(simpctx_t ctx, simpptr_t pair, simpptr_t value)
 {
 	vector_set(ctx, pair, 1, value);
 }
 
-static simp_cell
-cons(simp_context ctx, simp_cell a, simp_cell b)
+static simpptr_t
+cons(simpctx_t ctx, simpptr_t a, simpptr_t b)
 {
-	simp_cell pair;
+	simpptr_t pair;
 
-	pair = newvector(ctx, 2, NULL);
+	pair = newvector(ctx, 2, SIMP_IMM_UNDEF, 0);
 	set_car(ctx, pair, a);
 	set_cdr(ctx, pair, b);
 	return pair;
 }
 
-static simp_cell
-car(simp_context ctx, simp_cell pair)
+static simpptr_t
+car(simpctx_t ctx, simpptr_t pair)
 {
 	return vector_ref(ctx, pair, 0);
 }
 
-static simp_cell
-cdr(simp_context ctx, simp_cell pair)
+static simpptr_t
+cdr(simpctx_t ctx, simpptr_t pair)
 {
 	return vector_ref(ctx, pair, 1);
 }
 
-static simp_cell
-newsym(simp_context ctx, char *tok, size_t len)
+static simpptr_t
+newsym(simpctx_t ctx, char *tok, simpint_t len)
 {
-	simp_cell pair, list, sym;
-	size_t bucket;
-	char *sp;
+	simpptr_t pair, list, sym;
+	simpint_t bucket;
 
 	bucket = symtabhash(tok, len);
 	list = vector_ref(ctx, ctx->symtab, bucket);
-	for (pair = list; !simp_nil_p(ctx, pair); pair = cdr(ctx, pair)) {
+	for (pair = list; !isnil(pair); pair = cdr(ctx, pair)) {
 		sym = car(ctx, pair);
-		if (memcmp(tok, sym->v.str.sp, len) == 0) {
+		if (memcmp(tok, SIMP_ACCESS_STRING(sym), len) == 0) {
 			return sym;
 		}
 	}
-	if ((sym = newcell(ctx, TYPE_SYMBOL)) == NULL)
-		goto error;
-	if ((sp = malloc(len + 1)) == NULL)
-		goto error;
-	memcpy(sp, tok, len);
-	sp[len] = '\0';
-	sym->v.str.sp = sp;
-	sym->v.str.len = len;
+	sym = newstr(ctx, tok, len, 0);
+	SIMP_ACCESS_HEADER(sym) = SIMP_MEMTAG_STRING | SIMP_STRING_ISSYMBOL;
 	pair = cons(ctx, sym, list);
 	vector_set(ctx, ctx->symtab, bucket, pair);
 	list = vector_ref(ctx, ctx->symtab, bucket);
 	return sym;
-error:
-	warn(ctx, "allocation error");
-	return NULL;
 }
 
-static simp_cell
-fillvector(simp_context ctx, size_t len)
+static simpptr_t
+fillvector(simpctx_t ctx, simpint_t len)
 {
-	simp_cell vector;
-	size_t i;
+	simpptr_t vector;
+	simpint_t i;
 
 	if (len == 0)
-		return simp_nil;
-	vector = newvector(ctx, len, NULL);
+		return SIMP_IMM_NIL;
+	vector = newvector(ctx, len, NULL, SIMP_VECTOR_ISMUTABLE);
 	for (i = 0; i < len; i++) {
-		vector_set(ctx, vector, len - i - 1, car(ctx, ctx->cellstack));
-		ctx->cellstack = cdr(ctx, ctx->cellstack);
+		vector_set(ctx, vector, len - i - 1, car(ctx, ctx->readstack));
+		ctx->readstack = cdr(ctx, ctx->readstack);
 	}
 	return vector;
 }
 
-static void
-newvirtualvector(simp_context ctx)
+static simpint_t
+incrvectorstack(simpctx_t ctx)
 {
-	simp_cell parent, vector, vhead, size;
+	simpint_t n;
 
-	ctx->cellstack = cons(ctx, simp_nil, ctx->cellstack);
+	/* increment count of elements in vector stack; return new count */
+	n = SIMP_UNPACK_FIXNUM(vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB));
+	n++;
+	vector_set(ctx, ctx->vectorstack, VECTORSTACK_NMEMB, SIMP_PACK_FIXNUM(n));
+	return n;
+}
+
+static void
+newvirtualvector(simpctx_t ctx)
+{
+	simpptr_t parent, vector, vhead;
+	simpint_t newcnt;
+
+	ctx->readstack = cons(ctx, SIMP_IMM_NIL, ctx->readstack);
 	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
-	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
-	size->v.fixnum++;
-	vector = fillvector(ctx, size->v.fixnum);
+	newcnt = incrvectorstack(ctx);
+	vector = fillvector(ctx, newcnt);
 	ctx->vectorstack = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NEXT);
-	if (simp_nil_p(ctx, parent))
-		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
+	if (isnil(parent))
+		ctx->readstack = cons(ctx, vector, cdr(ctx, ctx->readstack));
 	else
 		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
-	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL);
-	size = newfixnum(ctx, 0);
+	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL, SIMP_VECTOR_ISMUTABLE);
 	vector_set(ctx, vhead, VECTORSTACK_PARENT, vector);
-	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
-	vector_set(ctx, vhead, VECTORSTACK_ISLIST, simp_true);
+	vector_set(ctx, vhead, VECTORSTACK_NMEMB, SIMP_PACK_FIXNUM(0));
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, SIMP_IMM_TRUE);
 	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
 	ctx->vectorstack = vhead;
 }
 
 static void
-gotobject(simp_context ctx, simp_cell cell)
+gotobject(simpctx_t ctx, simpptr_t obj)
 {
-	simp_cell size;
-
-	ctx->cellstack = cons(ctx, cell, ctx->cellstack);
-	if (ctx->vectorstack != simp_nil) {
-		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
-		size->v.fixnum++;
+	ctx->readstack = cons(ctx, obj, ctx->readstack);
+	if (!isnil(ctx->vectorstack)) {
+		incrvectorstack(ctx);
 	}
 }
 
 static void
-gotldelim(simp_context ctx, int isparens)
+gotldelim(simpctx_t ctx, int isparens)
 {
-	simp_cell vhead, size;
+	simpptr_t vhead;
 
-	/* push simp_nil into cellstack */
-	ctx->cellstack = cons(ctx, simp_nil, ctx->cellstack);
-	if (!simp_nil_p(ctx, ctx->vectorstack)) {
-		size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
-		size->v.fixnum++;
-	}
-	size = newfixnum(ctx, 0);
-	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL);
-	vector_set(ctx, vhead, VECTORSTACK_PARENT, simp_nil);
-	vector_set(ctx, vhead, VECTORSTACK_NMEMB, size);
-	vector_set(ctx, vhead, VECTORSTACK_ISLIST, isparens ? simp_true : simp_false);
+	ctx->readstack = cons(ctx, SIMP_IMM_NIL, ctx->readstack);
+	if (!isnil(ctx->vectorstack))
+		incrvectorstack(ctx);
+	vhead = newvector(ctx, VECTORSTACK_SIZE, NULL, SIMP_VECTOR_ISMUTABLE);
+	vector_set(ctx, vhead, VECTORSTACK_PARENT, SIMP_IMM_NIL);
+	vector_set(ctx, vhead, VECTORSTACK_NMEMB, SIMP_PACK_FIXNUM(0));
+	vector_set(ctx, vhead, VECTORSTACK_ISLIST, isparens ? SIMP_IMM_TRUE : SIMP_IMM_FALSE);
 	vector_set(ctx, vhead, VECTORSTACK_NEXT, ctx->vectorstack);
 	ctx->vectorstack = vhead;
 }
 
 static void
-gotrdelim(simp_context ctx)
+gotrdelim(simpctx_t ctx)
 {
-	simp_cell parent, vector, size;
+	simpptr_t parent, vector;
+	simpint_t cnt;
 
-	size = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB);
+	cnt = SIMP_UNPACK_FIXNUM(vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NMEMB));
 	parent = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_PARENT);
 	ctx->vectorstack = vector_ref(ctx, ctx->vectorstack, VECTORSTACK_NEXT);
-	if (size->v.fixnum == 0)
+	if (cnt == 0)
 		return;
-	vector = fillvector(ctx, size->v.fixnum);
-	if (!simp_nil_p(ctx, parent)) {
+	vector = fillvector(ctx, cnt);
+	if (!isnil(parent)) {
 		vector_set(ctx, parent, vector_len(ctx, parent) - 1, vector);
 	} else {
-		ctx->cellstack = cons(ctx, vector, cdr(ctx, ctx->cellstack));
+		ctx->readstack = cons(ctx, vector, cdr(ctx, ctx->readstack));
 	}
 }
 
-int
-simp_eof_p(simp_context ctx, simp_cell cell)
+static void
+putstr(simpctx_t ctx, simpptr_t port, simpptr_t obj)
 {
-	(void)ctx;
-	return cell == simp_eof;
+	simpint_t i;
+	int c;
+
+	for (i = 0; i < string_len(ctx, obj); i++) {
+		c = SIMP_ACCESS_STRING(obj)[i];
+		switch (c) {
+		case '\"':
+			PRINT(SIMP_ACCESS_PORT(port), "\\\"");
+			break;
+		case '\a':
+			PRINT(SIMP_ACCESS_PORT(port), "\\a");
+			break;
+		case '\b':
+			PRINT(SIMP_ACCESS_PORT(port), "\\b");
+			break;
+		case '\033':
+			PRINT(SIMP_ACCESS_PORT(port), "\\e");
+			break;
+		case '\f':
+			PRINT(SIMP_ACCESS_PORT(port), "\\f");
+			break;
+		case '\n':
+			PRINT(SIMP_ACCESS_PORT(port), "\\n");
+			break;
+		case '\r':
+			PRINT(SIMP_ACCESS_PORT(port), "\\r");
+			break;
+		case '\t':
+			PRINT(SIMP_ACCESS_PORT(port), "\\t");
+			break;
+		case '\v':
+			PRINT(SIMP_ACCESS_PORT(port), "\\v");
+			break;
+		default:
+			if (iscntrl(c)) {
+				PRINT(SIMP_ACCESS_PORT(ctx->oport), "\\x%x", c);
+			} else {
+				PRINT(SIMP_ACCESS_PORT(ctx->oport), "%c", c);
+			}
+			break;
+		}
+	}
 }
 
-int
-simp_void_p(simp_context ctx, simp_cell cell)
+static simpptr_t
+simp_read(simpctx_t ctx)
 {
-	(void)ctx;
-	return cell == simp_void;
-}
-
-int
-simp_true_p(simp_context ctx, simp_cell cell)
-{
-	(void)ctx;
-	return cell == simp_true;
-}
-
-int
-simp_false_p(simp_context ctx, simp_cell cell)
-{
-	(void)ctx;
-	return cell == simp_false;
-}
-
-int
-simp_nil_p(simp_context ctx, simp_cell cell)
-{
-	(void)ctx;
-	return cell == simp_nil;
-}
-
-int
-simp_vector_p(simp_context ctx, simp_cell cell)
-{
-	(void)ctx;
-	return cell->type == TYPE_VECTOR;
-}
-
-simp_cell
-simp_read(simp_context ctx)
-{
-	size_t len;
-	char *tok;
+	simpint_t len;
 	int toktype, prevtok;
+	char *tok;
 
 	/*
 	 * In order to make the reading process iterative (rather than
-	 * recursive), we need to keep two stacks: one for the cells
+	 * recursive), we need to keep two stacks: one for the objs
 	 * being read and one for the vectors/lists/pairs we created
 	 * while reading.
 	 *
@@ -1012,14 +1046,14 @@ simp_read(simp_context ctx)
 	 *                  Example 1: reading (a b)
 	 *                  ========================
 	 *
-	 * (0) Before reading, both the vector stack and the cell
+	 * (0) Before reading, both the vector stack and the read
 	 * stack are empty.
 	 *
-	 *      cellstack----> nil
+	 *      readstack----> nil
 	 *      vectorstack--> nil
 	 *
 	 * (1) We read a "(".  We call gotldelim(), which creates a new
-	 * empty vector (nil), and pushes it into the cell stack.  Since
+	 * empty vector (nil), and pushes it into the read stack.  Since
 	 * we're building a vector, we push four objects into the vector
 	 * stack: the parent of the vector if it is virtual (nil, in
 	 * this case), the current number of elements (zero), and
@@ -1027,7 +1061,7 @@ simp_read(simp_context ctx)
 	 * than with a square bracket (which is true in this case).
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| / | / |
+	 *      readstack---->| / | / |
 	 *                    `-------'
 	 *                    ,---------------.
 	 *      vectorstack-->| / | 0 | #t| / |
@@ -1037,12 +1071,12 @@ simp_read(simp_context ctx)
 	 * virtual is false and a new virtual vector is not created.
 	 *
 	 * (3) We read an "a".  We call gotobject(), which gets a new
-	 * symbol for "a" and pushes it into the cell stack.  Since we
+	 * symbol for "a" and pushes it into the read stack.  Since we
 	 * added a new object to a vector, we increment the count of
 	 * objects in the 4-tuple at the top of the vectorstack.
 	 *
 	 *                    ,-------.   ,-------.
-	 *      cellstack---->| a | +---->| / | / |
+	 *      readstack---->| a | +---->| / | / |
 	 *                    `-------'   `-------'
 	 *                    ,---------------.
 	 *      vectorstack-->| / | 1 | #t| / |
@@ -1056,11 +1090,11 @@ simp_read(simp_context ctx)
 	 * are implemented):
 	 *
 	 * (4.1) We get a new empty vector (nil), and push it into the
-	 * cell stack.  We also increment the counting of objects in the
+	 * read stack.  We also increment the counting of objects in the
 	 * 4-tuple at the top of the vectorstack.
 	 *
 	 *                    ,-------.   ,-------.   ,-------.
-	 *      cellstack---->| / | +---->| a | +---->| / | / |
+	 *      readstack---->| / | +---->| a | +---->| / | / |
 	 *                    `-------'   `-------'   `-------'
 	 *                    ,---------------.
 	 *      vectorstack-->| / | 2 | #t| / |
@@ -1068,7 +1102,7 @@ simp_read(simp_context ctx)
 	 *
 	 * (4.2) We create a new vector whose size is equal to the
 	 * counter of objects in the 4-tuple at the top of the
-	 * vectorstack, we pop this much entries from the cell stack and
+	 * vectorstack, we pop this much entries from the read stack and
 	 * fill them into the new created vector (in reverse order).
 	 * We can then pop the vectorstack.  We save the object pointed
 	 * to by the VECTORSTACK_PARENT field of the top vector in the
@@ -1079,16 +1113,16 @@ simp_read(simp_context ctx)
 	 *      newvector---->| a | / |
 	 *                    `-------'
 	 *                    ,-------.
-	 *      cellstack---->| / | / |
+	 *      readstack---->| / | / |
 	 *                    `-------'
 	 *      vectorstack-->nil
 	 *
 	 * (4.3) We're in the case where parent is nil, so we pop the
-	 * cellstack and push newvector into it.
+	 * readstack and push newvector into it.
 	 *
 	 *      parent------->nil
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1098,14 +1132,14 @@ simp_read(simp_context ctx)
 	 *      vectorstack-->nil
 	 *
 	 * (4.4) We push a new 4-tuple vector into the vectorstack, to
-	 * indicate we're build a new vector into the cell stack.  This
+	 * indicate we're build a new vector into the read stack.  This
 	 * 4-tuple has the following information:
 	 * - The vector we just built in the VECTORSTACK_PARENT field
 	 * - zero in the VECTORSTACK_NMEMB field.
 	 * - true in the VECTORSTACK_ISLIST field (we're in a list).
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1119,12 +1153,12 @@ simp_read(simp_context ctx)
 	 *                    `---------------'
 	 *
 	 * (5) We read an "b".  We get a new symbol for "b" and push it
-	 * into the cell stack.  Since we added a new object to a
+	 * into the read stack.  Since we added a new object to a
 	 * vector, we increment the count of objects in the 4-tuple at
 	 * the top of the vectorstack.
 	 *
 	 *                    ,-------.   ,-------.
-	 *      cellstack---->| b | +---->| + | / |
+	 *      readstack---->| b | +---->| + | / |
 	 *                    `-------'   `-|-----'
 	 *                                  |
 	 *                                  V
@@ -1142,11 +1176,11 @@ simp_read(simp_context ctx)
 	 * one.
 	 *
 	 * (6.1) We get a new empty vector (nil), and push it into the
-	 * cell stack.  We also increment the counting of objects in the
+	 * read stack.  We also increment the counting of objects in the
 	 * 4-tuple at the top of the vectorstack.
 	 *
 	 *                    ,-------.   ,-------.   ,-------.
-	 *      cellstack---->| / | +---->| b | +---->| + | / |
+	 *      readstack---->| / | +---->| b | +---->| + | / |
 	 *                    `-------'   `-------'   `-|-----'
 	 *                                              |
 	 *                                              V
@@ -1160,13 +1194,13 @@ simp_read(simp_context ctx)
 	 *                    `---------------'
 	 *
 	 * (6.2) We create a new 2-tuple vector, we pop this much
-	 * entries from the cell stack and fill them into the new
+	 * entries from the read stack and fill them into the new
 	 * created vector (in reverse order).  We then pop the
 	 * vectorstack, saving the object pointed to by the
 	 * VECTORSTACK_PARENT field into a parent variable.
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1182,7 +1216,7 @@ simp_read(simp_context ctx)
 	 * it's last element to the new created vector.
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1192,14 +1226,14 @@ simp_read(simp_context ctx)
 	 *      vectorstack-->nil
 	 *
 	 * (6.4) We push a new 4-tuple vector into the vectorstack, to
-	 * indicate we're build a new vector into the cell stack.  This
+	 * indicate we're build a new vector into the read stack.  This
 	 * 4-tuple has the following information:
 	 * - The vector we just built in the VECTORSTACK_PARENT field
 	 * - zero in the VECTORSTACK_NMEMB field.
 	 * - true in the VECTORSTACK_ISLIST field (we're in a list).
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1220,7 +1254,7 @@ simp_read(simp_context ctx)
 	 * step 8), that's the case.
 	 *
 	 *                    ,-------.
-	 *      cellstack---->| + | / |
+	 *      readstack---->| + | / |
 	 *                    `-|-----'
 	 *                      |
 	 *                      V
@@ -1232,23 +1266,23 @@ simp_read(simp_context ctx)
 	 *      size--------->0
 	 *      vectorstack-->nil
 	 *
-	 * (8) cellstack is not nil, and vectorstack is nil.  We exit
+	 * (8) readstack is not nil, and vectorstack is nil.  We exit
 	 * the while loop.  We then return from this function returning
-	 * the car() of the top element of cellstack.
+	 * the car() of the top element of readstack.
 	 *
 	 *                    ,-------.   ,-------.
 	 *      return:       | a | +---->| b | / |
 	 *                    `-------'   `-------'
 	 */
 
-	ctx->cellstack = simp_nil;
-	ctx->vectorstack = simp_nil;
+	ctx->readstack = SIMP_IMM_NIL;
+	ctx->vectorstack = SIMP_IMM_NIL;
 	toktype = TOK_DOT;
-	while (ctx->cellstack == simp_nil || ctx->vectorstack != simp_nil) {
+	while (isnil(ctx->readstack) || !isnil(ctx->vectorstack)) {
 		prevtok = toktype;
 		toktype = gettok(ctx, ctx->iport, &tok, &len);
-		if ((ctx->vectorstack == simp_nil ||
-		     simp_true_p(ctx, vector_ref(ctx, ctx->vectorstack, VECTORSTACK_ISLIST))) &&
+		if ((isnil(ctx->vectorstack) ||
+		     istrue(vector_ref(ctx, ctx->vectorstack, VECTORSTACK_ISLIST))) &&
 		    toktype != TOK_DOT &&
 		    toktype != TOK_EOF &&
 		    prevtok != TOK_LPAREN &&
@@ -1258,11 +1292,11 @@ simp_read(simp_context ctx)
 		}
 		switch (toktype) {
 		case TOK_EOF:
-			if (ctx->cellstack != simp_nil) {
+			if (!isnil(ctx->readstack)) {
 				fprintf(stderr, "unexpected EOF\n");
 				abort();
 			}
-			return simp_eof;
+			return SIMP_IMM_EOF;
 		case TOK_LPAREN:
 			gotldelim(ctx, 1);
 			break;
@@ -1279,13 +1313,13 @@ simp_read(simp_context ctx)
 			gotobject(ctx, newsym(ctx, tok, len));
 			break;
 		case TOK_STRING:
-			gotobject(ctx, newstr(ctx, tok, len));
+			gotobject(ctx, newstr(ctx, tok, len, 0));
 			break;
 		case TOK_NUMBER:
 			// TODO
 			break;
 		case TOK_DOT:
-			if (ctx->vectorstack == simp_nil) {
+			if (isnil(ctx->vectorstack)) {
 				fprintf(stderr, "unexpected '.'\n");
 				abort();
 			}
@@ -1300,119 +1334,118 @@ simp_read(simp_context ctx)
 		}
 		free(tok);
 	}
-	return car(ctx, ctx->cellstack);
+	return car(ctx, ctx->readstack);
 }
 
-simp_cell
-simp_eval(simp_context ctx, simp_cell cell)
+static simpptr_t
+simp_eval(simpctx_t ctx, simpptr_t obj)
 {
 	(void)ctx;
-	return cell;
+	return obj;
 }
 
-simp_cell
-simp_write(simp_context ctx, simp_cell cell)
+static void
+simp_write(simpctx_t ctx, simpptr_t obj)
 {
-	static char *representations[] = {
-		[TYPE_EOF]   = "#<eof>",
-		[TYPE_TRUE]  = "#<true>",
-		[TYPE_FALSE] = "#<false>",
-	};
-	simp_cell curr;
-	size_t len, i;
-	int space;
+	simpptr_t curr;
+	simpint_t len, i;
+	int printspace;
 
-	// TODO: make simp_write iterative/tail-recursive?
-
-	switch (cell->type) {
-	case TYPE_VOID:
+	if (SIMP_IS_CONSTANT(obj)) {
+		if (isfalse(obj))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "#<false>");
+		else if (istrue(obj))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "#<false>");
+		else if (iseof(obj))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "#<eof>");
+		else if (isnil(obj))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "()");
+		return;
+	}
+	if (SIMP_IS_FIXNUM(obj)) {
+		// TODO: print fixnum
+		return;
+	}
+	switch (SIMP_GET_MEMTAG(obj)) {
+	case SIMP_MEMTAG_PORT:
+		// TODO: print port;
 		break;
-	case TYPE_EOF:
-	case TYPE_TRUE:
-	case TYPE_FALSE:
-		xprintf(ctx->oport, "%s", representations[cell->type]);
+	case SIMP_MEMTAG_STRING:
+		if (!(SIMP_ACCESS_HEADER(obj) & SIMP_STRING_ISSYMBOL))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "\"");
+		putstr(ctx, ctx->oport, obj);
+		if (!(SIMP_ACCESS_HEADER(obj) & SIMP_STRING_ISSYMBOL))
+			PRINT(SIMP_ACCESS_PORT(ctx->oport), "\"");
 		break;
-	case TYPE_SYMBOL:
-		putstr(ctx, ctx->oport, cell);
+	case SIMP_MEMTAG_NUMBER:
+		// TODO: print bignum
 		break;
-	case TYPE_STRING:
-		xprintf(ctx->oport, "\"");
-		putstr(ctx, ctx->oport, cell);
-		xprintf(ctx->oport, "\"");
-		break;
-	case TYPE_INPUT_STREAM:
-		xprintf(ctx->oport, "#<input-port %p>", cell->v.fport.fp);
-		break;
-	case TYPE_INPUT_STRING:
-		xprintf(ctx->oport, "#<intput-port %p>", cell->v.sport.start);
-		break;
-	case TYPE_OUTPUT_STREAM:
-		xprintf(ctx->oport, "#<output-port %p>", cell->v.fport.fp);
-		break;
-	case TYPE_OUTPUT_STRING:
-		xprintf(ctx->oport, "#<output-port %p>", cell->v.sport.start);
-		break;
-	case TYPE_VECTOR:
-		if (simp_nil_p(ctx, cell)) {
-			xprintf(ctx->oport, "()");
-			break;
-		}
-		xprintf(ctx->oport, "(");
-		space = 0;
-		while (!simp_nil_p(ctx, cell)) {
-			if (simp_nil_p(ctx, cell))
-				break;
-			if (space)
-				xprintf(ctx->oport, " ");
-			space = 1;
-			len = vector_len(ctx, cell);
+	case SIMP_MEMTAG_VECTOR:
+		PRINT(SIMP_ACCESS_PORT(ctx->oport), "(");
+		printspace = 0;
+		while (!isnil(obj)) {
+			if (printspace)
+				PRINT(SIMP_ACCESS_PORT(ctx->oport), " ");
+			printspace = 1;
+			len = vector_len(ctx, obj);
 			for (i = 0; i < len; i++) {
-				curr = vector_ref(ctx, cell, i);
+				curr = vector_ref(ctx, obj, i);
 				if (i + 1 == len) {
-					if (i > 0 && simp_vector_p(ctx, curr)) {
-						cell = curr;
+					if (i > 0 && isvector(curr)) {
+						obj = curr;
 					} else {
 						if (i > 0)
-							xprintf(ctx->oport, " . ");
+							PRINT(SIMP_ACCESS_PORT(ctx->oport), " . ");
 						simp_write(ctx, curr);
-						xprintf(ctx->oport, " .");
-						cell = simp_nil;
+						PRINT(SIMP_ACCESS_PORT(ctx->oport), " .");
+						obj = SIMP_IMM_NIL;
 					}
 					break;
 				} else {
 					if (i > 0)
-						xprintf(ctx->oport, " . ");
+						PRINT(SIMP_ACCESS_PORT(ctx->oport), " . ");
 					simp_write(ctx, curr);
 				}
 			}
 		}
-		xprintf(ctx->oport, ")");
-		break;
-	default:
+		PRINT(SIMP_ACCESS_PORT(ctx->oport), ")");
 		break;
 	}
-	return simp_void;
 }
 
-simp_context
-simp_init(void)
+simpctx_t
+simp_init(FILE *ifp, FILE *ofp, FILE *efp)
 {
-	simp_context ctx;
+	simpctx_t ctx;
 
 	if ((ctx = malloc(sizeof(*ctx))) == NULL) {
 		warn(ctx, "allocation error");
 		return NULL;
 	}
-	ctx->symtab = newvector(ctx, SYMTABSIZE, simp_nil);
-	ctx->cellstack = simp_nil;
-	ctx->vectorstack = simp_nil;
+	ctx->iport = newport(ctx, ifp, SIMP_PORT_ISOPEN | SIMP_PORT_ISREADING);
+	ctx->oport = newport(ctx, ofp, SIMP_PORT_ISOPEN | SIMP_PORT_ISWRITING);
+	ctx->eport = newport(ctx, efp, SIMP_PORT_ISOPEN | SIMP_PORT_ISWRITING);
+	ctx->symtab = newvector(ctx, SYMTABSIZE, SIMP_IMM_NIL, SIMP_VECTOR_ISMUTABLE);
+	ctx->readstack = SIMP_IMM_NIL;
+	ctx->vectorstack = SIMP_IMM_NIL;
 	return ctx;
 }
 
 void
-simp_interactive(simp_context ctx, FILE *ifp, FILE *ofp, FILE *efp)
+simp_repl(simpctx_t ctx)
 {
-	ctx->iport = newport(ctx, ifp, TYPE_INPUT_STREAM);
-	ctx->oport = newport(ctx, ofp, TYPE_OUTPUT_STREAM);
-	ctx->eport = newport(ctx, efp, TYPE_OUTPUT_STREAM);
+	simpptr_t obj;
+
+	while (PRINT(SIMP_ACCESS_PORT(ctx->oport), "> "), !iseof(obj = simp_read(ctx))) {
+		obj = simp_eval(ctx, obj);
+		simp_write(ctx, obj);
+		PRINT(SIMP_ACCESS_PORT(ctx->oport), "\n");
+	}
+}
+
+void
+simp_clean(simpctx_t ctx)
+{
+	(void)ctx;
+	// TODO: clean context
 }

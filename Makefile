@@ -5,7 +5,8 @@ CMDSRCS = bin/simp.c
 AR      = lib/libsimp.a
 SO      = lib/libsimp.so
 LIBOBJS = lib/simp.o
-LIBSRCS = lib/simp.c
+LIBINCS = lib/posix.h
+LIBSRCS = lib/simp.c ${LIBINCS}
 
 INCS    = include/simp.h
 
@@ -16,13 +17,14 @@ all: cmd
 cmd: ${CMD}
 lib: ${AR} ${SO}
 
-${CMDOBJS}: ${INCS}
-
 ${CMD}: ${CMDOBJS} ${LIBOBJS}
 	${CC} -o $@ ${CMDOBJS} ${LIBOBJS} ${LDFLAGS}
 
 .c.o:
 	${CC} -Iinclude ${CFLAGS} ${CPPFLAGS} -o $@ -c $<
+
+${CMDOBJS}: ${INCS} ${CMDINCS}
+${LIBOBJS}: ${INCS} ${LIBINCS}
 
 tags: ${SRCS}
 	ctags ${SRCS}
