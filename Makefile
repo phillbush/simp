@@ -1,35 +1,23 @@
-CMD     = bin/simp
-CMDOBJS = bin/simp.o
-CMDSRCS = bin/simp.c
+PROG = simp
 
-AR      = lib/libsimp.a
-SO      = lib/libsimp.so
-LIBOBJS = lib/simp.o
-LIBINCS = lib/posix.h
-LIBSRCS = lib/simp.c ${LIBINCS}
+OBJS = simp.o\
+       data.o\
+       port.o\
+       context.o\
+       repl.o
 
-INCS    = include/simp.h
+all: ${PROG}
 
-OBJS = ${CMDOBJS} ${LIBOBJS}
-SRCS = ${CMDSRCS} ${LIBSRCS} ${INCS}
-
-all: cmd
-cmd: ${CMD}
-lib: ${AR} ${SO}
-
-${CMD}: ${CMDOBJS} ${LIBOBJS}
-	${CC} -o $@ ${CMDOBJS} ${LIBOBJS} ${LDFLAGS}
+simp: ${OBJS}
+	${CC} -o $@ ${OBJS} -lm ${LDFLAGS}
 
 .c.o:
-	${CC} -Iinclude ${CFLAGS} ${CPPFLAGS} -o $@ -c $<
+	${CC} -std=c99 -pedantic -D_POSIX_C_SOURCE=200809L\
+	${CFLAGS} ${CPPFLAGS} -o $@ -c $<
 
-${CMDOBJS}: ${INCS} ${CMDINCS}
-${LIBOBJS}: ${INCS} ${LIBINCS}
-
-tags: ${SRCS}
-	ctags ${SRCS}
+${OBJS}: common.h
 
 clean:
-	rm -f ${OBJS} ${CMD} ${LIB} tags
+	rm -f ${OBJS} ${PROG} ${PROG:=.core} tags
 
 .PHONY: all tags clean
