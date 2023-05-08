@@ -20,7 +20,7 @@ simp_contextnew(void)
 {
 	Simp ctx;
 	Simp membs[NCONTEXTS];
-	Size i;
+	SSimp i;
 
 	ctx = simp_makevector(simp_nil(), NCONTEXTS, simp_nil());
 	membs[CONTEXT_IPORT] = simp_openstream(simp_nil(), stdin, "r");
@@ -33,11 +33,11 @@ simp_contextnew(void)
 }
 
 Simp
-simp_contextintern(Simp ctx, Byte *src, Size size)
+simp_contextintern(Simp ctx, unsigned char *src, SSimp size)
 {
 	Simp list, prev, pair, symtab, sym;
-	Size i, bucket, len;
-	Byte *dst;
+	SSimp i, bucket, len;
+	unsigned char *dst;
 
 	symtab = simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
 	bucket = 0;

@@ -5,7 +5,7 @@
 
 #include "simp.h"
 
-struct Port {
+typedef struct Port {
 	enum {
 		PORT_STREAM,
 	} type;
@@ -19,10 +19,10 @@ struct Port {
 	union {
 		FILE   *fp;
 	} u;
-	Size nlines;
-};
+	SSimp nlines;
+} Port;
 
-static Bool
+static int
 canread(Port *port)
 {
 	return (port->mode & PORT_OPEN) &&
@@ -49,11 +49,11 @@ simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 	va_end(ap);
 }
 
-RByte
+int
 simp_readbyte(Simp ctx, Simp obj)
 {
 	Port *port = simp_getport(ctx, obj);
-	RByte byte = NOTHING;
+	int byte = NOTHING;
 	FILE *fp;
 	int c;
 
@@ -79,7 +79,7 @@ simp_readbyte(Simp ctx, Simp obj)
 }
 
 void
-simp_unreadbyte(Simp ctx, Simp obj, RByte c)
+simp_unreadbyte(Simp ctx, Simp obj, int c)
 {
 	Port *port;
 	FILE *fp;
@@ -95,10 +95,10 @@ simp_unreadbyte(Simp ctx, Simp obj, RByte c)
 	}
 }
 
-RByte
+int
 simp_peekbyte(Simp ctx, Simp obj)
 {
-	RByte c;
+	int c;
 
 	c = simp_readbyte(ctx, obj);
 	simp_unreadbyte(ctx, obj, c);
@@ -110,7 +110,7 @@ simp_openstream(Simp ctx, void *p, char *s)
 {
 	FILE *stream = (FILE *)p;
 	Port *port;
-	Fixnum mode = PORT_OPEN;
+	int mode = PORT_OPEN;
 
 	if (strchr(s, 'w') != NULL)
 		mode |= PORT_WRITE;
@@ -127,7 +127,7 @@ simp_openstream(Simp ctx, void *p, char *s)
 	return simp_makeport(ctx, port);
 }
 
-Bool
+int
 simp_porteof(Simp ctx, Simp obj)
 {
 	Port *port;
@@ -137,7 +137,7 @@ simp_porteof(Simp ctx, Simp obj)
 	return port->mode & PORT_EOF;
 }
 
-Bool
+int
 simp_porterr(Simp ctx, Simp obj)
 {
 	Port *port;

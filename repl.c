@@ -32,53 +32,53 @@ struct Token {
 		TOK_IDENTIFIER,
 	}       type;
 	union {
-		Signum          fixnum;
-		Real            real;
+		SSimp          fixnum;
+		double            real;
 		struct {
-			Byte   *str;
-			Size    len;
+			unsigned char   *str;
+			SSimp    len;
 		} str;
 	} u;
 };
 
 static Simp toktoobj(Simp ctx, Simp port, Token tok);
 
-static Bool
-cisdecimal(RByte c)
+static int
+cisdecimal(int c)
 {
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9';
 }
 
-static Bool
-cisspace(RByte c)
+static int
+cisspace(int c)
 {
 	return c == '\f' || c == '\n' || c == '\r' ||
                c == '\t' || c == '\v' || c == ' ';
 }
 
-static Bool
-cisdelimiter(RByte c)
+static int
+cisdelimiter(int c)
 {
 	return cisspace(c)  || c == '"' || c == '(' || c == ')' ||
 	       c == NOTHING || c == '#' || c == '[' || c == ']';
 }
 
-static Bool
-ciscntrl(RByte c)
+static int
+ciscntrl(int c)
 {
 	return c == '\x7f' || (c >= '\x00' && c <= '\x1f');
 }
 
-static Bool
-cisoctal(RByte c)
+static int
+cisoctal(int c)
 {
 	return c == '\0' || c == '\1' || c == '\2' || c == '\3' ||
 	       c == '\4' || c == '\5' || c == '\6' || c == '\7';
 }
 
-static Bool
-cishex(RByte c)
+static int
+cishex(int c)
 {
 	return c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
 	       c == '5' || c == '6' || c == '7' || c == '8' || c == '9' ||
@@ -87,8 +87,8 @@ cishex(RByte c)
 	       c == 'e' || c == 'f';
 }
 
-static Byte
-ctoi(RByte c)
+static unsigned char
+ctoi(int c)
 {
 	switch (c) {
 	case '0': case '1': case '2': case '3': case '4':
@@ -110,8 +110,8 @@ ctoi(RByte c)
 	return 0;
 }
 
-static Bool
-cisnum(RByte c, enum Numtype type, Signum *num)
+static int
+cisnum(int c, enum Numtype type, SSimp *num)
 {
 	switch (type) {
 	case NUM_BINARY:
@@ -143,12 +143,12 @@ cisnum(RByte c, enum Numtype type, Signum *num)
 	}
 }
 
-static RByte
+static int
 readbyte(Simp ctx, Simp port)
 {
-	Size i = 0;
-	RByte c = NOTHING;
-	Byte u = 0;
+	SSimp i = 0;
+	int c = NOTHING;
+	unsigned char u = 0;
 
 	if ((c = simp_readbyte(ctx, port)) == NOTHING)
 		return c;
@@ -214,9 +214,9 @@ loop:
 static Token
 readstr(Simp ctx, Simp port)
 {
-	Size size, len;
-	Byte *str, *p;
-	RByte c;
+	SSimp size, len;
+	unsigned char *str, *p;
+	int c;
 
 	len = 0;
 	size = STRBUFSIZE;
@@ -248,16 +248,16 @@ readstr(Simp ctx, Simp port)
 }
 
 static Token
-readnum(Simp ctx, Simp port, RByte c)
+readnum(Simp ctx, Simp port, int c)
 {
 	enum Numtype numtype = NUM_DECIMAL;
-	Real floatn = 0.0;
-	Real expt = 0.0;
-	Signum n = 0;
-	Signum base = 0;
-	Signum basesign = 1;
-	Signum exptsign = 1;
-	Bool isfloat = FALSE;
+	double floatn = 0.0;
+	double expt = 0.0;
+	SSimp n = 0;
+	SSimp base = 0;
+	SSimp basesign = 1;
+	SSimp exptsign = 1;
+	int isfloat = FALSE;
 
 	if (c == '+') {
 		c = simp_readbyte(ctx, port);
@@ -369,11 +369,11 @@ done:
 }
 
 static Token
-readident(Simp ctx, Simp port, RByte c)
+readident(Simp ctx, Simp port, int c)
 {
-	Size size = STRBUFSIZE;
-	Size len = 0;
-	Byte *str, *p;
+	SSimp size = STRBUFSIZE;
+	SSimp len = 0;
+	unsigned char *str, *p;
 
 	if ((str = malloc(size)) == NULL)
 		return (Token){.type = TOK_ERROR};
@@ -457,8 +457,8 @@ readlist(Simp ctx, Simp port)
 	Simp last = simp_nil();
 	Simp beg = simp_nil();
 	Simp vect, fst, obj;
-	Size i;
-	Bool gotdot = FALSE;
+	SSimp i;
+	int gotdot = FALSE;
 
 	for (;;) {
 		tok = readtok(ctx, port);
@@ -531,7 +531,7 @@ readvector(Simp ctx, Simp port)
 	Simp list = simp_nil();
 	Simp last = simp_nil();
 	Simp vect, pair, obj;
-	Size nitems, i;
+	SSimp nitems, i;
 
 	nitems = 0;
 	for (;;) {
@@ -621,7 +621,7 @@ simp_printbyte(Simp ctx, Simp port, Simp obj)
 static void
 simp_printstr(Simp ctx, Simp port, Simp obj)
 {
-	Size i, len;
+	SSimp i, len;
 
 	len = simp_getsize(ctx, obj);
 	for (i = 0; i < len; i++) {
@@ -671,8 +671,8 @@ void
 simp_write(Simp ctx, Simp port, Simp obj)
 {
 	Simp curr;
-	Size len, i;
-	Bool printspace;
+	SSimp len, i;
+	int printspace;
 
 	if (simp_isnil(ctx, obj)) {
 		simp_printf(ctx, port, "()");

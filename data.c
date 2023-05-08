@@ -36,50 +36,50 @@ simp_empty(void)
 	};
 }
 
-Byte
+unsigned char
 simp_getbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.byte;
 }
 
-Signum
+SSimp
 simp_getnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.num;
 }
 
-Port *
+void *
 simp_getport(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.port;
 }
 
-Real
+double
 simp_getreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.real;
 }
 
-Size
+SSimp
 simp_getsize(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.size;
 }
 
-Byte *
+unsigned char *
 simp_getstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.string;
 }
 
-Byte
-simp_getstringmemb(Simp ctx, Simp obj, Size pos)
+unsigned char
+simp_getstringmemb(Simp ctx, Simp obj, SSimp pos)
 {
 	return simp_getstring(ctx, obj)[pos];
 }
@@ -92,66 +92,66 @@ simp_getvector(Simp ctx, Simp obj)
 }
 
 Simp
-simp_getvectormemb(Simp ctx, Simp obj, Size pos)
+simp_getvectormemb(Simp ctx, Simp obj, SSimp pos)
 {
 	return simp_getvector(ctx, obj)[pos];
 }
 
-Bool
+int
 simp_isbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_BYTE;
 }
 
-Bool
+int
 simp_isnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_SIGNUM;
 }
 
-Bool
+int
 simp_isnil(Simp ctx, Simp obj)
 {
 	return simp_isvector(ctx, obj) && obj.size == 0;
 }
 
-Bool
+int
 simp_isnul(Simp ctx, Simp obj)
 {
 	return simp_isstring(ctx, obj) && obj.size == 0;
 }
 
-Bool
+int
 simp_isport(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_PORT;
 }
 
-Bool
+int
 simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_REAL;
 }
 
-Bool
+int
 simp_isstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_STRING;
 }
 
-Bool
+int
 simp_issymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_SYMBOL;
 }
 
-Bool
+int
 simp_isvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -171,21 +171,21 @@ simp_setcdr(Simp ctx, Simp obj, Simp val)
 }
 
 void
-simp_setstring(Simp ctx, Simp obj, Size pos, Byte val)
+simp_setstring(Simp ctx, Simp obj, SSimp pos, unsigned char val)
 {
 	(void)ctx;
 	obj.u.string[pos] = val;
 }
 
 void
-simp_setvector(Simp ctx, Simp obj, Size pos, Simp val)
+simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val)
 {
 	(void)ctx;
 	obj.u.vector[pos] = val;
 }
 
 Simp
-simp_makebyte(Simp ctx, Byte byte)
+simp_makebyte(Simp ctx, unsigned char byte)
 {
 	(void)ctx;
 	return (Simp){
@@ -196,7 +196,7 @@ simp_makebyte(Simp ctx, Byte byte)
 }
 
 Simp
-simp_makenum(Simp ctx, Signum n)
+simp_makenum(Simp ctx, SSimp n)
 {
 	(void)ctx;
 	return (Simp){
@@ -207,18 +207,18 @@ simp_makenum(Simp ctx, Signum n)
 }
 
 Simp
-simp_makeport(Simp ctx, Port *p)
+simp_makeport(Simp ctx, void *p)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_PORT,
 		.size = 0,
-		.u.port = (Port *)p,
+		.u.port = (void *)p,
 	};
 }
 
 Simp
-simp_makereal(Simp ctx, Real x)
+simp_makereal(Simp ctx, double x)
 {
 	(void)ctx;
 	return (Simp){
@@ -229,9 +229,9 @@ simp_makereal(Simp ctx, Real x)
 }
 
 Simp
-simp_makestring(Simp ctx, Byte *src, Size size)
+simp_makestring(Simp ctx, unsigned char *src, SSimp size)
 {
-	Byte *dst;
+	unsigned char *dst;
 
 	(void)ctx;
 	dst = calloc(size, 1);
@@ -246,7 +246,7 @@ simp_makestring(Simp ctx, Byte *src, Size size)
 }
 
 Simp
-simp_makesymbol(Simp ctx, Byte *src, Size size)
+simp_makesymbol(Simp ctx, unsigned char *src, SSimp size)
 {
 	Simp obj;
 
@@ -256,10 +256,10 @@ simp_makesymbol(Simp ctx, Byte *src, Size size)
 }
 
 Simp
-simp_makevector(Simp ctx, Size size, Simp fill)
+simp_makevector(Simp ctx, SSimp size, Simp fill)
 {
 	Simp *dst;
-	Size i;
+	SSimp i;
 
 	(void)ctx;
 	dst = calloc(size, sizeof(*dst));
