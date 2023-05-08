@@ -1,46 +1,52 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "common.h"
+#include "simp.h"
 
-struct Context {
-	Atom    iport, oport, eport;
-	Atom    symtab;
+enum {
+	CONTEXT_IPORT,
+	CONTEXT_OPORT,
+	CONTEXT_EPORT,
+	CONTEXT_SYMTAB,
+	NCONTEXTS
 };
 
 #define SYMTAB_SIZE     389
 #define SYMTAB_MULT     37
 
-Context *
+Simp
 simp_contextnew(void)
 {
-	Context *ctx;
+	Simp ctx;
+	Simp membs[NCONTEXTS];
+	Size i;
 
-	if ((ctx = malloc(sizeof(*ctx))) == NULL)
-		return NULL;
-	*ctx = (Context){
-		.iport = simp_openiport(NULL),
-		.oport = simp_openoport(NULL),
-		.eport = simp_openeport(NULL),
-		.symtab = simp_makevector(NULL, SYMTAB_SIZE, simp_nil()),
-	};
+	ctx = simp_makevector(simp_nil(), NCONTEXTS, simp_nil());
+	membs[CONTEXT_IPORT] = simp_openstream(simp_nil(), stdin, "r");
+	membs[CONTEXT_OPORT] = simp_openstream(simp_nil(), stdout, "w");
+	membs[CONTEXT_EPORT] = simp_openstream(simp_nil(), stderr, "w");
+	membs[CONTEXT_SYMTAB] = simp_makevector(simp_nil(), SYMTAB_SIZE, simp_nil());
+	for (i = 0; i < NCONTEXTS; i++)
+		simp_setvector(simp_nil(), ctx, i, membs[i]);
 	return ctx;
 }
 
-Atom
-simp_contextintern(Context *ctx, Byte *src, Size size)
+Simp
+simp_contextintern(Simp ctx, Byte *src, Size size)
 {
-	Atom list, prev, pair, sym;
+	Simp list, prev, pair, symtab, sym;
 	Size i, bucket, len;
 	Byte *dst;
 
+	symtab = simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
 	bucket = 0;
 	for (i = 0; i < size; i++) {
 		bucket *= SYMTAB_MULT;
 		bucket += src[i];
 	}
 	bucket %= SYMTAB_SIZE;
-	list = simp_getvectormemb(ctx, ctx->symtab, bucket);
+	list = simp_getvectormemb(ctx, symtab, bucket);
 	prev = simp_nil();
 	for (pair = list; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
 		sym = simp_car(ctx, pair);
@@ -53,26 +59,26 @@ simp_contextintern(Context *ctx, Byte *src, Size size)
 	sym = simp_makestring(ctx, src, size);
 	pair = simp_cons(ctx, sym, simp_nil());
 	if (simp_isnil(ctx, prev))
-		simp_setvector(ctx, ctx->symtab, bucket, pair);
+		simp_setvector(ctx, symtab, bucket, pair);
 	else
 		simp_setcdr(ctx, prev, pair);
 	return sym;
 }
 
-Atom
-simp_contextiport(Context *ctx)
+Simp
+simp_contextiport(Simp ctx)
 {
-	return ctx->iport;
+	return simp_getvectormemb(ctx, ctx, CONTEXT_IPORT);
 }
 
-Atom
-simp_contextoport(Context *ctx)
+Simp
+simp_contextoport(Simp ctx)
 {
-	return ctx->oport;
+	return simp_getvectormemb(ctx, ctx, CONTEXT_OPORT);
 }
 
-Atom
-simp_contexteport(Context *ctx)
+Simp
+simp_contexteport(Simp ctx)
 {
-	return ctx->eport;
+	return simp_getvectormemb(ctx, ctx, CONTEXT_EPORT);
 }

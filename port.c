@@ -1,8 +1,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "common.h"
+#include "simp.h"
 
 struct Port {
 	enum {
@@ -30,24 +31,8 @@ canread(Port *port)
 	       !(port->mode & PORT_EOF);
 }
 
-static Atom
-openstream(Context *ctx, FILE *stream, Fixnum mode)
-{
-	Port *port;
-
-	port = malloc(sizeof(*port));
-	// TODO: check error
-	*port = (Port){
-		.type = PORT_STREAM,
-		.mode = mode,
-		.u.fp = stream,
-		.nlines = 0,
-	};
-	return simp_makeport(ctx, port);
-}
-
 void
-simp_printf(Context *ctx, Atom obj, const char *fmt, ...)
+simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 {
 	Port *port;
 	FILE *fp;
@@ -65,7 +50,7 @@ simp_printf(Context *ctx, Atom obj, const char *fmt, ...)
 }
 
 RByte
-simp_readbyte(Context *ctx, Atom obj)
+simp_readbyte(Simp ctx, Simp obj)
 {
 	Port *port = simp_getport(ctx, obj);
 	RByte byte = NOTHING;
@@ -94,7 +79,7 @@ simp_readbyte(Context *ctx, Atom obj)
 }
 
 void
-simp_unreadbyte(Context *ctx, Atom obj, RByte c)
+simp_unreadbyte(Simp ctx, Simp obj, RByte c)
 {
 	Port *port;
 	FILE *fp;
@@ -111,7 +96,7 @@ simp_unreadbyte(Context *ctx, Atom obj, RByte c)
 }
 
 RByte
-simp_peekbyte(Context *ctx, Atom obj)
+simp_peekbyte(Simp ctx, Simp obj)
 {
 	RByte c;
 
@@ -120,26 +105,30 @@ simp_peekbyte(Context *ctx, Atom obj)
 	return c;
 }
 
-Atom
-simp_openiport(Context *ctx)
+Simp
+simp_openstream(Simp ctx, void *p, char *s)
 {
-	return openstream(ctx, stdin, PORT_OPEN | PORT_READ);
-}
+	FILE *stream = (FILE *)p;
+	Port *port;
+	Fixnum mode = PORT_OPEN;
 
-Atom
-simp_openoport(Context *ctx)
-{
-	return openstream(ctx, stdout, PORT_OPEN | PORT_WRITE);
-}
-
-Atom
-simp_openeport(Context *ctx)
-{
-	return openstream(ctx, stderr, PORT_OPEN | PORT_WRITE);
+	if (strchr(s, 'w') != NULL)
+		mode |= PORT_WRITE;
+	if (strchr(s, 'r') != NULL)
+		mode |= PORT_READ;
+	port = malloc(sizeof(*port));
+	// TODO: check error
+	*port = (Port){
+		.type = PORT_STREAM,
+		.mode = mode,
+		.u.fp = stream,
+		.nlines = 0,
+	};
+	return simp_makeport(ctx, port);
 }
 
 Bool
-simp_porteof(Context *ctx, Atom obj)
+simp_porteof(Simp ctx, Simp obj)
 {
 	Port *port;
 
@@ -149,7 +138,7 @@ simp_porteof(Context *ctx, Atom obj)
 }
 
 Bool
-simp_porterr(Context *ctx, Atom obj)
+simp_porterr(Simp ctx, Simp obj)
 {
 	Port *port;
 

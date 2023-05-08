@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "common.h"
+#include "simp.h"
 
 #define STRBUFSIZE      124
 #define MAXOCTALESCAPE  3
@@ -41,7 +41,7 @@ struct Token {
 	} u;
 };
 
-static Atom toktoobj(Context *ctx, Atom port, Token tok);
+static Simp toktoobj(Simp ctx, Simp port, Token tok);
 
 static Bool
 cisdecimal(RByte c)
@@ -144,7 +144,7 @@ cisnum(RByte c, enum Numtype type, Signum *num)
 }
 
 static RByte
-readbyte(Context *ctx, Atom port)
+readbyte(Simp ctx, Simp port)
 {
 	Size i = 0;
 	RByte c = NOTHING;
@@ -212,7 +212,7 @@ loop:
 }
 
 static Token
-readstr(Context *ctx, Atom port)
+readstr(Simp ctx, Simp port)
 {
 	Size size, len;
 	Byte *str, *p;
@@ -248,7 +248,7 @@ readstr(Context *ctx, Atom port)
 }
 
 static Token
-readnum(Context *ctx, Atom port, RByte c)
+readnum(Simp ctx, Simp port, RByte c)
 {
 	enum Numtype numtype = NUM_DECIMAL;
 	Real floatn = 0.0;
@@ -369,7 +369,7 @@ done:
 }
 
 static Token
-readident(Context *ctx, Atom port, RByte c)
+readident(Simp ctx, Simp port, RByte c)
 {
 	Size size = STRBUFSIZE;
 	Size len = 0;
@@ -399,7 +399,7 @@ readident(Context *ctx, Atom port, RByte c)
 }
 
 static Token
-readtok(Context *ctx, Atom port)
+readtok(Simp ctx, Simp port)
 {
 	Token tok = { 0 };
 	int c;
@@ -449,14 +449,14 @@ token:
 	return tok;
 }
 
-static Atom
-readlist(Context *ctx, Atom port)
+static Simp
+readlist(Simp ctx, Simp port)
 {
 	Token tok;
-	Atom list = simp_nil();
-	Atom last = simp_nil();
-	Atom beg = simp_nil();
-	Atom vect, fst, obj;
+	Simp list = simp_nil();
+	Simp last = simp_nil();
+	Simp beg = simp_nil();
+	Simp vect, fst, obj;
 	Size i;
 	Bool gotdot = FALSE;
 
@@ -524,13 +524,13 @@ readlist(Context *ctx, Atom port)
 	return list;
 }
 
-static Atom
-readvector(Context *ctx, Atom port)
+static Simp
+readvector(Simp ctx, Simp port)
 {
 	Token tok;
-	Atom list = simp_nil();
-	Atom last = simp_nil();
-	Atom vect, pair, obj;
+	Simp list = simp_nil();
+	Simp last = simp_nil();
+	Simp vect, pair, obj;
 	Size nitems, i;
 
 	nitems = 0;
@@ -572,7 +572,7 @@ readvector(Context *ctx, Atom port)
 }
 
 static void
-simp_printchar(Context *ctx, Atom port, int c)
+simp_printchar(Simp ctx, Simp port, int c)
 {
 	switch (c) {
 	case '\"':
@@ -613,13 +613,13 @@ simp_printchar(Context *ctx, Atom port, int c)
 }
 
 static void
-simp_printbyte(Context *ctx, Atom port, Atom obj)
+simp_printbyte(Simp ctx, Simp port, Simp obj)
 {
 	simp_printchar(ctx, port, (int)simp_getbyte(ctx, obj));
 }
 
 static void
-simp_printstr(Context *ctx, Atom port, Atom obj)
+simp_printstr(Simp ctx, Simp port, Simp obj)
 {
 	Size i, len;
 
@@ -629,10 +629,10 @@ simp_printstr(Context *ctx, Atom port, Atom obj)
 	}
 }
 
-static Atom
-toktoobj(Context *ctx, Atom port, Token tok)
+static Simp
+toktoobj(Simp ctx, Simp port, Token tok)
 {
-	Atom obj;
+	Simp obj;
 
 	switch (tok.type) {
 	case TOK_LPAREN:
@@ -658,8 +658,8 @@ toktoobj(Context *ctx, Atom port, Token tok)
 	}
 }
 
-Atom
-simp_read(Context *ctx, Atom port)
+Simp
+simp_read(Simp ctx, Simp port)
 {
 	Token tok;
 
@@ -668,9 +668,9 @@ simp_read(Context *ctx, Atom port)
 }
 
 void
-simp_write(Context *ctx, Atom port, Atom obj)
+simp_write(Simp ctx, Simp port, Simp obj)
 {
-	Atom curr;
+	Simp curr;
 	Size len, i;
 	Bool printspace;
 
@@ -725,9 +725,9 @@ simp_write(Context *ctx, Atom port, Atom obj)
 }
 
 void
-simp_repl(Context *ctx)
+simp_repl(Simp ctx)
 {
-	Atom obj, iport, oport;
+	Simp obj, iport, oport;
 
 	iport = simp_contextiport(ctx);
 	oport = simp_contextoport(ctx);

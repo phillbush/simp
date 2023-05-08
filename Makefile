@@ -15,7 +15,7 @@ simp: ${OBJS}
 	${CC} -std=c99 -pedantic -D_POSIX_C_SOURCE=200809L\
 	${CFLAGS} ${CPPFLAGS} -o $@ -c $<
 
-${OBJS}: common.h
+${OBJS}: simp.h
 
 clean:
 	rm -f ${OBJS} ${PROG} ${PROG:=.core} tags

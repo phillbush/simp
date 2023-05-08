@@ -1,9 +1,9 @@
-#include "common.h"
+#include "simp.h"
 
 int
 main(void)
 {
-	Context *ctx;
+	Simp ctx;
 
 	ctx = simp_contextnew();
 	simp_repl(ctx);
