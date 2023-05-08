@@ -231,12 +231,13 @@ simp_makereal(Simp ctx, double x)
 Simp
 simp_makestring(Simp ctx, unsigned char *src, SSimp size)
 {
-	unsigned char *dst;
+	unsigned char *dst = NULL;
 
 	(void)ctx;
-	dst = calloc(size, 1);
+	if (size > 0)
+		dst = calloc(size, 1);
 	// TODO: check error
-	if (src != NULL)
+	if (size > 0 && src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
@@ -258,11 +259,12 @@ simp_makesymbol(Simp ctx, unsigned char *src, SSimp size)
 Simp
 simp_makevector(Simp ctx, SSimp size, Simp fill)
 {
-	Simp *dst;
+	Simp *dst = NULL;
 	SSimp i;
 
 	(void)ctx;
-	dst = calloc(size, sizeof(*dst));
+	if (size > 0)
+		dst = calloc(size, sizeof(*dst));
 	// TODO: check error
 	for (i = 0; i < size; i++)
 		dst[i] = fill;

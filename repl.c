@@ -450,15 +450,30 @@ token:
 }
 
 static Simp
+fillvector(Simp ctx, Simp list, SSimp nitems)
+{
+	Simp vect, obj;
+	SSimp i = 0;
+
+	vect = simp_makevector(ctx, nitems, simp_nil());
+	// TODO: check if vector could not be built
+	for (obj = list; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
+		simp_setvector(ctx, vect, i++, simp_car(ctx, obj));
+	return vect;
+}
+
+static Simp
 readlist(Simp ctx, Simp port)
 {
 	Token tok;
+	int prevtype = TOK_DOT;
 	Simp list = simp_nil();
 	Simp last = simp_nil();
-	Simp beg = simp_nil();
-	Simp vect, fst, obj;
+	Simp vect = simp_nil();
+	Simp prev = simp_nil();
+	Simp pair, obj;
+	SSimp nitems = 0;
 	SSimp i;
-	int gotdot = FALSE;
 
 	for (;;) {
 		tok = readtok(ctx, port);
@@ -469,56 +484,39 @@ readlist(Simp ctx, Simp port)
 			abort();
 			break;
 		case TOK_RPAREN:
-			break;
+			i = (prevtype != TOK_DOT ? 1 : 0);
+			if (simp_isnil(ctx, vect))
+				return fillvector(ctx, list, nitems + i);
+			obj = fillvector(ctx, list, nitems + i);
+			i = simp_getsize(ctx, prev);
+			simp_setvector(ctx, prev, i - 1, obj);
+			return vect;
 		case TOK_DOT:
-			if (simp_isnil(ctx, list))
-				break;
-			gotdot = TRUE;
 			break;
 		default:
-			if (!gotdot)
-				beg = last;
-			obj = toktoobj(ctx, port, tok);
-			vect = simp_cons(ctx, obj, simp_nil());
-			if (simp_isnil(ctx, last)) {
-				last = vect;
-				list = last;
-			} else {
-				i = simp_getsize(ctx, last);
-				simp_setvector(ctx, last, i - 1, vect);
-				last = vect;
+			if (prevtype != TOK_DOT) {
+				obj = fillvector(ctx, list, nitems + 1);
+				if (simp_isnil(ctx, vect)) {
+					vect = obj;
+				} else {
+					i = simp_getsize(ctx, prev);
+					simp_setvector(ctx, prev, i - 1, obj);
+				}
+				prev = obj;
+				list = simp_nil();
+				nitems = 0;
 			}
-			if (!gotdot)
-				fst = vect;
+			obj = toktoobj(ctx, port, tok);
+			pair = simp_cons(ctx, obj, simp_nil());
+			if (simp_isnil(ctx, list))
+				list = pair;
+			else
+				simp_setcdr(ctx, last, pair);
+			last = pair;
+			nitems++;
 			break;
 		}
-		if (tok.type == TOK_DOT)
-			continue;
-		if (gotdot) {
-			i = 0;
-			for (obj = fst;
-			     !simp_isnil(ctx, obj);
-			     obj = simp_cdr(ctx, obj))
-				i++;
-			if (tok.type != TOK_RPAREN)
-				i++;
-			vect = simp_makevector(ctx, i, simp_nil());
-			i = 0;
-			for (obj = fst;
-			     !simp_isnil(ctx, obj);
-			     obj = simp_cdr(ctx, obj))
-				simp_setvector(ctx, vect, i++, simp_car(ctx, obj));
-			if (simp_isnil(ctx, beg)) {
-				list = vect;
-			} else {
-				i = simp_getsize(ctx, beg);
-				simp_setvector(ctx, beg, i - 1, vect);
-			}
-			last = vect;
-		}
-		if (tok.type == TOK_RPAREN)
-			return list;
-		gotdot = FALSE;
+		prevtype = tok.type;
 	}
 	/* UNREACHABLE */
 	return list;
@@ -530,10 +528,9 @@ readvector(Simp ctx, Simp port)
 	Token tok;
 	Simp list = simp_nil();
 	Simp last = simp_nil();
-	Simp vect, pair, obj;
-	SSimp nitems, i;
+	Simp pair, obj;
+	SSimp nitems = 0;
 
-	nitems = 0;
 	for (;;) {
 		tok = readtok(ctx, port);
 		switch (tok.type) {
@@ -543,26 +540,17 @@ readvector(Simp ctx, Simp port)
 			abort();
 			break;
 		case TOK_RBRACE:
-			vect = simp_makevector(ctx, nitems, simp_nil());
-			i = 0;
-			for (obj = list;
-			     !simp_isnil(ctx, obj);
-			     obj = simp_cdr(ctx, obj))
-				simp_setvector(ctx, vect, i++, simp_car(ctx, obj));
-			return vect;
+			return fillvector(ctx, list, nitems);
 		case TOK_DOT:
 			break;
 		default:
 			obj = toktoobj(ctx, port, tok);
 			pair = simp_cons(ctx, obj, simp_nil());
-			if (simp_isnil(ctx, last)) {
-				last = pair;
-				list = last;
-			} else {
-				i = simp_getsize(ctx, last);
-				simp_setvector(ctx, last, i - 1, pair);
-				last = pair;
-			}
+			if (simp_isnil(ctx, last))
+				list = pair;
+			else
+				simp_setcdr(ctx, last, pair);
+			last = pair;
 			nitems++;
 			break;
 		}
