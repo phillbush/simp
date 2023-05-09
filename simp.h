@@ -93,13 +93,10 @@ Simp    simp_openstream(Simp ctx, void *p, char *mode);
 int     simp_porteof(Simp ctx, Simp obj);
 int     simp_porterr(Simp ctx, Simp obj);
 
-/* port byte IO */
-int     simp_readbyte(Simp ctx, Simp obj);
-int     simp_peekbyte(Simp ctx, Simp obj);
+/* IO */
+int     simp_readbyte(Simp ctx, Simp port);
+int     simp_peekbyte(Simp ctx, Simp port);
 void    simp_unreadbyte(Simp ctx, Simp obj, int c);
 void    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
-
-/* repl operations */
 Simp    simp_read(Simp ctx, Simp port);
 void    simp_write(Simp ctx, Simp port, Simp obj);
-void    simp_repl(Simp ctx);

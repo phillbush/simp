@@ -711,21 +711,3 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, ")");
 	}
 }
-
-void
-simp_repl(Simp ctx)
-{
-	Simp obj, iport, oport;
-
-	iport = simp_contextiport(ctx);
-	oport = simp_contextoport(ctx);
-	for (;;) {
-		obj = simp_read(ctx, iport);
-		if (simp_porteof(ctx, iport))
-			break;
-		if (simp_porterr(ctx, iport))
-			break;
-		simp_write(ctx, oport, obj);
-		simp_printf(ctx, oport, "\n");
-	}
-}
