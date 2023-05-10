@@ -224,8 +224,8 @@ readstr(Simp ctx, Simp port)
 		return (Token){.type = TOK_ERROR};
 	for (;;) {
 		c = simp_readbyte(ctx, port);
-		if (c == NOTHING) // TODO: ERROR
-			break;
+		if (c == NOTHING)
+			return (Token){ .type = TOK_ERROR };
 		if (c == '"')
 			break;
 		simp_unreadbyte(ctx, port, c);
@@ -446,6 +446,7 @@ readtok(Simp ctx, Simp port)
 token:
 		return readident(ctx, port, c);
 	}
+	/* UNREACHABLE */
 	return tok;
 }
 
@@ -481,7 +482,7 @@ readlist(Simp ctx, Simp port)
 		case TOK_ERROR:
 		case TOK_EOF:
 		case TOK_RBRACE:
-			abort();
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
 			break;
 		case TOK_RPAREN:
 			i = (prevtype != TOK_DOT ? 1 : 0);
@@ -537,7 +538,7 @@ readvector(Simp ctx, Simp port)
 		case TOK_ERROR:
 		case TOK_EOF:
 		case TOK_RPAREN:
-			abort();
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
 			break;
 		case TOK_RBRACE:
 			return fillvector(ctx, list, nitems);
@@ -607,13 +608,12 @@ simp_printbyte(Simp ctx, Simp port, Simp obj)
 }
 
 static void
-simp_printstr(Simp ctx, Simp port, Simp obj)
+simp_printstr(Simp ctx, Simp port, unsigned char *str, SSimp len)
 {
-	SSimp i, len;
+	SSimp i;
 
-	len = simp_getsize(ctx, obj);
 	for (i = 0; i < len; i++) {
-		simp_printchar(ctx, port, (int)simp_getstring(ctx, obj)[i]);
+		simp_printchar(ctx, port, (int)str[i]);
 	}
 }
 
@@ -636,13 +636,11 @@ toktoobj(Simp ctx, Simp port, Token tok)
 		free(tok.u.str.str);
 		return obj;
 	case TOK_REAL:
-		obj = simp_makereal(ctx, tok.u.real);
-		return obj;
+		return simp_makereal(ctx, tok.u.real);
 	case TOK_FIXNUM:
-		obj = simp_makenum(ctx, tok.u.fixnum);
-		return obj;
+		return simp_makenum(ctx, tok.u.fixnum);
 	default:
-		return simp_nil();
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	}
 }
 
@@ -676,10 +674,12 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
 	} else if (simp_isstring(ctx, obj)) {
 		simp_printf(ctx, port, "\"");
-		simp_printstr(ctx, port, obj);
+		simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
 		simp_printf(ctx, port, "\"");
 	} else if (simp_issymbol(ctx, obj)) {
-		simp_printstr(ctx, port, obj);
+		simp_printstr(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
+	} else if (simp_isexception(ctx, obj)) {
+		simp_printf(ctx, port, "ERROR: %s", simp_getexception(ctx, obj));
 	} else if (simp_isvector(ctx, obj)) {
 		simp_printf(ctx, port, "(");
 		printspace = FALSE;

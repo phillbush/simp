@@ -3,7 +3,6 @@ PROG = simp
 OBJS = simp.o\
        data.o\
        port.o\
-       context.o\
        io.o
 
 all: ${PROG}

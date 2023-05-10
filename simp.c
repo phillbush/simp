@@ -1,22 +1,42 @@
+#include <err.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "simp.h"
 
-int
-main(void)
+static void
+repl(Simp ctx)
 {
-	Simp ctx, iport, oport, obj;
+	Simp iport, oport, eport, obj;
 
-	ctx = simp_contextnew();
-	iport = simp_openstream(ctx, stdin, "r");
+	iport = simp_contextiport(ctx);
 	oport = simp_contextoport(ctx);
+	eport = simp_contexteport(ctx);
 	for (;;) {
 		obj = simp_read(ctx, iport);
 		if (simp_porteof(ctx, iport))
 			break;
 		if (simp_porterr(ctx, iport))
 			break;
+		if (simp_isexception(ctx, obj)) {
+			simp_write(ctx, eport, obj);
+			goto newline;
+		}
+		//obj = simp_eval(ctx, obj);
 		simp_write(ctx, oport, obj);
+newline:
 		printf("\n");
 	}
+}
+
+int
+main(void)
+{
+	Simp ctx;
+
+	ctx = simp_contextnew();
+	if (simp_isexception(simp_nil(), ctx))
+		errx(EXIT_FAILURE, "could not create context");
+	repl(ctx);
+	return EXIT_SUCCESS;
 }

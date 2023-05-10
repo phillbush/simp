@@ -7,9 +7,22 @@
 #define TRUE            1
 #define NOTHING         (-1)
 
+#define EXCEPTIONS                              \
+	X(ERROR_ILLEXPR, "ill expression")      \
+	X(ERROR_ILLTYPE, "improper type")       \
+	X(ERROR_STREAM,  "stream error")        \
+	X(ERROR_MEMORY, "allocation error")
+
 typedef struct Simp             Simp;
 typedef unsigned long long      USimp;
 typedef long long               SSimp;
+
+enum {
+#define X(n, s) n,
+	EXCEPTIONS
+	NEXCEPTIONS
+#undef  X
+};
 
 /* data type */
 struct Simp {
@@ -23,16 +36,20 @@ struct Simp {
 	} u;
 	SSimp size;
 	enum Type {
-		TYPE_SYMBOL     = 2,
-		TYPE_SIGNUM     = 3,
-		TYPE_REAL       = 4,
-		TYPE_STRING     = 5,
-		TYPE_VECTOR     = 6,
-		TYPE_PORT       = 7,
-		TYPE_CLOSURE    = 8,
-		TYPE_BYTE       = 9,
+		TYPE_SYMBOL,
+		TYPE_SIGNUM,
+		TYPE_REAL,
+		TYPE_STRING,
+		TYPE_VECTOR,
+		TYPE_PORT,
+		TYPE_CLOSURE,
+		TYPE_BYTE,
+		TYPE_EXCEPTION,
 	} type;
 };
+
+/* error handling */
+unsigned char *simp_errorstr(int exception);
 
 /* data pair utils */
 Simp    simp_car(Simp ctx, Simp obj);
@@ -50,15 +67,19 @@ void   *simp_getport(Simp ctx, Simp obj);
 double  simp_getreal(Simp ctx, Simp obj);
 SSimp   simp_getsize(Simp ctx, Simp obj);
 unsigned char *simp_getstring(Simp ctx, Simp obj);
+unsigned char *simp_getsymbol(Simp ctx, Simp obj);
+unsigned char *simp_getexception(Simp ctx, Simp obj);
 unsigned char simp_getstringmemb(Simp ctx, Simp obj, SSimp pos);
 Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SSimp pos);
 
 /* data type predicates */
 int     simp_isbyte(Simp ctx, Simp obj);
+int     simp_isexception(Simp ctx, Simp obj);
 int     simp_isnum(Simp ctx, Simp obj);
 int     simp_isnil(Simp ctx, Simp obj);
 int     simp_isnul(Simp ctx, Simp obj);
+int     simp_ispair(Simp ctx, Simp obj);
 int     simp_isport(Simp ctx, Simp obj);
 int     simp_isreal(Simp ctx, Simp obj);
 int     simp_isstring(Simp ctx, Simp obj);
@@ -73,6 +94,7 @@ void    simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val);
 
 /* data type constructors */
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
+Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makenum(Simp ctx, SSimp n);
 Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
@@ -81,8 +103,6 @@ Simp    simp_makesymbol(Simp ctx, unsigned char *src, SSimp size);
 Simp    simp_makevector(Simp ctx, SSimp size, Simp fill);
 
 /* context operations */
-Simp    simp_contextintern(Simp ctx, unsigned char *src, SSimp size);
-Simp    simp_contextlookup(Simp ctx, unsigned char *src, SSimp size);
 Simp    simp_contextiport(Simp ctx);
 Simp    simp_contextoport(Simp ctx);
 Simp    simp_contexteport(Simp ctx);
