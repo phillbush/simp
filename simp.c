@@ -7,8 +7,9 @@
 static void
 repl(Simp ctx)
 {
-	Simp iport, oport, eport, obj;
+	Simp iport, oport, eport, obj, env;
 
+	env = simp_contextenvironment(ctx);
 	iport = simp_contextiport(ctx);
 	oport = simp_contextoport(ctx);
 	eport = simp_contexteport(ctx);
@@ -22,7 +23,11 @@ repl(Simp ctx)
 			simp_write(ctx, eport, obj);
 			goto newline;
 		}
-		//obj = simp_eval(ctx, obj);
+		obj = simp_eval(ctx, env, obj);
+		if (simp_isexception(ctx, obj)) {
+			simp_write(ctx, eport, obj);
+			goto newline;
+		}
 		simp_write(ctx, oport, obj);
 newline:
 		printf("\n");

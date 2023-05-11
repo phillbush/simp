@@ -8,6 +8,7 @@
 #define NOTHING         (-1)
 
 #define EXCEPTIONS                              \
+	X(ERROR_UNBOUND, "unbound variable")    \
 	X(ERROR_ILLEXPR, "ill expression")      \
 	X(ERROR_ILLTYPE, "improper type")       \
 	X(ERROR_STREAM,  "stream error")        \
@@ -42,7 +43,6 @@ struct Simp {
 		TYPE_STRING,
 		TYPE_VECTOR,
 		TYPE_PORT,
-		TYPE_CLOSURE,
 		TYPE_BYTE,
 		TYPE_EXCEPTION,
 	} type;
@@ -69,7 +69,7 @@ SSimp   simp_getsize(Simp ctx, Simp obj);
 unsigned char *simp_getstring(Simp ctx, Simp obj);
 unsigned char *simp_getsymbol(Simp ctx, Simp obj);
 unsigned char *simp_getexception(Simp ctx, Simp obj);
-unsigned char simp_getstringmemb(Simp ctx, Simp obj, SSimp pos);
+Simp    simp_getstringmemb(Simp ctx, Simp obj, SSimp pos);
 Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SSimp pos);
 
@@ -80,17 +80,22 @@ int     simp_isnum(Simp ctx, Simp obj);
 int     simp_isnil(Simp ctx, Simp obj);
 int     simp_isnul(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
+int     simp_ispair(Simp ctx, Simp obj);
 int     simp_isport(Simp ctx, Simp obj);
 int     simp_isreal(Simp ctx, Simp obj);
 int     simp_isstring(Simp ctx, Simp obj);
 int     simp_issymbol(Simp ctx, Simp obj);
 int     simp_isvector(Simp ctx, Simp obj);
 
+/* data type checkers */
+int     simp_issame(Simp ctx, Simp a, Simp b);
+
 /* data type mutators */
 void    simp_setcar(Simp ctx, Simp obj, Simp val);
 void    simp_setcdr(Simp ctx, Simp obj, Simp val);
 void    simp_setstring(Simp ctx, Simp obj, SSimp pos, unsigned char val);
 void    simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val);
+
 
 /* data type constructors */
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
@@ -103,6 +108,7 @@ Simp    simp_makesymbol(Simp ctx, unsigned char *src, SSimp size);
 Simp    simp_makevector(Simp ctx, SSimp size, Simp fill);
 
 /* context operations */
+Simp    simp_contextenvironment(Simp ctx);
 Simp    simp_contextiport(Simp ctx);
 Simp    simp_contextoport(Simp ctx);
 Simp    simp_contexteport(Simp ctx);
@@ -120,3 +126,6 @@ void    simp_unreadbyte(Simp ctx, Simp obj, int c);
 void    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
 Simp    simp_read(Simp ctx, Simp port);
 void    simp_write(Simp ctx, Simp port, Simp obj);
+
+/* eval */
+Simp    simp_eval(Simp ctx, Simp expr, Simp env);

@@ -1,8 +1,9 @@
 PROG = simp
 
-OBJS = simp.o\
-       data.o\
-       port.o\
+OBJS = simp.o \
+       data.o \
+       port.o \
+       eval.o \
        io.o
 
 all: ${PROG}

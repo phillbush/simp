@@ -15,6 +15,7 @@ enum {
 	CONTEXT_OPORT,
 	CONTEXT_EPORT,
 	CONTEXT_SYMTAB,
+	CONTEXT_ENVIRONMENT,
 	NCONTEXTS
 };
 
@@ -33,9 +34,16 @@ simp_contextnew(void)
 	membs[CONTEXT_OPORT] = simp_openstream(simp_nil(), stdout, "w");
 	membs[CONTEXT_EPORT] = simp_openstream(simp_nil(), stderr, "w");
 	membs[CONTEXT_SYMTAB] = simp_makevector(simp_nil(), SYMTAB_SIZE, simp_nil());
+	membs[CONTEXT_ENVIRONMENT] = simp_cons(simp_nil(), simp_nil(), simp_nil());
 	for (i = 0; i < NCONTEXTS; i++)
 		simp_setvector(simp_nil(), ctx, i, membs[i]);
 	return ctx;
+}
+
+Simp
+simp_contextenvironment(Simp ctx)
+{
+	return simp_getvectormemb(ctx, ctx, CONTEXT_ENVIRONMENT);
 }
 
 Simp
@@ -151,10 +159,12 @@ simp_getsymbol(Simp ctx, Simp obj)
 	return obj.u.string;
 }
 
-unsigned char
+Simp
 simp_getstringmemb(Simp ctx, Simp obj, SSimp pos)
 {
-	return simp_getstring(ctx, obj)[pos];
+	if (!simp_isstring(ctx, obj) || pos >= simp_getsize(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_makebyte(ctx, simp_getstring(ctx, obj)[pos]);
 }
 
 Simp *
@@ -167,6 +177,8 @@ simp_getvector(Simp ctx, Simp obj)
 Simp
 simp_getvectormemb(Simp ctx, Simp obj, SSimp pos)
 {
+	if (!simp_isvector(ctx, obj) || pos >= simp_getsize(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_getvector(ctx, obj)[pos];
 }
 
@@ -229,6 +241,32 @@ simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.type == TYPE_REAL;
+}
+
+int
+simp_issame(Simp ctx, Simp a, Simp b)
+{
+	if (a.type != b.type)
+		return FALSE;
+	switch (a.type) {
+	case TYPE_SIGNUM:
+		return simp_getnum(ctx, a) == simp_getnum(ctx, b);
+	case TYPE_REAL:
+		return simp_getreal(ctx, a) == simp_getreal(ctx, b);
+	case TYPE_VECTOR:
+		return simp_getvector(ctx, a) == simp_getvector(ctx, b);
+	case TYPE_PORT:
+		return simp_getport(ctx, a) == simp_getport(ctx, b);
+	case TYPE_BYTE:
+		return simp_getbyte(ctx, a) == simp_getbyte(ctx, b);
+	case TYPE_SYMBOL:
+		return simp_getsymbol(ctx, a) == simp_getsymbol(ctx, b);
+	case TYPE_STRING:
+		return simp_getstring(ctx, a) == simp_getstring(ctx, b);
+	case TYPE_EXCEPTION:
+		return simp_getexception(ctx, a) == simp_getexception(ctx, b);
+	}
+	return FALSE;
 }
 
 int
