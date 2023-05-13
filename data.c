@@ -58,9 +58,10 @@ static unsigned char *errortab[NEXCEPTIONS] = {
 #undef  X
 };
 
-static enum Type
-simp_gettype(Simp obj)
+enum Type
+simp_gettype(Simp ctx, Simp obj)
 {
+	(void)ctx;
 	return obj.type;
 }
 
@@ -268,7 +269,7 @@ SimpSiz
 simp_getsize(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	switch (simp_gettype(obj)) {
+	switch (simp_gettype(ctx, obj)) {
 	case TYPE_VECTOR:
 		if (obj.u.vector == NULL)
 			return 0;
@@ -336,7 +337,7 @@ simp_errorstr(int exception)
 int
 simp_isbool(Simp ctx, Simp obj)
 {
-	enum Type t = simp_gettype(obj);
+	enum Type t = simp_gettype(ctx, obj);
 
 	(void)ctx;
 	return t == TYPE_TRUE || t == TYPE_FALSE;
@@ -346,14 +347,14 @@ int
 simp_isbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_BUILTIN;
+	return simp_gettype(ctx, obj) == TYPE_BUILTIN;
 }
 
 int
 simp_isbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_BYTE;
+	return simp_gettype(ctx, obj) == TYPE_BYTE;
 }
 
 int
@@ -366,28 +367,28 @@ int
 simp_iseof(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_EOF;
+	return simp_gettype(ctx, obj) == TYPE_EOF;
 }
 
 int
 simp_isexception(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_EXCEPTION;
+	return simp_gettype(ctx, obj) == TYPE_EXCEPTION;
 }
 
 int
 simp_isfalse(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_FALSE;
+	return simp_gettype(ctx, obj) == TYPE_FALSE;
 }
 
 int
 simp_isnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_SIGNUM;
+	return simp_gettype(ctx, obj) == TYPE_SIGNUM;
 }
 
 int
@@ -406,21 +407,21 @@ int
 simp_isport(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_PORT;
+	return simp_gettype(ctx, obj) == TYPE_PORT;
 }
 
 int
 simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_REAL;
+	return simp_gettype(ctx, obj) == TYPE_REAL;
 }
 
 int
 simp_issame(Simp ctx, Simp a, Simp b)
 {
-	enum Type typea = simp_gettype(a);
-	enum Type typeb = simp_gettype(b);
+	enum Type typea = simp_gettype(ctx, a);
+	enum Type typeb = simp_gettype(ctx, b);
 
 	if (typea != typeb)
 		return FALSE;
@@ -455,14 +456,14 @@ int
 simp_isstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_STRING;
+	return simp_gettype(ctx, obj) == TYPE_STRING;
 }
 
 int
 simp_issymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_SYMBOL;
+	return simp_gettype(ctx, obj) == TYPE_SYMBOL;
 }
 
 int
@@ -475,7 +476,7 @@ int
 simp_isvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gettype(obj) == TYPE_VECTOR;
+	return simp_gettype(ctx, obj) == TYPE_VECTOR;
 }
 
 void

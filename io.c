@@ -686,29 +686,45 @@ simp_write(Simp ctx, Simp port, Simp obj)
 	SimpSiz len, i;
 	int printspace;
 
-	if (simp_isnil(ctx, obj)) {
-		simp_printf(ctx, port, "()");
-	} else if (simp_isbyte(ctx, obj)) {
+	switch (simp_gettype(ctx, obj)) {
+	case TYPE_EOF:
+		simp_printf(ctx, port, "#<end-of-file>");
+		break;
+	case TYPE_FALSE:
+		simp_printf(ctx, port, "#<false>");
+		break;
+	case TYPE_TRUE:
+		simp_printf(ctx, port, "#<true>");
+		break;
+	case TYPE_BYTE:
 		simp_printf(ctx, port, "\'");
 		simp_printbyte(ctx, port, obj);
 		simp_printf(ctx, port, "\'");
-	} else if (simp_isnum(ctx, obj)) {
+		break;
+	case TYPE_SIGNUM:
 		simp_printf(ctx, port, "%ld", simp_getnum(ctx, obj));
-	} else if (simp_isreal(ctx, obj)) {
+		break;
+	case TYPE_REAL:
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
-	} else if (simp_isbuiltin(ctx, obj)) {
+		break;
+	case TYPE_BUILTIN:
 		simp_printf(ctx, port, "#<operation %p>", simp_getbuiltin(ctx, obj));
-	} else if (simp_isport(ctx, obj)) {
+		break;
+	case TYPE_PORT:
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
-	} else if (simp_isstring(ctx, obj)) {
+		break;
+	case TYPE_STRING:
 		simp_printf(ctx, port, "\"");
 		simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
 		simp_printf(ctx, port, "\"");
-	} else if (simp_issymbol(ctx, obj)) {
+		break;
+	case TYPE_SYMBOL:
 		simp_printstr(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
-	} else if (simp_isexception(ctx, obj)) {
+		break;
+	case TYPE_EXCEPTION:
 		simp_printf(ctx, port, "ERROR: %s", simp_getexception(ctx, obj));
-	} else if (simp_isvector(ctx, obj)) {
+		break;
+	case TYPE_VECTOR:
 		simp_printf(ctx, port, "(");
 		printspace = FALSE;
 		while (!simp_isnil(ctx, obj)) {
@@ -737,5 +753,6 @@ simp_write(Simp ctx, Simp port, Simp obj)
 			}
 		}
 		simp_printf(ctx, port, ")");
+		break;
 	}
 }

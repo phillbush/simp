@@ -98,6 +98,7 @@ unsigned char *simp_getexception(Simp ctx, Simp obj);
 Simp    simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos);
 Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
+enum Type simp_gettype(Simp ctx, Simp obj);
 
 /* data type predicates */
 int     simp_isbool(Simp ctx, Simp obj);
