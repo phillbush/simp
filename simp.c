@@ -9,7 +9,7 @@
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "usage: simp [-l] [-e string | file]");
+	(void)fprintf(stderr, "usage: simp [-i] [-e string | -p string | file]");
 }
 
 static int
@@ -40,18 +40,17 @@ rel(Simp ctx, Simp iport)
 	return EXIT_SUCCESS;
 }
 
-static void
-repl(Simp ctx)
+static int
+repl(Simp ctx, Simp iport)
 {
-	Simp iport, oport, eport, obj, env;
+	Simp oport, eport, obj, env;
 
 	env = simp_contextenvironment(ctx);
-	iport = simp_contextiport(ctx);
 	oport = simp_contextoport(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
 		if (simp_porterr(ctx, iport))
-			break;
+			return EXIT_FAILURE;
 		obj = simp_read(ctx, iport);
 		if (simp_iseof(ctx, obj))
 			break;
@@ -68,53 +67,80 @@ repl(Simp ctx)
 newline:
 		printf("\n");
 	}
+	return EXIT_SUCCESS;
 }
 
 int
 main(int argc, char *argv[])
 {
+	enum { MODE_INTERACTIVE, MODE_STRING, MODE_PRINT, MODE_SCRIPT } mode;
 	FILE *fp;
-	Simp ctx, port;
+	Simp ctx, iport, port;
 	int ch, retval = EXIT_SUCCESS;
-	int lflag = 0;
+	int iflag = 0;
 	char *expr = NULL;
 
-	while ((ch = getopt(argc, argv, "e:l")) != -1) switch (ch) {
+	mode = MODE_INTERACTIVE;
+	while ((ch = getopt(argc, argv, "e:ip:")) != -1) switch (ch) {
 	case 'e':
+		mode = MODE_STRING;
 		expr = optarg;
 		break;
-	case 'l':
-		lflag = 1;
+	case 'i':
+		iflag = 1;
+		break;
+	case 'p':
+		mode = MODE_PRINT;
+		expr = optarg;
 		break;
 	default:
 		usage();
 	}
 	argc -= optind;
 	argv += optind;
+	if (mode == MODE_INTERACTIVE && argc > 0)
+		mode = MODE_SCRIPT;
 	ctx = simp_contextnew();
 	if (simp_isexception(simp_nil(), ctx))
 		errx(EXIT_FAILURE, "could not create context");
-	if (expr != NULL) {
+	iport = simp_contextiport(ctx);
+	switch (mode) {
+	case MODE_STRING:
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(ctx, port))
 			goto error;
 		retval = rel(ctx, port);
-		if (lflag) {
-			repl(ctx);
-		}
-	} else if (argc > 0) {
-		if ((fp = fopen(argv[0], "r")) == NULL)
+		if (iflag)
+			repl(ctx, iport);
+		break;
+	case MODE_PRINT:
+		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
+		if (simp_isexception(ctx, port))
 			goto error;
-		port = simp_openstream(ctx, fp, "r");
+		retval = repl(ctx, port);
+		if (iflag)
+			repl(ctx, iport);
+		break;
+	case MODE_SCRIPT:
+		if (argv[0][0] == '-' && argv[0][1] == '\0') {
+			port = iport;
+			iflag = 0;
+		} else if ((fp = fopen(argv[0], "r")) != NULL) {
+			port = simp_openstream(ctx, fp, "r");
+		} else {
+			goto error;
+		}
 		if (simp_isexception(ctx, port))
 			goto error;
 		retval = rel(ctx, port);
-		(void)fclose(fp);
-		if (lflag) {
-			repl(ctx);
-		}
-	} else {
-		repl(ctx);
+		if (fp != stdin)
+			(void)fclose(fp);
+		if (iflag)
+			repl(ctx, iport);
+		break;
+	case MODE_INTERACTIVE:
+		repl(ctx, iport);
+		break;
 	}
 	return retval;
 error:
