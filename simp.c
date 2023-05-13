@@ -23,7 +23,7 @@ repl(Simp ctx)
 			simp_write(ctx, eport, obj);
 			goto newline;
 		}
-		obj = simp_eval(ctx, env, obj);
+		obj = simp_eval(ctx, obj, env);
 		if (simp_isexception(ctx, obj)) {
 			simp_write(ctx, eport, obj);
 			goto newline;

@@ -14,14 +14,26 @@
 	X(ERROR_STREAM,  "stream error")        \
 	X(ERROR_MEMORY, "allocation error")
 
+#define OPERATIONS                                      \
+	X(OP_LET,     "let",          simp_oplet)       \
+	X(OP_QUOTE,   "quote",        simp_opquote)
+
 typedef struct Simp             Simp;
 typedef unsigned long long      USimp;
 typedef long long               SSimp;
+typedef Simp Builtin(Simp ctx, Simp oprnds, Simp env);
 
-enum {
+enum Exceptions {
 #define X(n, s) n,
 	EXCEPTIONS
 	NEXCEPTIONS
+#undef  X
+};
+
+enum Procedures {
+#define X(n, s, p) n,
+	OPERATIONS
+	NOPERATIONS
 #undef  X
 };
 
@@ -34,12 +46,14 @@ struct Simp {
 		unsigned char  *string;
 		unsigned char   byte;
 		void           *port;
+		Builtin        *builtin;
 	} u;
 	SSimp size;
 	enum Type {
 		TYPE_SYMBOL,
 		TYPE_SIGNUM,
 		TYPE_REAL,
+		TYPE_BUILTIN,
 		TYPE_STRING,
 		TYPE_VECTOR,
 		TYPE_PORT,
@@ -61,6 +75,7 @@ Simp    simp_nil(void);
 Simp    simp_empty(void);
 
 /* data type accessors */
+Builtin *simp_getbuiltin(Simp ctx, Simp obj);
 unsigned char simp_getbyte(Simp ctx, Simp obj);
 SSimp  simp_getnum(Simp ctx, Simp obj);
 void   *simp_getport(Simp ctx, Simp obj);
@@ -74,6 +89,7 @@ Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SSimp pos);
 
 /* data type predicates */
+int     simp_isbuiltin(Simp ctx, Simp obj);
 int     simp_isbyte(Simp ctx, Simp obj);
 int     simp_isexception(Simp ctx, Simp obj);
 int     simp_isnum(Simp ctx, Simp obj);
@@ -96,8 +112,8 @@ void    simp_setcdr(Simp ctx, Simp obj, Simp val);
 void    simp_setstring(Simp ctx, Simp obj, SSimp pos, unsigned char val);
 void    simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val);
 
-
 /* data type constructors */
+Simp    simp_makebuiltin(Simp ctx, Builtin *fun);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makenum(Simp ctx, SSimp n);
@@ -113,6 +129,10 @@ Simp    simp_contextiport(Simp ctx);
 Simp    simp_contextoport(Simp ctx);
 Simp    simp_contexteport(Simp ctx);
 Simp    simp_contextnew(void);
+
+/* environment operations */
+Simp    simp_envget(Simp ctx, Simp env, Simp sym);
+Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 
 /* port operations */
 Simp    simp_openstream(Simp ctx, void *p, char *mode);

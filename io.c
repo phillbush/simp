@@ -670,6 +670,8 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, "%ld", simp_getnum(ctx, obj));
 	} else if (simp_isreal(ctx, obj)) {
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
+	} else if (simp_isbuiltin(ctx, obj)) {
+		simp_printf(ctx, port, "#<operation %p>", simp_getbuiltin(ctx, obj));
 	} else if (simp_isport(ctx, obj)) {
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
 	} else if (simp_isstring(ctx, obj)) {
