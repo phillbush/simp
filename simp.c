@@ -14,11 +14,11 @@ repl(Simp ctx)
 	oport = simp_contextoport(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
-		obj = simp_read(ctx, iport);
 		if (simp_porteof(ctx, iport))
 			break;
 		if (simp_porterr(ctx, iport))
 			break;
+		obj = simp_read(ctx, iport);
 		if (simp_isexception(ctx, obj)) {
 			simp_write(ctx, eport, obj);
 			goto newline;

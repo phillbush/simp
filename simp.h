@@ -12,15 +12,20 @@
 	X(ERROR_ILLEXPR, "ill expression")      \
 	X(ERROR_ILLTYPE, "improper type")       \
 	X(ERROR_STREAM,  "stream error")        \
+	X(ERROR_RANGE,  "out of range")         \
 	X(ERROR_MEMORY, "allocation error")
 
-#define OPERATIONS                                      \
-	X(OP_LET,     "let",          simp_oplet)       \
-	X(OP_QUOTE,   "quote",        simp_opquote)
+#define OPERATIONS                                       \
+	X(OP_ADD,       "+",            simp_opadd      )\
+	X(OP_SUBTRACT,  "-",            simp_opsubtract )\
+	X(OP_MULTIPLY,  "*",            simp_opmultiply )\
+	X(OP_DIVIDE,    "/",            simp_opdivide   )\
+	X(OP_LET,       "let",          simp_oplet      )\
+	X(OP_QUOTE,     "quote",        simp_opquote    )
 
 typedef struct Simp             Simp;
-typedef unsigned long long      USimp;
-typedef long long               SSimp;
+typedef unsigned long long      SimpSiz;
+typedef long long               SimpInt;
 typedef Simp Builtin(Simp ctx, Simp oprnds, Simp env);
 
 enum Exceptions {
@@ -30,7 +35,7 @@ enum Exceptions {
 #undef  X
 };
 
-enum Procedures {
+enum Operations {
 #define X(n, s, p) n,
 	OPERATIONS
 	NOPERATIONS
@@ -40,15 +45,15 @@ enum Procedures {
 /* data type */
 struct Simp {
 	union {
-		SSimp           num;
+		SimpInt         num;
 		double          real;
-		Simp           *vector;
-		unsigned char  *string;
+		void           *vector;
+		void           *string;
+		unsigned char  *errmsg;
 		unsigned char   byte;
 		void           *port;
 		Builtin        *builtin;
 	} u;
-	SSimp size;
 	enum Type {
 		TYPE_SYMBOL,
 		TYPE_SIGNUM,
@@ -77,24 +82,24 @@ Simp    simp_empty(void);
 /* data type accessors */
 Builtin *simp_getbuiltin(Simp ctx, Simp obj);
 unsigned char simp_getbyte(Simp ctx, Simp obj);
-SSimp  simp_getnum(Simp ctx, Simp obj);
+SimpInt simp_getnum(Simp ctx, Simp obj);
 void   *simp_getport(Simp ctx, Simp obj);
 double  simp_getreal(Simp ctx, Simp obj);
-SSimp   simp_getsize(Simp ctx, Simp obj);
+SimpSiz   simp_getsize(Simp ctx, Simp obj);
 unsigned char *simp_getstring(Simp ctx, Simp obj);
 unsigned char *simp_getsymbol(Simp ctx, Simp obj);
 unsigned char *simp_getexception(Simp ctx, Simp obj);
-Simp    simp_getstringmemb(Simp ctx, Simp obj, SSimp pos);
+Simp    simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos);
 Simp   *simp_getvector(Simp ctx, Simp obj);
-Simp    simp_getvectormemb(Simp ctx, Simp obj, SSimp pos);
+Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
 
 /* data type predicates */
 int     simp_isbuiltin(Simp ctx, Simp obj);
 int     simp_isbyte(Simp ctx, Simp obj);
+int     simp_isempty(Simp ctx, Simp obj);
 int     simp_isexception(Simp ctx, Simp obj);
 int     simp_isnum(Simp ctx, Simp obj);
 int     simp_isnil(Simp ctx, Simp obj);
-int     simp_isnul(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
 int     simp_isport(Simp ctx, Simp obj);
@@ -109,19 +114,19 @@ int     simp_issame(Simp ctx, Simp a, Simp b);
 /* data type mutators */
 void    simp_setcar(Simp ctx, Simp obj, Simp val);
 void    simp_setcdr(Simp ctx, Simp obj, Simp val);
-void    simp_setstring(Simp ctx, Simp obj, SSimp pos, unsigned char val);
-void    simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val);
+void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val);
+void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
 
 /* data type constructors */
 Simp    simp_makebuiltin(Simp ctx, Builtin *fun);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makeexception(Simp ctx, int n);
-Simp    simp_makenum(Simp ctx, SSimp n);
+Simp    simp_makenum(Simp ctx, SimpInt n);
 Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
-Simp    simp_makestring(Simp ctx, unsigned char *src, SSimp size);
-Simp    simp_makesymbol(Simp ctx, unsigned char *src, SSimp size);
-Simp    simp_makevector(Simp ctx, SSimp size, Simp fill);
+Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
+Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
+Simp    simp_makevector(Simp ctx, SimpSiz size, Simp fill);
 
 /* context operations */
 Simp    simp_contextenvironment(Simp ctx);

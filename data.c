@@ -7,6 +7,10 @@
 #define SYMTAB_SIZE     389
 #define SYMTAB_MULT     37
 
+#define X(n, s, p) extern Builtin p;
+	OPERATIONS
+#undef  X
+
 enum {
 	CONTEXT_IPORT,
 	CONTEXT_OPORT,
@@ -38,9 +42,15 @@ enum {
 	BINDING_SIZE,
 };
 
-#define X(n, s, p) extern Builtin p;
-	OPERATIONS
-#undef  X
+struct Vector {
+	SimpSiz size;
+	Simp *arr;
+};
+
+struct String {
+	SimpSiz size;
+	unsigned char *arr;
+};
 
 static unsigned char *errortab[NEXCEPTIONS] = {
 #define X(n, s) [n] = (unsigned char *)s,
@@ -48,8 +58,8 @@ static unsigned char *errortab[NEXCEPTIONS] = {
 #undef  X
 };
 
-static int
-gettype(Simp obj)
+static enum Type
+simp_gettype(Simp obj)
 {
 	return obj.type;
 }
@@ -103,7 +113,7 @@ simp_contextnew(void)
 {
 	Simp ctx, sym, val, obj;
 	Simp membs[NCONTEXTS];
-	SSimp i, len;
+	SimpSiz i, len;
 	struct {
 		unsigned char *name;
 		Builtin *func;
@@ -196,7 +206,6 @@ simp_empty(void)
 {
 	return (Simp){
 		.type = TYPE_STRING,
-		.size = 0,
 		.u.vector = NULL,
 	};
 }
@@ -219,10 +228,10 @@ unsigned char *
 simp_getexception(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.u.string;
+	return obj.u.errmsg;
 }
 
-SSimp
+SimpInt
 simp_getnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -243,29 +252,44 @@ simp_getreal(Simp ctx, Simp obj)
 	return obj.u.real;
 }
 
-SSimp
+SimpSiz
 simp_getsize(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.size;
+	switch (simp_gettype(obj)) {
+	case TYPE_VECTOR:
+		if (obj.u.vector == NULL)
+			return 0;
+		return ((struct Vector *)obj.u.vector)->size;
+	case TYPE_STRING:
+	case TYPE_SYMBOL:
+	case TYPE_EXCEPTION:
+		if (obj.u.string == NULL)
+			return 0;
+		return ((struct String *)obj.u.string)->size;
+	default:
+		return 0;
+	}
 }
 
 unsigned char *
 simp_getstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.u.string;
+	if (simp_isempty(ctx, obj))
+		return NULL;
+	return ((struct String *)obj.u.string)->arr;
 }
 
 unsigned char *
 simp_getsymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.u.string;
+	return ((struct String *)obj.u.string)->arr;
 }
 
 Simp
-simp_getstringmemb(Simp ctx, Simp obj, SSimp pos)
+simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos)
 {
 	if (!simp_isstring(ctx, obj) || pos >= simp_getsize(ctx, obj))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
@@ -276,11 +300,13 @@ Simp *
 simp_getvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.u.vector;
+	if (simp_isnil(ctx, obj))
+		return NULL;
+	return ((struct Vector *)obj.u.vector)->arr;
 }
 
 Simp
-simp_getvectormemb(Simp ctx, Simp obj, SSimp pos)
+simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos)
 {
 	if (!simp_isvector(ctx, obj) || pos >= simp_getsize(ctx, obj))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
@@ -299,40 +325,40 @@ int
 simp_isbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_BUILTIN;
+	return simp_gettype(obj) == TYPE_BUILTIN;
 }
 
 int
 simp_isbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_BYTE;
+	return simp_gettype(obj) == TYPE_BYTE;
+}
+
+int
+simp_isempty(Simp ctx, Simp obj)
+{
+	return simp_isstring(ctx, obj) && obj.u.string == NULL;
 }
 
 int
 simp_isexception(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_EXCEPTION;
+	return simp_gettype(obj) == TYPE_EXCEPTION;
 }
 
 int
 simp_isnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_SIGNUM;
+	return simp_gettype(obj) == TYPE_SIGNUM;
 }
 
 int
 simp_isnil(Simp ctx, Simp obj)
 {
-	return simp_isvector(ctx, obj) && obj.size == 0;
-}
-
-int
-simp_isnul(Simp ctx, Simp obj)
-{
-	return simp_isstring(ctx, obj) && obj.size == 0;
+	return simp_isvector(ctx, obj) && obj.u.vector == NULL;
 }
 
 int
@@ -345,21 +371,21 @@ int
 simp_isport(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_PORT;
+	return simp_gettype(obj) == TYPE_PORT;
 }
 
 int
 simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_REAL;
+	return simp_gettype(obj) == TYPE_REAL;
 }
 
 int
 simp_issame(Simp ctx, Simp a, Simp b)
 {
-	int typea = gettype(a);
-	int typeb = gettype(b);
+	enum Type typea = simp_gettype(a);
+	enum Type typeb = simp_gettype(b);
 
 	if (typea != typeb)
 		return FALSE;
@@ -380,6 +406,8 @@ simp_issame(Simp ctx, Simp a, Simp b)
 		return simp_getstring(ctx, a) == simp_getstring(ctx, b);
 	case TYPE_EXCEPTION:
 		return simp_getexception(ctx, a) == simp_getexception(ctx, b);
+	case TYPE_BUILTIN:
+		return simp_getbuiltin(ctx, a) == simp_getbuiltin(ctx, b);
 	}
 	return FALSE;
 }
@@ -388,21 +416,21 @@ int
 simp_isstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_STRING;
+	return simp_gettype(obj) == TYPE_STRING;
 }
 
 int
 simp_issymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_SYMBOL;
+	return simp_gettype(obj) == TYPE_SYMBOL;
 }
 
 int
 simp_isvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return gettype(obj) == TYPE_VECTOR;
+	return simp_gettype(obj) == TYPE_VECTOR;
 }
 
 void
@@ -418,17 +446,23 @@ simp_setcdr(Simp ctx, Simp obj, Simp val)
 }
 
 void
-simp_setstring(Simp ctx, Simp obj, SSimp pos, unsigned char val)
+simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val)
 {
+	unsigned char *string;
+
 	(void)ctx;
-	obj.u.string[pos] = val;
+	string = simp_getstring(ctx, obj);
+	string[pos] = val;
 }
 
 void
-simp_setvector(Simp ctx, Simp obj, SSimp pos, Simp val)
+simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
 {
+	Simp *vector;
+
 	(void)ctx;
-	obj.u.vector[pos] = val;
+	vector = simp_getvector(ctx, obj);
+	vector[pos] = val;
 }
 
 Simp
@@ -437,7 +471,6 @@ simp_makebuiltin(Simp ctx, Builtin *fun)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_BUILTIN,
-		.size = 0,
 		.u.builtin = fun,
 	};
 }
@@ -448,7 +481,6 @@ simp_makebyte(Simp ctx, unsigned char byte)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_BYTE,
-		.size = 0,
 		.u.byte = byte,
 	};
 }
@@ -459,18 +491,16 @@ simp_makeexception(Simp ctx, int n)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_EXCEPTION,
-		.size = 0,
-		.u.string = simp_errorstr(n),
+		.u.errmsg = simp_errorstr(n),
 	};
 }
 
 Simp
-simp_makenum(Simp ctx, SSimp n)
+simp_makenum(Simp ctx, SimpInt n)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_SIGNUM,
-		.size = 0,
 		.u.num = n,
 	};
 }
@@ -481,7 +511,6 @@ simp_makeport(Simp ctx, void *p)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_PORT,
-		.size = 0,
 		.u.port = (void *)p,
 	};
 }
@@ -492,33 +521,45 @@ simp_makereal(Simp ctx, double x)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_REAL,
-		.size = 0,
 		.u.real = x,
 	};
 }
 
 Simp
-simp_makestring(Simp ctx, unsigned char *src, SSimp size)
+simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 {
+	struct String *p = NULL;
 	unsigned char *dst = NULL;
 
-	if (size > 0)
-		if ((dst = calloc(size, 1)) == NULL)
-			return simp_makeexception(ctx, ERROR_MEMORY);
-	if (size > 0 && src != NULL)
+	if (size < 0)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size == 0)
+		return simp_empty();
+	if ((p = malloc(sizeof(*p))) == NULL)
+		goto error;
+	if ((dst = calloc(size, 1)) == NULL)
+		goto error;
+	*p = (struct String){
+		.size = size,
+		.arr = dst,
+	};
+	if (src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
-		.size = size,
-		.u.string = dst,
+		.u.string = p,
 	};
+error:
+	free(p);
+	free(dst);
+	return simp_makeexception(ctx, ERROR_MEMORY);
 }
 
 Simp
-simp_makesymbol(Simp ctx, unsigned char *src, SSimp size)
+simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 {
 	Simp list, prev, pair, symtab, sym;
-	SSimp i, bucket, len;
+	SimpSiz i, bucket, len;
 	unsigned char *dst;
 
 	symtab = simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
@@ -553,21 +594,34 @@ simp_makesymbol(Simp ctx, unsigned char *src, SSimp size)
 }
 
 Simp
-simp_makevector(Simp ctx, SSimp size, Simp fill)
+simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 {
+	struct Vector *p = NULL;
 	Simp *dst = NULL;
-	SSimp i;
+	SimpSiz i;
 
-	if (size > 0)
-		if ((dst = calloc(size, sizeof(*dst))) == NULL)
-			return simp_makeexception(ctx, ERROR_MEMORY);
+	if (size < 0)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size == 0)
+		return simp_nil();
+	if ((p = malloc(sizeof(*p))) == NULL)
+		goto error;
+	if ((dst = calloc(size, sizeof(*dst))) == NULL)
+		goto error;
+	*p = (struct Vector){
+		.size = size,
+		.arr = dst,
+	};
 	for (i = 0; i < size; i++)
 		dst[i] = fill;
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.size = size,
-		.u.vector = dst,
+		.u.vector = p,
 	};
+error:
+	free(p);
+	free(dst);
+	return simp_makeexception(ctx, ERROR_MEMORY);
 }
 
 Simp
@@ -575,7 +629,6 @@ simp_nil(void)
 {
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.size = 0,
 		.u.vector = NULL,
 	};
 }

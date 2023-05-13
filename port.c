@@ -6,10 +6,10 @@
 #include "simp.h"
 
 typedef struct Port {
-	enum {
+	enum PortType {
 		PORT_STREAM,
 	} type;
-	enum {
+	enum PortMode {
 		PORT_OPEN     = 0x01,
 		PORT_WRITE    = 0x02,
 		PORT_READ     = 0x04,
@@ -19,7 +19,7 @@ typedef struct Port {
 	union {
 		FILE   *fp;
 	} u;
-	SSimp nlines;
+	SimpInt nlines;
 } Port;
 
 static int
@@ -110,7 +110,7 @@ simp_openstream(Simp ctx, void *p, char *s)
 {
 	FILE *stream = (FILE *)p;
 	Port *port;
-	int mode = PORT_OPEN;
+	enum PortMode mode = PORT_OPEN;
 
 	if (strchr(s, 'w') != NULL)
 		mode |= PORT_WRITE;

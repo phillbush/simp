@@ -17,7 +17,7 @@ enum Numtype {
 };
 
 struct Token {
-	enum {
+	enum Toktype {
 		TOK_ERROR,
 		TOK_EOF,
 		TOK_LPAREN,
@@ -32,11 +32,11 @@ struct Token {
 		TOK_IDENTIFIER,
 	}       type;
 	union {
-		SSimp          fixnum;
+		SimpInt          fixnum;
 		double            real;
 		struct {
 			unsigned char   *str;
-			SSimp    len;
+			SimpSiz    len;
 		} str;
 	} u;
 };
@@ -87,7 +87,7 @@ cishex(int c)
 	       c == 'e' || c == 'f';
 }
 
-static unsigned char
+static SimpInt
 ctoi(int c)
 {
 	switch (c) {
@@ -111,7 +111,7 @@ ctoi(int c)
 }
 
 static int
-cisnum(int c, enum Numtype type, SSimp *num)
+cisnum(int c, enum Numtype type, SimpInt *num)
 {
 	switch (type) {
 	case NUM_BINARY:
@@ -144,13 +144,12 @@ cisnum(int c, enum Numtype type, SSimp *num)
 }
 
 static int
-readbyte(Simp ctx, Simp port)
+readbyte(Simp ctx, Simp port, int c)
 {
-	SSimp i = 0;
-	int c = NOTHING;
+	SimpSiz i = 0;
 	unsigned char u = 0;
 
-	if ((c = simp_readbyte(ctx, port)) == NOTHING)
+	if (c == NOTHING)
 		return c;
 	if (c != '\\')
 		return c;
@@ -214,7 +213,7 @@ loop:
 static Token
 readstr(Simp ctx, Simp port)
 {
-	SSimp size, len;
+	SimpSiz size, len;
 	unsigned char *str, *p;
 	int c;
 
@@ -228,7 +227,9 @@ readstr(Simp ctx, Simp port)
 			return (Token){ .type = TOK_ERROR };
 		if (c == '"')
 			break;
-		simp_unreadbyte(ctx, port, c);
+		c = readbyte(ctx, port, c);
+		if (c == NOTHING)
+			return (Token){ .type = TOK_ERROR };
 		if (len + 1 >= size) {
 			size <<= 2;
 			if ((p = realloc(str, size)) == NULL) {
@@ -237,7 +238,7 @@ readstr(Simp ctx, Simp port)
 			}
 			str = p;
 		}
-		str[len++] = readbyte(ctx, port);
+		str[len++] = (unsigned char)c;
 	}
 	str[len] = '\0';
 	return (Token){
@@ -253,10 +254,10 @@ readnum(Simp ctx, Simp port, int c)
 	enum Numtype numtype = NUM_DECIMAL;
 	double floatn = 0.0;
 	double expt = 0.0;
-	SSimp n = 0;
-	SSimp base = 0;
-	SSimp basesign = 1;
-	SSimp exptsign = 1;
+	SimpInt n = 0;
+	SimpInt base = 0;
+	SimpInt basesign = 1;
+	SimpInt exptsign = 1;
 	int isfloat = FALSE;
 
 	if (c == '+') {
@@ -294,7 +295,7 @@ done:
 	base *= basesign;
 	if (c == '.') {
 		while (cisnum(c = simp_readbyte(ctx, port), numtype, &n)) {
-			floatn += n;
+			floatn += (double)n;
 			n = 0;
 			switch (numtype) {
 			case NUM_BINARY:
@@ -312,12 +313,12 @@ done:
 				break;
 			}
 		}
-		floatn += base;
+		floatn += (double)base;
 		isfloat = TRUE;
 	}
 	if (c == 'e' || c == 'E') {
 		if (!isfloat)
-			floatn = base;
+			floatn = (double)base;
 		isfloat = TRUE;
 		c = simp_readbyte(ctx, port);
 		if (c == '+') {
@@ -328,7 +329,7 @@ done:
 		}
 		n = 0;
 		while (cisnum(c, numtype, &n)) {
-			expt += n;
+			expt += (double)n;
 			n = 0;
 			switch (numtype) {
 			case NUM_BINARY:
@@ -353,7 +354,7 @@ done:
 		isfloat = TRUE;
 	}
 	if (!cisdelimiter(c))
-		return (Token){.type = TOK_EOF};
+		return (Token){.type = TOK_ERROR};
 	simp_unreadbyte(ctx, port, c);
 	if (isfloat) {
 		return (Token){
@@ -371,8 +372,8 @@ done:
 static Token
 readident(Simp ctx, Simp port, int c)
 {
-	SSimp size = STRBUFSIZE;
-	SSimp len = 0;
+	SimpSiz size = STRBUFSIZE;
+	SimpSiz len = 0;
 	unsigned char *str, *p;
 
 	if ((str = malloc(size)) == NULL)
@@ -386,7 +387,7 @@ readident(Simp ctx, Simp port, int c)
 			}
 			str = p;
 		}
-		str[len++] = c;
+		str[len++] = (unsigned char)c;
 		c = simp_readbyte(ctx, port);
 	}
 	simp_unreadbyte(ctx, port, c);
@@ -435,6 +436,24 @@ readtok(Simp ctx, Simp port)
 		return tok;
 	case '"':
 		return readstr(ctx, port);
+	case '\'':
+		c = simp_readbyte(ctx, port);
+		c = readbyte(ctx, port, c);
+		if (c == NOTHING) {
+			tok.type = TOK_ERROR;
+			return tok;
+		}
+		tok.u.fixnum = c;
+		c = simp_readbyte(ctx, port);
+		if (c == '\'') {
+			tok.type = TOK_CHAR;
+			return tok;
+		}
+		while (c != NOTHING && c != '\'') {
+			c = simp_readbyte(ctx, port);
+		}
+		tok.type = TOK_CHAR;
+		return tok;
 	case '+': case '-':
 		if (!cisdecimal(simp_peekbyte(ctx, port)))
 			goto token;
@@ -451,10 +470,10 @@ token:
 }
 
 static Simp
-fillvector(Simp ctx, Simp list, SSimp nitems)
+fillvector(Simp ctx, Simp list, SimpSiz nitems)
 {
 	Simp vect, obj;
-	SSimp i = 0;
+	SimpSiz i = 0;
 
 	vect = simp_makevector(ctx, nitems, simp_nil());
 	// TODO: check if vector could not be built
@@ -467,14 +486,14 @@ static Simp
 readlist(Simp ctx, Simp port)
 {
 	Token tok;
-	int prevtype = TOK_DOT;
+	enum Toktype prevtype = TOK_DOT;
 	Simp list = simp_nil();
 	Simp last = simp_nil();
 	Simp vect = simp_nil();
 	Simp prev = simp_nil();
 	Simp pair, obj;
-	SSimp nitems = 0;
-	SSimp i;
+	SimpSiz nitems = 0;
+	SimpSiz i;
 
 	for (;;) {
 		tok = readtok(ctx, port);
@@ -530,7 +549,7 @@ readvector(Simp ctx, Simp port)
 	Simp list = simp_nil();
 	Simp last = simp_nil();
 	Simp pair, obj;
-	SSimp nitems = 0;
+	SimpSiz nitems = 0;
 
 	for (;;) {
 		tok = readtok(ctx, port);
@@ -608,9 +627,9 @@ simp_printbyte(Simp ctx, Simp port, Simp obj)
 }
 
 static void
-simp_printstr(Simp ctx, Simp port, unsigned char *str, SSimp len)
+simp_printstr(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
 {
-	SSimp i;
+	SimpSiz i;
 
 	for (i = 0; i < len; i++) {
 		simp_printchar(ctx, port, (int)str[i]);
@@ -639,7 +658,14 @@ toktoobj(Simp ctx, Simp port, Token tok)
 		return simp_makereal(ctx, tok.u.real);
 	case TOK_FIXNUM:
 		return simp_makenum(ctx, tok.u.fixnum);
-	default:
+	case TOK_CHAR:
+		return simp_makebyte(ctx, (unsigned char)tok.u.fixnum);
+	case TOK_EOF:
+		return simp_nil();
+	case TOK_RPAREN:
+	case TOK_RBRACE:
+	case TOK_DOT:
+	case TOK_ERROR:
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	}
 }
@@ -657,7 +683,7 @@ void
 simp_write(Simp ctx, Simp port, Simp obj)
 {
 	Simp curr;
-	SSimp len, i;
+	SimpSiz len, i;
 	int printspace;
 
 	if (simp_isnil(ctx, obj)) {
