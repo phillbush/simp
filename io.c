@@ -661,7 +661,7 @@ toktoobj(Simp ctx, Simp port, Token tok)
 	case TOK_CHAR:
 		return simp_makebyte(ctx, (unsigned char)tok.u.fixnum);
 	case TOK_EOF:
-		return simp_nil();
+		return simp_eof();
 	case TOK_RPAREN:
 	case TOK_RBRACE:
 	case TOK_DOT:

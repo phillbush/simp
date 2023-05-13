@@ -64,6 +64,9 @@ struct Simp {
 		TYPE_PORT,
 		TYPE_BYTE,
 		TYPE_EXCEPTION,
+		TYPE_EOF,
+		TYPE_TRUE,
+		TYPE_FALSE,
 	} type;
 };
 
@@ -78,6 +81,9 @@ Simp    simp_cons(Simp ctx, Simp a, Simp b);
 /* data constant utils */
 Simp    simp_nil(void);
 Simp    simp_empty(void);
+Simp    simp_eof(void);
+Simp    simp_false(void);
+Simp    simp_true(void);
 
 /* data type accessors */
 Builtin *simp_getbuiltin(Simp ctx, Simp obj);
@@ -94,10 +100,13 @@ Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
 
 /* data type predicates */
+int     simp_isbool(Simp ctx, Simp obj);
 int     simp_isbuiltin(Simp ctx, Simp obj);
 int     simp_isbyte(Simp ctx, Simp obj);
 int     simp_isempty(Simp ctx, Simp obj);
+int     simp_iseof(Simp ctx, Simp obj);
 int     simp_isexception(Simp ctx, Simp obj);
+int     simp_isfalse(Simp ctx, Simp obj);
 int     simp_isnum(Simp ctx, Simp obj);
 int     simp_isnil(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
@@ -106,6 +115,7 @@ int     simp_isport(Simp ctx, Simp obj);
 int     simp_isreal(Simp ctx, Simp obj);
 int     simp_isstring(Simp ctx, Simp obj);
 int     simp_issymbol(Simp ctx, Simp obj);
+int     simp_istrue(Simp ctx, Simp obj);
 int     simp_isvector(Simp ctx, Simp obj);
 
 /* data type checkers */

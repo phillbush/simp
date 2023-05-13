@@ -210,6 +210,18 @@ simp_empty(void)
 	};
 }
 
+Simp
+simp_eof(void)
+{
+	return (Simp){ .type = TYPE_EOF };
+}
+
+Simp
+simp_false(void)
+{
+	return (Simp){ .type = TYPE_FALSE };
+}
+
 Builtin *
 simp_getbuiltin(Simp ctx, Simp obj)
 {
@@ -322,6 +334,15 @@ simp_errorstr(int exception)
 }
 
 int
+simp_isbool(Simp ctx, Simp obj)
+{
+	enum Type t = simp_gettype(obj);
+
+	(void)ctx;
+	return t == TYPE_TRUE || t == TYPE_FALSE;
+}
+
+int
 simp_isbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -342,10 +363,24 @@ simp_isempty(Simp ctx, Simp obj)
 }
 
 int
+simp_iseof(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(obj) == TYPE_EOF;
+}
+
+int
 simp_isexception(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(obj) == TYPE_EXCEPTION;
+}
+
+int
+simp_isfalse(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(obj) == TYPE_FALSE;
 }
 
 int
@@ -408,6 +443,10 @@ simp_issame(Simp ctx, Simp a, Simp b)
 		return simp_getexception(ctx, a) == simp_getexception(ctx, b);
 	case TYPE_BUILTIN:
 		return simp_getbuiltin(ctx, a) == simp_getbuiltin(ctx, b);
+	case TYPE_EOF:
+	case TYPE_TRUE:
+	case TYPE_FALSE:
+		return TRUE;
 	}
 	return FALSE;
 }
@@ -424,6 +463,12 @@ simp_issymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(obj) == TYPE_SYMBOL;
+}
+
+int
+simp_istrue(Simp ctx, Simp obj)
+{
+	return !simp_isfalse(ctx, obj);
 }
 
 int
@@ -463,6 +508,12 @@ simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
 	(void)ctx;
 	vector = simp_getvector(ctx, obj);
 	vector[pos] = val;
+}
+
+Simp
+simp_true(void)
+{
+	return (Simp){ .type = TYPE_TRUE };
 }
 
 Simp
