@@ -1,0 +1,91 @@
+.Dd May 13, 2023
+.Dt SIMP 1
+.Os
+.Sh NAME
+.Nm simp
+.Nd simp lisp interpreter
+.Sh SYNOPSIS
+.Nm simp
+.Nm simp
+.Op Fl i
+.Fl e Ar string
+.Op Ar arg ...
+.Nm simp
+.Op Fl i
+.Fl p Ar string
+.Op Ar arg ...
+.Nm simp
+.Op Fl i
+.Ar file
+.Op Ar arg ...
+.Sh DESCRIPTION
+The
+.Nm
+utility is an interpreter for
+.Xr simp 7 ,
+a simplistic programming language.
+It reads expressions from a file, string, or standard input, and evaluates them
+(possibly writing to standard output the result of the evaluation, if in the REPL mode).
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl e Ar string
+Read expressions from
+.Ar string
+but do not write the resulting evaluation into standard output.
+.It Fl i
+Enter the interactive REPL mode after evaluating expressions from a string or file.
+This flag is set by default if no argument is given.
+.It Fl p Ar string
+Read expressions from
+.Ar string
+and write the resulting evaluation into standard output.
+.El
+.Pp
+In the first synopsis form, expressions are interpreted interactively in a REPL (read-eval-print loop).
+Expressions are read from standard input (usually a terminal) and written to standard output.
+.Pp
+In the second synopsis form (with
+.Fl e ) ,
+expressions are read from
+.Ar string
+and the resulting evaluation is not written into standard output.
+Unless the flag
+.Fl i
+is given, no interactive REPL occurs after evaluating the string.
+.Pp
+In the third synopsis form (with
+.Fl p ) ,
+expressions are read from
+.Ar string
+and the resulting evaluation is written into standard output.
+Unless the flag
+.Fl i
+is given, no interactive REPL occurs after evaluating the string.
+.Pp
+In the fourth synopsis form (with an argument and neither
+.Fl e
+or
+.Fl i ) ,
+expressions are read from
+.Ar file
+and evaluated without outputing the result.
+If
+.Ar file
+is an hyphen
+.Pq "-" ,
+read expressions from the standard input instead.
+Unless the flag
+.Fl i
+is given, no interactive REPL occurs after evaluating the file.
+.Sh SEE ALSO
+.Xr simp 3 ,
+.Xr simp 7
+.Rs
+.%A Harold Abelson
+.%A Gerald Jay Sussman
+.%A Julie Sussman
+.%B Structure and Interpretation of Computer Programms
+.%I The MIT Press
+.%D 1996
+.Re
