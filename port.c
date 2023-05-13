@@ -8,6 +8,7 @@
 typedef struct Port {
 	enum PortType {
 		PORT_STREAM,
+		PORT_STRING,
 	} type;
 	enum PortMode {
 		PORT_OPEN     = 0x01,
@@ -18,9 +19,25 @@ typedef struct Port {
 	} mode;
 	union {
 		FILE   *fp;
+		struct {
+			unsigned char *arr;
+			SimpSiz curr, size;
+		} str;
 	} u;
 	SimpInt nlines;
 } Port;
+
+static enum PortMode
+openmode(char *s)
+{
+	enum PortMode mode = PORT_OPEN;
+
+	if (strchr(s, 'w') != NULL)
+		mode |= PORT_WRITE;
+	if (strchr(s, 'r') != NULL)
+		mode |= PORT_READ;
+	return mode;
+}
 
 static int
 canread(Port *port)
@@ -35,15 +52,23 @@ void
 simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 {
 	Port *port;
-	FILE *fp;
 	va_list ap;
 
 	port = simp_getport(ctx, obj);
 	va_start(ap, fmt);
 	switch (port->type) {
+	case PORT_STRING:
+		if (port->u.str.curr >= port->u.str.size)
+			break;
+		vsnprintf(
+			(char *)port->u.str.arr,
+			port->u.str.size - port->u.str.curr,
+			fmt,
+			ap
+		);
+		break;
 	case PORT_STREAM:
-		fp = port->u.fp;
-		vfprintf(fp, fmt, ap);
+		vfprintf(port->u.fp, fmt, ap);
 		break;
 	}
 	va_end(ap);
@@ -54,17 +79,22 @@ simp_readbyte(Simp ctx, Simp obj)
 {
 	Port *port = simp_getport(ctx, obj);
 	int byte = NOTHING;
-	FILE *fp;
 	int c;
 
 	if (!canread(port))
 		return NOTHING;
 	switch (port->type) {
+	case PORT_STRING:
+		if (port->u.str.curr >= port->u.str.size) {
+			port->mode |= PORT_EOF;
+			return NOTHING;
+		}
+		byte = port->u.str.arr[port->u.str.curr++];
+		break;
 	case PORT_STREAM:
-		fp = port->u.fp;
-		c = fgetc(fp);
+		c = fgetc(port->u.fp);
 		if (c == EOF) {
-			if (ferror(fp))
+			if (ferror(port->u.fp))
 				port->mode |= PORT_ERR;
 			else
 				port->mode |= PORT_EOF;
@@ -82,15 +112,19 @@ void
 simp_unreadbyte(Simp ctx, Simp obj, int c)
 {
 	Port *port;
-	FILE *fp;
 
 	if (c == NOTHING)
 		return;
 	port = simp_getport(ctx, obj);
+	if (!canread(port))
+		return;
 	switch (port->type) {
+	case PORT_STRING:
+		if (port->u.str.curr > 0)
+			port->u.str.arr[--port->u.str.curr] = (unsigned char)c;
+		break;
 	case PORT_STREAM:
-		fp = port->u.fp;
-		(void)ungetc(c, fp);
+		(void)ungetc(c, port->u.fp);
 		break;
 	}
 }
@@ -106,22 +140,35 @@ simp_peekbyte(Simp ctx, Simp obj)
 }
 
 Simp
-simp_openstream(Simp ctx, void *p, char *s)
+simp_openstream(Simp ctx, void *p, char *mode)
 {
 	FILE *stream = (FILE *)p;
 	Port *port;
-	enum PortMode mode = PORT_OPEN;
 
-	if (strchr(s, 'w') != NULL)
-		mode |= PORT_WRITE;
-	if (strchr(s, 'r') != NULL)
-		mode |= PORT_READ;
-	port = malloc(sizeof(*port));
-	// TODO: check error
+	if ((port = malloc(sizeof(*port))) == NULL)
+		return simp_makeexception(ctx, ERROR_MEMORY);
 	*port = (Port){
 		.type = PORT_STREAM,
-		.mode = mode,
+		.mode = openmode(mode),
 		.u.fp = stream,
+		.nlines = 0,
+	};
+	return simp_makeport(ctx, port);
+}
+
+Simp
+simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
+{
+	Port *port;
+
+	if ((port = malloc(sizeof(*port))) == NULL)
+		return simp_makeexception(ctx, ERROR_MEMORY);
+	*port = (Port){
+		.type = PORT_STRING,
+		.mode = openmode(mode),
+		.u.str.arr = p,
+		.u.str.size = len,
+		.u.str.curr = 0,
 		.nlines = 0,
 	};
 	return simp_makeport(ctx, port);

@@ -152,16 +152,15 @@ Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 
 /* port operations */
 Simp    simp_openstream(Simp ctx, void *p, char *mode);
+Simp    simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode);
 int     simp_porteof(Simp ctx, Simp obj);
 int     simp_porterr(Simp ctx, Simp obj);
-
-/* IO */
 int     simp_readbyte(Simp ctx, Simp port);
 int     simp_peekbyte(Simp ctx, Simp port);
 void    simp_unreadbyte(Simp ctx, Simp obj, int c);
 void    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
-Simp    simp_read(Simp ctx, Simp port);
-void    simp_write(Simp ctx, Simp port, Simp obj);
 
 /* eval */
+Simp    simp_read(Simp ctx, Simp port);
+void    simp_write(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
