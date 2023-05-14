@@ -20,14 +20,14 @@ noperands(Simp ctx, Simp list)
 static Simp
 apply(Simp ctx, Simp lambda, Simp args)
 {
-	Simp env, param, body, var, val, expr;
+	Simp newenv, env, param, body, var, val, expr;
 
 	env = simp_getapplicativeenv(ctx, lambda);
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	env = simp_makeenvironment(ctx, env);
-	if (simp_isexception(ctx, env))
-		return env;
+	newenv = simp_makeenvironment(ctx, env);
+	if (simp_isexception(ctx, newenv))
+		return newenv;
 	param = simp_getapplicativeparam(ctx, lambda);
 	while (!simp_isnil(ctx, param)) {
 		if (!simp_ispair(ctx, param))
@@ -38,9 +38,12 @@ apply(Simp ctx, Simp lambda, Simp args)
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
 		var = simp_car(ctx, param);
 		val = simp_car(ctx, args);
+		val = simp_eval(ctx, val, env);
+		if (!simp_isexception(ctx, val))
+			return val;
 		if (!simp_issymbol(ctx, var))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		simp_envset(ctx, env, var, val);
+		simp_envset(ctx, newenv, var, val);
 		param = simp_cdr(ctx, param);
 		args = simp_cdr(ctx, args);
 	}
@@ -52,7 +55,7 @@ apply(Simp ctx, Simp lambda, Simp args)
 		if (!simp_ispair(ctx, body))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
 		expr = simp_car(ctx, body);
-		val = simp_eval(ctx, expr, env);
+		val = simp_eval(ctx, expr, newenv);
 		if (simp_isexception(ctx, val))
 			return val;
 	}
@@ -120,7 +123,7 @@ simp_oplambda(Simp ctx, Simp operands, Simp env)
 }
 
 Simp
-simp_oplet(Simp ctx, Simp operands, Simp env)
+simp_opdefine(Simp ctx, Simp operands, Simp env)
 {
 	Simp symbol, value;
 

@@ -22,7 +22,7 @@
 	X(OP_SUBTRACT,  "-",            simp_opsubtract )\
 	X(OP_MULTIPLY,  "*",            simp_opmultiply )\
 	X(OP_DIVIDE,    "/",            simp_opdivide   )\
-	X(OP_LET,       "let",          simp_oplet      )\
+	X(OP_DEFINE,    "define",       simp_opdefine   )\
 	X(OP_QUOTE,     "quote",        simp_opquote    )
 
 typedef struct Simp             Simp;
