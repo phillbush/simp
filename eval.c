@@ -88,7 +88,7 @@ apply(Simp ctx, Simp lambda, Simp args)
 		var = simp_car(ctx, param);
 		val = simp_car(ctx, args);
 		val = simp_eval(ctx, val, env);
-		if (!simp_isexception(ctx, val))
+		if (simp_isexception(ctx, val))
 			return val;
 		if (!simp_issymbol(ctx, var))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
