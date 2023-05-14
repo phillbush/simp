@@ -7,17 +7,19 @@
 #define TRUE            1
 #define NOTHING         (-1)
 
-#define EXCEPTIONS                                       \
-	X(ERROR_ARGS,    "wrong number of arguments"    )\
-	X(ERROR_UNBOUND, "unbound variable"             )\
-	X(ERROR_ILLEXPR, "ill expression"               )\
-	X(ERROR_ILLTYPE, "improper type"                )\
-	X(ERROR_STREAM,  "stream error"                 )\
-	X(ERROR_RANGE,   "out of range"                 )\
-	X(ERROR_MEMORY,  "allocation error"             )
+#define EXCEPTIONS                                               \
+	X(ERROR_ARGS,    "wrong number of arguments"            )\
+	X(ERROR_ENVIRON, "symbol for environment not supplied"  )\
+	X(ERROR_UNBOUND, "unbound variable"                     )\
+	X(ERROR_ILLEXPR, "ill expression"                       )\
+	X(ERROR_ILLTYPE, "improper type"                        )\
+	X(ERROR_STREAM,  "stream error"                         )\
+	X(ERROR_RANGE,   "out of range"                         )\
+	X(ERROR_MEMORY,  "allocation error"                     )
 
 #define OPERATIONS                                       \
 	X(OP_LAMBDA,    "lambda",       simp_oplambda   )\
+	X(OP_MACRO,     "macro",        simp_opmacro    )\
 	X(OP_ADD,       "+",            simp_opadd      )\
 	X(OP_SUBTRACT,  "-",            simp_opsubtract )\
 	X(OP_MULTIPLY,  "*",            simp_opmultiply )\
@@ -122,6 +124,7 @@ int     simp_isexception(Simp ctx, Simp obj);
 int     simp_isfalse(Simp ctx, Simp obj);
 int     simp_isnum(Simp ctx, Simp obj);
 int     simp_isnil(Simp ctx, Simp obj);
+int     simp_isoperative(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
 int     simp_ispair(Simp ctx, Simp obj);
 int     simp_isport(Simp ctx, Simp obj);
@@ -147,6 +150,7 @@ Simp    simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
+Simp    simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);

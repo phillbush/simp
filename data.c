@@ -580,6 +580,13 @@ simp_isnum(Simp ctx, Simp obj)
 }
 
 int
+simp_isoperative(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_OPERATIVE;
+}
+
+int
 simp_ispair(Simp ctx, Simp obj)
 {
 	return simp_isvector(ctx, obj) && simp_getsize(ctx, obj) == 2;
@@ -779,6 +786,33 @@ simp_makenum(Simp ctx, SimpInt n)
 		.type = TYPE_SIGNUM,
 		.u.num = n,
 	};
+}
+
+Simp
+simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body)
+{
+	Simp macro, obj;
+
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	if (simp_isnil(ctx, param))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	if (!simp_ispair(ctx, param))
+		return simp_makeexception(ctx, ERROR_ENVIRON);
+	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
+		if (!simp_ispair(ctx, obj) || !simp_issymbol(ctx, simp_car(ctx, obj)))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
+		if (!simp_ispair(ctx, obj))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+	macro = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
+	if (simp_isexception(ctx, macro))
+		return macro;
+	simp_setvector(ctx, macro, CLOSURE_ENVIRONMENT, env);
+	simp_setvector(ctx, macro, CLOSURE_PARAMETERS, param);
+	simp_setvector(ctx, macro, CLOSURE_EXPRESSIONS, body);
+	macro.type = TYPE_OPERATIVE;
+	return macro;
 }
 
 Simp
