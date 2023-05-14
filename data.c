@@ -734,8 +734,6 @@ simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body)
 
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (simp_isnil(ctx, param))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
 		if (!simp_ispair(ctx, obj) || !simp_issymbol(ctx, simp_car(ctx, obj)))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
@@ -794,8 +792,6 @@ simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body)
 	Simp macro, obj;
 
 	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (simp_isnil(ctx, param))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	if (!simp_ispair(ctx, param))
 		return simp_makeexception(ctx, ERROR_ENVIRON);
