@@ -282,7 +282,6 @@ readnum(Simp ctx, Simp port, int c)
 			break;
 		default:
 			numtype = NUM_DECIMAL;
-			simp_unreadbyte(ctx, port, c);
 			break;
 		}
 	}
