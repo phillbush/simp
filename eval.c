@@ -131,6 +131,46 @@ combine(Simp ctx, Simp expr, Simp env)
 	return simp_makeexception(ctx, -1);
 }
 
+static Simp
+getargs(Simp ctx, Simp operands, Simp env, Simp args[], SimpInt nargs)
+{
+	SimpInt i;
+
+	for (i = 0; i < nargs; i++) {
+		if (!simp_ispair(ctx, operands))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		args[i] = simp_car(ctx, operands);
+		operands = simp_cdr(ctx, operands);
+	}
+	if (!simp_isnil(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	for (i = 0; i < nargs; i++) {
+		args[i] = simp_eval(ctx, args[i], env);
+		if (simp_isexception(ctx, args[i])) {
+			return args[i];
+		}
+	}
+	return simp_nil();
+}
+
+Simp
+simp_opfalse(Simp ctx, Simp operands, Simp env)
+{
+	(void)env;
+	if (!simp_isnil(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	return simp_false();
+}
+
+Simp
+simp_optrue(Simp ctx, Simp operands, Simp env)
+{
+	(void)env;
+	if (!simp_isnil(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	return simp_true();
+}
+
 Simp
 simp_opadd(Simp ctx, Simp operands, Simp env)
 {
@@ -150,6 +190,20 @@ simp_opadd(Simp ctx, Simp operands, Simp env)
 	}
 	sum = simp_makenum(ctx, num);
 	return sum;
+}
+
+Simp
+simp_opbooleanp(Simp ctx, Simp operands, Simp env)
+{
+	Simp arg, ret;
+
+	ret = getargs(ctx, operands, env, &arg, 1);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (simp_isbool(ctx, arg))
+		return simp_true();
+	else
+		return simp_false();
 }
 
 Simp
@@ -230,6 +284,87 @@ error:
 }
 
 Simp
+simp_opequal(Simp ctx, Simp operands, Simp env)
+{
+	Simp args[2];
+	Simp ret;
+
+	ret = getargs(ctx, operands, env, args, 2);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (simp_getnum(ctx, args[0]) == simp_getnum(ctx, args[1]))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
+simp_opgt(Simp ctx, Simp operands, Simp env)
+{
+	Simp args[2];
+	Simp ret;
+
+	ret = getargs(ctx, operands, env, args, 2);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (simp_getnum(ctx, args[0]) > simp_getnum(ctx, args[1]))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
+simp_opif(Simp ctx, Simp operands, Simp env)
+{
+	Simp test, exprs[2] = { simp_nil(), simp_nil() };
+	int i = 0;
+
+	if (!simp_ispair(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	test = simp_car(ctx, operands);
+	operands = simp_cdr(ctx, operands);
+	if (!simp_ispair(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	exprs[0] = simp_car(ctx, operands);
+	operands = simp_cdr(ctx, operands);
+	if (simp_ispair(ctx, operands)) {
+		exprs[1] = simp_car(ctx, operands);
+		operands = simp_cdr(ctx, operands);
+	}
+	if (!simp_isnil(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	test = simp_eval(ctx, test, env);
+	if (simp_isexception(ctx, test))
+		return test;
+	if (simp_istrue(ctx, test))
+		i = 0;
+	else
+		i = 1;
+	return simp_eval(ctx, exprs[i], env);
+}
+
+Simp
+simp_oplt(Simp ctx, Simp operands, Simp env)
+{
+	Simp args[2];
+	Simp ret;
+
+	ret = getargs(ctx, operands, env, args, 2);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (simp_getnum(ctx, args[0]) < simp_getnum(ctx, args[1]))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
 simp_opmultiply(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 1;
@@ -251,6 +386,34 @@ simp_opmultiply(Simp ctx, Simp operands, Simp env)
 }
 
 Simp
+simp_opnullp(Simp ctx, Simp operands, Simp env)
+{
+	Simp arg, ret;
+
+	ret = getargs(ctx, operands, env, &arg, 1);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (simp_isnil(ctx, arg))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
+simp_oppairp(Simp ctx, Simp operands, Simp env)
+{
+	Simp arg, ret;
+
+	ret = getargs(ctx, operands, env, &arg, 1);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (simp_ispair(ctx, arg))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
 simp_opquote(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
@@ -261,6 +424,35 @@ simp_opquote(Simp ctx, Simp operands, Simp env)
 	return simp_car(ctx, operands);
 error:
 	return simp_makeexception(ctx, ERROR_ILLEXPR);
+}
+
+Simp
+simp_opsamep(Simp ctx, Simp operands, Simp env)
+{
+	Simp args[2];
+	Simp ret;
+
+	ret = getargs(ctx, operands, env, args, 2);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (simp_issame(ctx, args[0], args[1]))
+		return simp_true();
+	else
+		return simp_false();
+}
+
+Simp
+simp_opsymbolp(Simp ctx, Simp operands, Simp env)
+{
+	Simp arg, ret;
+
+	ret = getargs(ctx, operands, env, &arg, 1);
+	if (simp_isexception(ctx, ret))
+		return ret;
+	if (simp_issymbol(ctx, arg))
+		return simp_true();
+	else
+		return simp_false();
 }
 
 Simp

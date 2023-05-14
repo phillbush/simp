@@ -18,8 +18,19 @@
 	X(ERROR_MEMORY,  "allocation error"                     )
 
 #define OPERATIONS                                       \
+	X(OP_SAMEP,     "same?",        simp_opsamep    )\
+	X(OP_NULLP,     "null?",        simp_opnullp    )\
+	X(OP_PAIRP,     "pair?",        simp_oppairp    )\
+	X(OP_BOOLEANP,  "boolean?",     simp_opbooleanp )\
+	X(OP_SYMBOLP,   "symbol?",      simp_opsymbolp  )\
 	X(OP_LAMBDA,    "lambda",       simp_oplambda   )\
 	X(OP_MACRO,     "macro",        simp_opmacro    )\
+	X(OP_IF,        "if",           simp_opif       )\
+	X(OP_TRUE,      "true",         simp_optrue     )\
+	X(OP_FALSE,     "false",        simp_opfalse    )\
+	X(OP_EQUAL,     "=",            simp_opequal    )\
+	X(OP_LT,        "<",            simp_oplt       )\
+	X(OP_GT,        ">",            simp_opgt       )\
 	X(OP_ADD,       "+",            simp_opadd      )\
 	X(OP_SUBTRACT,  "-",            simp_opsubtract )\
 	X(OP_MULTIPLY,  "*",            simp_opmultiply )\
