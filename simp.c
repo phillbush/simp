@@ -41,7 +41,7 @@ rel(Simp ctx, Simp iport)
 }
 
 static int
-repl(Simp ctx, Simp iport)
+repl(Simp ctx, Simp iport, int prompt)
 {
 	Simp oport, eport, obj, env;
 
@@ -51,6 +51,8 @@ repl(Simp ctx, Simp iport)
 	for (;;) {
 		if (simp_porterr(ctx, iport))
 			return EXIT_FAILURE;
+		if (prompt)
+			simp_printf(ctx, oport, "> ");
 		obj = simp_read(ctx, iport);
 		if (simp_iseof(ctx, obj))
 			break;
@@ -65,7 +67,7 @@ repl(Simp ctx, Simp iport)
 		}
 		simp_write(ctx, oport, obj);
 newline:
-		printf("\n");
+		simp_printf(ctx, oport, "\n");
 	}
 	return EXIT_SUCCESS;
 }
@@ -111,15 +113,15 @@ main(int argc, char *argv[])
 			goto error;
 		retval = rel(ctx, port);
 		if (iflag)
-			repl(ctx, iport);
+			repl(ctx, iport, 1);
 		break;
 	case MODE_PRINT:
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(ctx, port))
 			goto error;
-		retval = repl(ctx, port);
+		retval = repl(ctx, port, 0);
 		if (iflag)
-			repl(ctx, iport);
+			repl(ctx, iport, 1);
 		break;
 	case MODE_SCRIPT:
 		if (argv[0][0] == '-' && argv[0][1] == '\0') {
@@ -136,10 +138,10 @@ main(int argc, char *argv[])
 		if (fp != stdin)
 			(void)fclose(fp);
 		if (iflag)
-			repl(ctx, iport);
+			repl(ctx, iport, 1);
 		break;
 	case MODE_INTERACTIVE:
-		repl(ctx, iport);
+		repl(ctx, iport, 1);
 		break;
 	}
 	return retval;

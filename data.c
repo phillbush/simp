@@ -42,9 +42,11 @@ enum {
 	BINDING_SIZE,
 };
 
-struct Vector {
-	SimpSiz size;
-	Simp *arr;
+enum {
+	CLOSURE_ENVIRONMENT,
+	CLOSURE_PARAMETERS,
+	CLOSURE_EXPRESSIONS,
+	CLOSURE_SIZE
 };
 
 struct String {
@@ -58,6 +60,119 @@ static unsigned char *errortab[NEXCEPTIONS] = {
 #undef  X
 };
 
+static int
+simp_isbinding(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_BINDING;
+}
+
+static Simp
+simp_nulbind(void)
+{
+	return (Simp){
+		.type = TYPE_BINDING,
+		.u.vector = NULL,
+	};
+}
+
+static Simp
+simp_nulenv(void)
+{
+	return (Simp){
+		.type = TYPE_ENVIRONMENT,
+		.u.vector = NULL,
+	};
+}
+
+static Simp
+simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
+{
+	Simp bind;
+
+	if (!simp_issymbol(ctx, sym))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isbinding(ctx, frame))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	bind = simp_makevector(ctx, BINDING_SIZE, simp_nil());
+	if (simp_isexception(ctx, bind))
+		return bind;
+	simp_setvector(ctx, bind, BINDING_VARIABLE, sym);
+	simp_setvector(ctx, bind, BINDING_VALUE, val);
+	simp_setvector(ctx, bind, BINDING_NEXT, frame);
+	bind.type = TYPE_BINDING;
+	return bind;
+}
+
+static int
+simp_isnulenv(Simp ctx, Simp obj)
+{
+	return simp_isenvironment(ctx, obj) && obj.u.vector == NULL;
+}
+
+static int
+simp_isnulbind(Simp ctx, Simp obj)
+{
+	return simp_isbinding(ctx, obj) && obj.u.vector == NULL;
+}
+
+static Simp *
+simp_getvector(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	if (obj.u.vector == NULL)
+		return NULL;
+	return obj.u.vector + 1;        /* +1 for the first element is the size */
+}
+
+static Simp *
+simp_getclosure(Simp ctx, Simp obj)
+{
+	return simp_getvector(ctx, obj);
+}
+
+static Simp *
+simp_getenvironment(Simp ctx, Simp obj)
+{
+	return simp_getvector(ctx, obj);
+}
+
+static Simp *
+simp_getbind(Simp ctx, Simp obj)
+{
+	return simp_getvector(ctx, obj);
+}
+
+static Simp
+simp_getenvframe(Simp ctx, Simp obj)
+{
+	return simp_getenvironment(ctx, obj)[ENVIRONMENT_FRAME];
+}
+
+static Simp
+simp_getenvparent(Simp ctx, Simp obj)
+{
+	return simp_getenvironment(ctx, obj)[ENVIRONMENT_PARENT];
+}
+
+static Simp
+simp_getbindvariable(Simp ctx, Simp obj)
+{
+	return simp_getbind(ctx, obj)[BINDING_VARIABLE];
+}
+
+static Simp
+simp_getbindvalue(Simp ctx, Simp obj)
+{
+	return simp_getbind(ctx, obj)[BINDING_VALUE];
+}
+
+static Simp
+simp_getbindnext(Simp ctx, Simp obj)
+{
+	return simp_getbind(ctx, obj)[BINDING_NEXT];
+}
+
 enum Type
 simp_gettype(Simp ctx, Simp obj)
 {
@@ -70,14 +185,15 @@ simp_envget(Simp ctx, Simp env, Simp sym)
 {
 	Simp bind, var;
 
-	for (; !simp_isnil(ctx, env);
-	       env = simp_getvectormemb(ctx, env, ENVIRONMENT_PARENT)) {
-		for (bind = simp_cdr(ctx,env);
-		     !simp_isnil(ctx, bind);
-		     bind = simp_getvectormemb(ctx, bind, BINDING_NEXT)) {
-			var = simp_getvectormemb(ctx, bind, BINDING_VARIABLE);
+	if (!simp_issymbol(ctx, sym))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	for (; !simp_isnulenv(ctx, env); env = simp_getenvparent(ctx, env)) {
+		for (bind = simp_getenvframe(ctx, env);
+		     !simp_isnulbind(ctx, bind);
+		     bind = simp_getbindnext(ctx, bind)) {
+			var = simp_getbindvariable(ctx, bind);
 			if (simp_issame(ctx, var, sym)) {
-				return simp_getvectormemb(ctx, bind, BINDING_VALUE);
+				return simp_getbindvalue(ctx, bind);
 			}
 		}
 	}
@@ -89,22 +205,23 @@ simp_envset(Simp ctx, Simp env, Simp var, Simp val)
 {
 	Simp frame, bind, sym;
 
-	frame = simp_getvectormemb(ctx, env, ENVIRONMENT_FRAME);
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_issymbol(ctx, var))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	frame = simp_getenvframe(ctx, env);
 	for (bind = frame;
-	     !simp_isnil(ctx, bind);
-	     bind = simp_getvectormemb(ctx, bind, BINDING_NEXT)) {
-		sym = simp_getvectormemb(ctx, bind, BINDING_VARIABLE);
+	     !simp_isnulbind(ctx, bind);
+	     bind = simp_getbindnext(ctx, bind)) {
+		sym = simp_getbindvariable(ctx, bind);
 		if (simp_issame(ctx, var, sym)) {
 			simp_setvector(ctx, bind, BINDING_VALUE, val);
 			return var;
 		}
 	}
-	bind = simp_makevector(ctx, BINDING_SIZE, simp_nil());
+	bind = simp_makebind(ctx, var, val, frame);
 	if (simp_isexception(ctx, bind))
 		return bind;
-	simp_setvector(ctx, bind, BINDING_VARIABLE, var);
-	simp_setvector(ctx, bind, BINDING_VALUE, val);
-	simp_setvector(ctx, bind, BINDING_NEXT, frame);
 	simp_setvector(ctx, env, ENVIRONMENT_FRAME, bind);
 	return var;
 }
@@ -129,7 +246,7 @@ simp_contextnew(void)
 	membs[CONTEXT_OPORT] = simp_openstream(simp_nil(), stdout, "w");
 	membs[CONTEXT_EPORT] = simp_openstream(simp_nil(), stderr, "w");
 	membs[CONTEXT_SYMTAB] = simp_makevector(simp_nil(), SYMTAB_SIZE, simp_nil());
-	membs[CONTEXT_ENVIRONMENT] = simp_cons(simp_nil(), simp_nil(), simp_nil());
+	membs[CONTEXT_ENVIRONMENT] = simp_makeenvironment(simp_nil(), simp_nulenv());
 	for (i = 0; i < NCONTEXTS; i++)
 		simp_setvector(simp_nil(), ctx, i, membs[i]);
 	for (i = 0; i < NOPERATIONS; i++) {
@@ -237,6 +354,66 @@ simp_getbyte(Simp ctx, Simp obj)
 	return obj.u.byte;
 }
 
+Simp
+simp_getapplicativeenv(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_APPLICATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_ENVIRONMENT];
+}
+
+Simp
+simp_getapplicativeparam(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_APPLICATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_PARAMETERS];
+}
+
+Simp
+simp_getapplicativebody(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_APPLICATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_EXPRESSIONS];
+}
+
+Simp
+simp_getoperativeenv(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_OPERATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_ENVIRONMENT];
+}
+
+Simp
+simp_getoperativeparam(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_OPERATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_PARAMETERS];
+}
+
+Simp
+simp_getoperativebody(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_OPERATIVE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_EXPRESSIONS];
+}
+
 unsigned char *
 simp_getexception(Simp ctx, Simp obj)
 {
@@ -273,7 +450,7 @@ simp_getsize(Simp ctx, Simp obj)
 	case TYPE_VECTOR:
 		if (obj.u.vector == NULL)
 			return 0;
-		return ((struct Vector *)obj.u.vector)->size;
+		return (SimpSiz)simp_getnum(ctx, obj.u.vector[0]);      /* first element is the size */
 	case TYPE_STRING:
 	case TYPE_SYMBOL:
 	case TYPE_EXCEPTION:
@@ -309,15 +486,6 @@ simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos)
 	return simp_makebyte(ctx, simp_getstring(ctx, obj)[pos]);
 }
 
-Simp *
-simp_getvector(Simp ctx, Simp obj)
-{
-	(void)ctx;
-	if (simp_isnil(ctx, obj))
-		return NULL;
-	return ((struct Vector *)obj.u.vector)->arr;
-}
-
 Simp
 simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos)
 {
@@ -351,6 +519,13 @@ simp_isbuiltin(Simp ctx, Simp obj)
 }
 
 int
+simp_isapplicative(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_APPLICATIVE;
+}
+
+int
 simp_isbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -361,6 +536,13 @@ int
 simp_isempty(Simp ctx, Simp obj)
 {
 	return simp_isstring(ctx, obj) && obj.u.string == NULL;
+}
+
+int
+simp_isenvironment(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_ENVIRONMENT;
 }
 
 int
@@ -385,16 +567,16 @@ simp_isfalse(Simp ctx, Simp obj)
 }
 
 int
+simp_isnil(Simp ctx, Simp obj)
+{
+	return simp_isvector(ctx, obj) && obj.u.vector == NULL;
+}
+
+int
 simp_isnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_SIGNUM;
-}
-
-int
-simp_isnil(Simp ctx, Simp obj)
-{
-	return simp_isvector(ctx, obj) && obj.u.vector == NULL;
 }
 
 int
@@ -426,12 +608,16 @@ simp_issame(Simp ctx, Simp a, Simp b)
 	if (typea != typeb)
 		return FALSE;
 	switch (typea) {
+	case TYPE_APPLICATIVE:
+	case TYPE_OPERATIVE:
+	case TYPE_VECTOR:
+	case TYPE_BINDING:
+	case TYPE_ENVIRONMENT:
+		return simp_getvector(ctx, a) == simp_getvector(ctx, b);
 	case TYPE_SIGNUM:
 		return simp_getnum(ctx, a) == simp_getnum(ctx, b);
 	case TYPE_REAL:
 		return simp_getreal(ctx, a) == simp_getreal(ctx, b);
-	case TYPE_VECTOR:
-		return simp_getvector(ctx, a) == simp_getvector(ctx, b);
 	case TYPE_PORT:
 		return simp_getport(ctx, a) == simp_getport(ctx, b);
 	case TYPE_BYTE:
@@ -504,11 +690,8 @@ simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val)
 void
 simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
 {
-	Simp *vector;
-
 	(void)ctx;
-	vector = simp_getvector(ctx, obj);
-	vector[pos] = val;
+	simp_getvector(ctx, obj)[pos] = val;
 }
 
 Simp
@@ -535,6 +718,47 @@ simp_makebyte(Simp ctx, unsigned char byte)
 		.type = TYPE_BYTE,
 		.u.byte = byte,
 	};
+}
+
+Simp
+simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body)
+{
+	Simp lambda, obj;
+
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	if (simp_isnil(ctx, param))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
+		if (!simp_ispair(ctx, obj) || !simp_issymbol(ctx, simp_car(ctx, obj)))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
+		if (!simp_ispair(ctx, obj))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+	lambda = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
+	if (simp_isexception(ctx, lambda))
+		return lambda;
+	simp_setvector(ctx, lambda, CLOSURE_ENVIRONMENT, env);
+	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, param);
+	simp_setvector(ctx, lambda, CLOSURE_EXPRESSIONS, body);
+	lambda.type = TYPE_APPLICATIVE;
+	return lambda;
+}
+
+Simp
+simp_makeenvironment(Simp ctx, Simp parent)
+{
+	Simp env;
+
+	if (!simp_isenvironment(ctx, parent))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	env = simp_makevector(ctx, ENVIRONMENT_SIZE, simp_nil());
+	if (simp_isexception(ctx, env))
+		return env;
+	simp_setvector(ctx, env, ENVIRONMENT_PARENT, parent);
+	simp_setvector(ctx, env, ENVIRONMENT_FRAME, simp_nulbind());
+	env.type = TYPE_ENVIRONMENT;
+	return env;
 }
 
 Simp
@@ -648,7 +872,6 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 Simp
 simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 {
-	struct Vector *p = NULL;
 	Simp *dst = NULL;
 	SimpSiz i;
 
@@ -656,24 +879,15 @@ simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
-	if ((p = malloc(sizeof(*p))) == NULL)
-		goto error;
-	if ((dst = calloc(size, sizeof(*dst))) == NULL)
-		goto error;
-	*p = (struct Vector){
-		.size = size,
-		.arr = dst,
-	};
+	if ((dst = calloc(size + 1, sizeof(*dst))) == NULL)
+		return simp_makeexception(ctx, ERROR_MEMORY);
+	dst[0] = simp_makenum(ctx, (SimpInt)size);
 	for (i = 0; i < size; i++)
-		dst[i] = fill;
+		dst[i + 1] = fill;
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.u.vector = p,
+		.u.vector = dst,
 	};
-error:
-	free(p);
-	free(dst);
-	return simp_makeexception(ctx, ERROR_MEMORY);
 }
 
 Simp

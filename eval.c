@@ -17,6 +17,48 @@ noperands(Simp ctx, Simp list)
 	return n;
 }
 
+static Simp
+apply(Simp ctx, Simp lambda, Simp args)
+{
+	Simp env, param, body, var, val, expr;
+
+	env = simp_getapplicativeenv(ctx, lambda);
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	env = simp_makeenvironment(ctx, env);
+	if (simp_isexception(ctx, env))
+		return env;
+	param = simp_getapplicativeparam(ctx, lambda);
+	while (!simp_isnil(ctx, param)) {
+		if (!simp_ispair(ctx, param))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (simp_isnil(ctx, args))
+			return simp_makeexception(ctx, ERROR_ARGS);
+		if (!simp_ispair(ctx, args))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		var = simp_car(ctx, param);
+		val = simp_car(ctx, args);
+		if (!simp_issymbol(ctx, var))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		simp_envset(ctx, env, var, val);
+		param = simp_cdr(ctx, param);
+		args = simp_cdr(ctx, args);
+	}
+	if (!simp_isnil(ctx, args))
+		return simp_makeexception(ctx, ERROR_ARGS);
+	expr = simp_nil();
+	for (body = simp_getapplicativebody(ctx, lambda);
+	     !simp_isnil(ctx, body); body = simp_cdr(ctx, body)) {
+		if (!simp_ispair(ctx, body))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		expr = simp_car(ctx, body);
+		val = simp_eval(ctx, expr, env);
+		if (simp_isexception(ctx, val))
+			return val;
+	}
+	return val;
+}
+
 Simp
 simp_opadd(Simp ctx, Simp operands, Simp env)
 {
@@ -63,6 +105,18 @@ simp_opdivide(Simp ctx, Simp operands, Simp env)
 	}
 	rat = simp_makenum(ctx, num);
 	return rat;
+}
+
+Simp
+simp_oplambda(Simp ctx, Simp operands, Simp env)
+{
+	Simp body, parameters;
+
+	if (!simp_ispair(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	parameters = simp_car(ctx, operands);
+	body = simp_cdr(ctx, operands);
+	return simp_makeapplicative(ctx, env, parameters, body);
 }
 
 Simp
@@ -157,12 +211,16 @@ simp_operate(Simp ctx, Simp expr, Simp env)
 {
 	Simp operator, operands;
 
+	if (!simp_ispair(ctx, expr))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	operator = simp_eval(ctx, simp_car(ctx, expr), env);
 	if (simp_isexception(ctx, operator))
 		return operator;
 	operands = simp_cdr(ctx, expr);
 	if (simp_isbuiltin(ctx, operator))
 		return (*simp_getbuiltin(ctx, operator))(ctx, operands, env);
+	if (simp_isapplicative(ctx, operator))
+		return apply(ctx, operator, operands);
 	return simp_makeexception(ctx, -1);
 }
 
@@ -173,7 +231,5 @@ simp_eval(Simp ctx, Simp expr, Simp env)
 		return simp_envget(ctx, env, expr);
 	if (!simp_isvector(ctx, expr))          /* expression is a self-evaluating object */
 		return expr;
-	if (!simp_ispair(ctx, expr))            /* expression is ill-formed */
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	return simp_operate(ctx, expr, env);    /* expressioin is an operation */
+	return simp_operate(ctx, expr, env);    /* expression is an operation */
 }

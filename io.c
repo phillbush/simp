@@ -687,6 +687,12 @@ simp_write(Simp ctx, Simp port, Simp obj)
 	int printspace;
 
 	switch (simp_gettype(ctx, obj)) {
+	case TYPE_BINDING:
+		simp_printf(ctx, port, "#<variable binding>");
+		break;
+	case TYPE_ENVIRONMENT:
+		simp_printf(ctx, port, "#<environment>");
+		break;
 	case TYPE_EOF:
 		simp_printf(ctx, port, "#<end-of-file>");
 		break;
@@ -708,7 +714,9 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
 		break;
 	case TYPE_BUILTIN:
-		simp_printf(ctx, port, "#<operation %p>", simp_getbuiltin(ctx, obj));
+	case TYPE_APPLICATIVE:
+	case TYPE_OPERATIVE:
+		simp_printf(ctx, port, "#<operation>");
 		break;
 	case TYPE_PORT:
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
