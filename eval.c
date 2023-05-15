@@ -23,7 +23,7 @@ operate(Simp ctx, Simp macro, Simp args, Simp env)
 	Simp cloenv, param, body, var, val, expr;
 
 	cloenv = simp_getoperativeenv(ctx, macro);
-	if (!simp_isenvironment(ctx, env))
+	if (!simp_isenvironment(ctx, cloenv))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	cloenv = simp_makeenvironment(ctx, cloenv);
 	if (simp_isexception(ctx, cloenv))
