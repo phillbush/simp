@@ -24,6 +24,7 @@
 	X(OP_CUROPORT,  "current-output-port",  simp_opcuroport )\
 	X(OP_CUREPORT,  "current-error-port",   simp_opcureport )\
 	X(OP_DEFINE,    "define",               simp_opdefine   )\
+	X(OP_DISPLAY,   "display",              simp_opdisplay  )\
 	X(OP_DIVIDE,    "/",                    simp_opdivide   )\
 	X(OP_EQUAL,     "=",                    simp_opequal    )\
 	X(OP_FALSE,     "false",                simp_opfalse    )\

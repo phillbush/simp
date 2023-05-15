@@ -242,6 +242,36 @@ error:
 }
 
 Simp
+simp_opdisplay(Simp ctx, Simp operands, Simp env)
+{
+	Simp obj, port;
+
+	(void)env;
+	if (!simp_ispair(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	obj = simp_car(ctx, operands);
+	operands = simp_cdr(ctx, operands);
+	if (simp_isnil(ctx, operands)) {
+		port = simp_contextoport(ctx);
+	} else if (simp_ispair(ctx, operands) &&
+	           simp_isnil(ctx, simp_cdr(ctx, operands))) {
+		port = simp_car(ctx, operands);
+	} else {
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	}
+	obj = simp_eval(ctx, obj, env);
+	port = simp_eval(ctx, port, env);
+	if (simp_isexception(ctx, obj))
+		return obj;
+	if (simp_isexception(ctx, port))
+		return port;
+	if (!simp_isport(ctx, port))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	simp_display(ctx, port, obj);
+	return simp_void();
+}
+
+Simp
 simp_opdivide(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 1;

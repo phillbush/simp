@@ -678,8 +678,8 @@ simp_read(Simp ctx, Simp port)
 	return toktoobj(ctx, port, tok);
 }
 
-void
-simp_write(Simp ctx, Simp port, Simp obj)
+static void
+dowrite(Simp ctx, Simp port, Simp obj, int display)
 {
 	Simp curr;
 	SimpSiz len, i;
@@ -704,9 +704,11 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, "#<true>");
 		break;
 	case TYPE_BYTE:
-		simp_printf(ctx, port, "\'");
+		if (!display)
+			simp_printf(ctx, port, "\'");
 		simp_printbyte(ctx, port, obj);
-		simp_printf(ctx, port, "\'");
+		if (!display)
+			simp_printf(ctx, port, "\'");
 		break;
 	case TYPE_SIGNUM:
 		simp_printf(ctx, port, "%ld", simp_getnum(ctx, obj));
@@ -723,9 +725,11 @@ simp_write(Simp ctx, Simp port, Simp obj)
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
 		break;
 	case TYPE_STRING:
-		simp_printf(ctx, port, "\"");
+		if (!display)
+			simp_printf(ctx, port, "\"");
 		simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
-		simp_printf(ctx, port, "\"");
+		if (!display)
+			simp_printf(ctx, port, "\"");
 		break;
 	case TYPE_SYMBOL:
 		simp_printstr(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
@@ -749,7 +753,7 @@ simp_write(Simp ctx, Simp port, Simp obj)
 					} else {
 						if (i > 0)
 							simp_printf(ctx, port, " . ");
-						simp_write(ctx, port, curr);
+						dowrite(ctx, port, curr, display);
 						simp_printf(ctx, port, " .");
 						obj = simp_nil();
 					}
@@ -757,11 +761,23 @@ simp_write(Simp ctx, Simp port, Simp obj)
 				} else {
 					if (i > 0)
 						simp_printf(ctx, port, " . ");
-					simp_write(ctx, port, curr);
+					dowrite(ctx, port, curr, display);
 				}
 			}
 		}
 		simp_printf(ctx, port, ")");
 		break;
 	}
+}
+
+void
+simp_write(Simp ctx, Simp port, Simp obj)
+{
+	dowrite(ctx, port, obj, FALSE);
+}
+
+void
+simp_display(Simp ctx, Simp port, Simp obj)
+{
+	dowrite(ctx, port, obj, TRUE);
 }
