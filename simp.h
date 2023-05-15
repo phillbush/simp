@@ -17,26 +17,32 @@
 	X(ERROR_RANGE,   "out of range"                         )\
 	X(ERROR_MEMORY,  "allocation error"                     )
 
-#define OPERATIONS                                       \
-	X(OP_SAMEP,     "same?",        simp_opsamep    )\
-	X(OP_NULLP,     "null?",        simp_opnullp    )\
-	X(OP_PAIRP,     "pair?",        simp_oppairp    )\
-	X(OP_BOOLEANP,  "boolean?",     simp_opbooleanp )\
-	X(OP_SYMBOLP,   "symbol?",      simp_opsymbolp  )\
-	X(OP_LAMBDA,    "lambda",       simp_oplambda   )\
-	X(OP_MACRO,     "macro",        simp_opmacro    )\
-	X(OP_IF,        "if",           simp_opif       )\
-	X(OP_TRUE,      "true",         simp_optrue     )\
-	X(OP_FALSE,     "false",        simp_opfalse    )\
-	X(OP_EQUAL,     "=",            simp_opequal    )\
-	X(OP_LT,        "<",            simp_oplt       )\
-	X(OP_GT,        ">",            simp_opgt       )\
-	X(OP_ADD,       "+",            simp_opadd      )\
-	X(OP_SUBTRACT,  "-",            simp_opsubtract )\
-	X(OP_MULTIPLY,  "*",            simp_opmultiply )\
-	X(OP_DIVIDE,    "/",            simp_opdivide   )\
-	X(OP_DEFINE,    "define",       simp_opdefine   )\
-	X(OP_QUOTE,     "quote",        simp_opquote    )
+#define OPERATIONS                                               \
+	X(OP_ADD,       "+",                    simp_opadd      )\
+	X(OP_BOOLEANP,  "boolean?",             simp_opbooleanp )\
+	X(OP_CURIPORT,  "current-input-port",   simp_opcuriport )\
+	X(OP_CUROPORT,  "current-output-port",  simp_opcuroport )\
+	X(OP_CUREPORT,  "current-error-port",   simp_opcureport )\
+	X(OP_DEFINE,    "define",               simp_opdefine   )\
+	X(OP_DIVIDE,    "/",                    simp_opdivide   )\
+	X(OP_EQUAL,     "=",                    simp_opequal    )\
+	X(OP_FALSE,     "false",                simp_opfalse    )\
+	X(OP_GT,        ">",                    simp_opgt       )\
+	X(OP_IF,        "if",                   simp_opif       )\
+	X(OP_LAMBDA,    "lambda",               simp_oplambda   )\
+	X(OP_LT,        "<",                    simp_oplt       )\
+	X(OP_MACRO,     "macro",                simp_opmacro    )\
+	X(OP_MULTIPLY,  "*",                    simp_opmultiply )\
+	X(OP_NEWLINE,   "newline",              simp_opnewline  )\
+	X(OP_NULLP,     "null?",                simp_opnullp    )\
+	X(OP_PAIRP,     "pair?",                simp_oppairp    )\
+	X(OP_PORTP,     "port?",                simp_opportp    )\
+	X(OP_QUOTE,     "quote",                simp_opquote    )\
+	X(OP_SAMEP,     "same?",                simp_opsamep    )\
+	X(OP_SUBTRACT,  "-",                    simp_opsubtract )\
+	X(OP_SYMBOLP,   "symbol?",              simp_opsymbolp  )\
+	X(OP_TRUE,      "true",                 simp_optrue     )\
+	X(OP_WRITE,     "write",                simp_opwrite    )
 
 typedef struct Simp             Simp;
 typedef unsigned long long      SimpSiz;
