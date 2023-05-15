@@ -640,6 +640,7 @@ simp_issame(Simp ctx, Simp a, Simp b)
 	case TYPE_EOF:
 	case TYPE_TRUE:
 	case TYPE_FALSE:
+	case TYPE_VOID:
 		return TRUE;
 	}
 	return FALSE;
@@ -670,6 +671,12 @@ simp_isvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_VECTOR;
+}
+
+int
+simp_isvoid(Simp ctx, Simp obj)
+{
+	return simp_gettype(ctx, obj) == TYPE_VOID;
 }
 
 void
@@ -927,4 +934,10 @@ simp_nil(void)
 		.type = TYPE_VECTOR,
 		.u.vector = NULL,
 	};
+}
+
+Simp
+simp_void(void)
+{
+	return (Simp){ .type = TYPE_VOID };
 }

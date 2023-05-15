@@ -236,7 +236,7 @@ simp_opdefine(Simp ctx, Simp operands, Simp env)
 	if (simp_isexception(ctx, value))
 		return value;
 	(void)simp_envset(ctx, env, symbol, value);
-	return value;
+	return simp_void();
 error:
 	return simp_makeexception(ctx, ERROR_ILLEXPR);
 }
@@ -423,7 +423,7 @@ simp_opnewline(Simp ctx, Simp operands, Simp env)
 	if (!simp_isport(ctx, port))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	simp_printf(ctx, port, "\n");
-	return simp_nil();
+	return simp_void();
 }
 
 Simp
@@ -547,6 +547,15 @@ simp_optrue(Simp ctx, Simp operands, Simp env)
 }
 
 Simp
+simp_opvoid(Simp ctx, Simp operands, Simp env)
+{
+	(void)env;
+	if (!simp_isnil(ctx, operands))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	return simp_void();
+}
+
+Simp
 simp_opwrite(Simp ctx, Simp operands, Simp env)
 {
 	Simp obj, port;
@@ -573,7 +582,7 @@ simp_opwrite(Simp ctx, Simp operands, Simp env)
 	if (!simp_isport(ctx, port))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	simp_write(ctx, port, obj);
-	return simp_nil();
+	return simp_void();
 }
 
 Simp

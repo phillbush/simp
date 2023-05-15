@@ -686,6 +686,8 @@ simp_write(Simp ctx, Simp port, Simp obj)
 	int printspace;
 
 	switch (simp_gettype(ctx, obj)) {
+	case TYPE_VOID:
+		break;
 	case TYPE_BINDING:
 		simp_printf(ctx, port, "#<variable binding>");
 		break;

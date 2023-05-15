@@ -42,6 +42,7 @@
 	X(OP_SUBTRACT,  "-",                    simp_opsubtract )\
 	X(OP_SYMBOLP,   "symbol?",              simp_opsymbolp  )\
 	X(OP_TRUE,      "true",                 simp_optrue     )\
+	X(OP_VOID,      "void",                 simp_opvoid     )\
 	X(OP_WRITE,     "write",                simp_opwrite    )
 
 typedef struct Simp             Simp;
@@ -91,6 +92,7 @@ struct Simp {
 		TYPE_SYMBOL,
 		TYPE_TRUE,
 		TYPE_VECTOR,
+		TYPE_VOID,
 	} type;
 };
 
@@ -108,6 +110,7 @@ Simp    simp_empty(void);
 Simp    simp_eof(void);
 Simp    simp_false(void);
 Simp    simp_true(void);
+Simp    simp_void(void);
 
 /* data type accessors */
 Builtin *simp_getbuiltin(Simp ctx, Simp obj);
@@ -150,6 +153,7 @@ int     simp_isstring(Simp ctx, Simp obj);
 int     simp_issymbol(Simp ctx, Simp obj);
 int     simp_istrue(Simp ctx, Simp obj);
 int     simp_isvector(Simp ctx, Simp obj);
+int     simp_isvoid(Simp ctx, Simp obj);
 
 /* data type checkers */
 int     simp_issame(Simp ctx, Simp a, Simp b);
