@@ -110,36 +110,36 @@ ctoi(int c)
 	return 0;
 }
 
-static int
+static bool
 cisnum(int c, enum Numtype type, SimpInt *num)
 {
 	switch (type) {
 	case NUM_BINARY:
 		if (c != '0' && c != '1')
-			return FALSE;
+			return false;
 		*num <<= 1;
 		if (c == '1')
 			(*num)++;
-		return TRUE;
+		return true;
 	case NUM_OCTAL:
 		if (!cisoctal(c))
-			return FALSE;
+			return false;
 		*num <<= 3;
 		*num += ctoi(c);
-		return TRUE;
+		return true;
 	case NUM_HEX:
 		if (!cishex(c))
-			return FALSE;
+			return false;
 		*num <<= 4;
 		*num += ctoi(c);
-		return TRUE;
+		return true;
 	case NUM_DECIMAL:
 	default:
 		if (!cisdecimal(c))
-			return FALSE;
+			return false;
 		*num *= 10;
 		*num += ctoi(c);
-		return TRUE;
+		return true;
 	}
 }
 
@@ -258,7 +258,7 @@ readnum(Simp ctx, Simp port, int c)
 	SimpInt base = 0;
 	SimpInt basesign = 1;
 	SimpInt exptsign = 1;
-	int isfloat = FALSE;
+	bool isfloat = false;
 
 	if (c == '+') {
 		c = simp_readbyte(ctx, port);
@@ -313,12 +313,12 @@ done:
 			}
 		}
 		floatn += (double)base;
-		isfloat = TRUE;
+		isfloat = true;
 	}
 	if (c == 'e' || c == 'E') {
 		if (!isfloat)
 			floatn = (double)base;
-		isfloat = TRUE;
+		isfloat = true;
 		c = simp_readbyte(ctx, port);
 		if (c == '+') {
 			c = simp_readbyte(ctx, port);
@@ -350,7 +350,7 @@ done:
 		if (exptsign == -1)
 			expt = 1.0/expt;
 		floatn = pow(floatn, expt);
-		isfloat = TRUE;
+		isfloat = true;
 	}
 	if (!cisdelimiter(c))
 		return (Token){.type = TOK_ERROR};
@@ -679,11 +679,11 @@ simp_read(Simp ctx, Simp port)
 }
 
 static void
-dowrite(Simp ctx, Simp port, Simp obj, int display)
+dowrite(Simp ctx, Simp port, Simp obj, bool display)
 {
 	Simp curr;
 	SimpSiz len, i;
-	int printspace;
+	bool printspace;
 
 	switch (simp_gettype(ctx, obj)) {
 	case TYPE_VOID:
@@ -739,11 +739,11 @@ dowrite(Simp ctx, Simp port, Simp obj, int display)
 		break;
 	case TYPE_VECTOR:
 		simp_printf(ctx, port, "(");
-		printspace = FALSE;
+		printspace = false;
 		while (!simp_isnil(ctx, obj)) {
 			if (printspace)
 				simp_printf(ctx, port, " ");
-			printspace = TRUE;
+			printspace = true;
 			len = simp_getsize(ctx, obj);
 			for (i = 0; i < len; i++) {
 				curr = simp_getvectormemb(ctx, obj, i);
@@ -773,11 +773,11 @@ dowrite(Simp ctx, Simp port, Simp obj, int display)
 void
 simp_write(Simp ctx, Simp port, Simp obj)
 {
-	dowrite(ctx, port, obj, FALSE);
+	dowrite(ctx, port, obj, false);
 }
 
 void
 simp_display(Simp ctx, Simp port, Simp obj)
 {
-	dowrite(ctx, port, obj, TRUE);
+	dowrite(ctx, port, obj, true);
 }

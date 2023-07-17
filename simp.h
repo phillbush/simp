@@ -1,10 +1,10 @@
+#include <stdbool.h>
+
 #define LEN(a)          (sizeof(a) / sizeof((a)[0]))
 #define FLAG(f, b)      (((f) & (b)) == (b))
 #define MASK(f, m, b)   (((f) & (m)) == (b))
 #define RETURN_FAILURE  (-1)
 #define RETURN_SUCCESS  0
-#define FALSE           0
-#define TRUE            1
 #define NOTHING         (-1)
 
 #define EXCEPTIONS                                               \
@@ -134,30 +134,30 @@ Simp    simp_getoperativeparam(Simp ctx, Simp obj);
 Simp    simp_getoperativebody(Simp ctx, Simp obj);
 
 /* data type predicates */
-int     simp_isapplicative(Simp ctx, Simp obj);
-int     simp_isbool(Simp ctx, Simp obj);
-int     simp_isbuiltin(Simp ctx, Simp obj);
-int     simp_isbyte(Simp ctx, Simp obj);
-int     simp_isempty(Simp ctx, Simp obj);
-int     simp_isenvironment(Simp ctx, Simp obj);
-int     simp_iseof(Simp ctx, Simp obj);
-int     simp_isexception(Simp ctx, Simp obj);
-int     simp_isfalse(Simp ctx, Simp obj);
-int     simp_isnum(Simp ctx, Simp obj);
-int     simp_isnil(Simp ctx, Simp obj);
-int     simp_isoperative(Simp ctx, Simp obj);
-int     simp_ispair(Simp ctx, Simp obj);
-int     simp_ispair(Simp ctx, Simp obj);
-int     simp_isport(Simp ctx, Simp obj);
-int     simp_isreal(Simp ctx, Simp obj);
-int     simp_isstring(Simp ctx, Simp obj);
-int     simp_issymbol(Simp ctx, Simp obj);
-int     simp_istrue(Simp ctx, Simp obj);
-int     simp_isvector(Simp ctx, Simp obj);
-int     simp_isvoid(Simp ctx, Simp obj);
+bool    simp_isapplicative(Simp ctx, Simp obj);
+bool    simp_isbool(Simp ctx, Simp obj);
+bool    simp_isbuiltin(Simp ctx, Simp obj);
+bool    simp_isbyte(Simp ctx, Simp obj);
+bool    simp_isempty(Simp ctx, Simp obj);
+bool    simp_isenvironment(Simp ctx, Simp obj);
+bool    simp_iseof(Simp ctx, Simp obj);
+bool    simp_isexception(Simp ctx, Simp obj);
+bool    simp_isfalse(Simp ctx, Simp obj);
+bool    simp_isnum(Simp ctx, Simp obj);
+bool    simp_isnil(Simp ctx, Simp obj);
+bool    simp_isoperative(Simp ctx, Simp obj);
+bool    simp_ispair(Simp ctx, Simp obj);
+bool    simp_ispair(Simp ctx, Simp obj);
+bool    simp_isport(Simp ctx, Simp obj);
+bool    simp_isreal(Simp ctx, Simp obj);
+bool    simp_isstring(Simp ctx, Simp obj);
+bool    simp_issymbol(Simp ctx, Simp obj);
+bool    simp_istrue(Simp ctx, Simp obj);
+bool    simp_isvector(Simp ctx, Simp obj);
+bool    simp_isvoid(Simp ctx, Simp obj);
 
 /* data type checkers */
-int     simp_issame(Simp ctx, Simp a, Simp b);
+bool    simp_issame(Simp ctx, Simp a, Simp b);
 
 /* data type mutators */
 void    simp_setcar(Simp ctx, Simp obj, Simp val);

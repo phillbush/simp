@@ -5,28 +5,12 @@
 </p>
 
 Simp is my attempt to design and implement a minimalist lisp language.
-For now, it only contains a REPL, whose evaluator only passes what is
-read to be print (so it is actually a RPL).
-
-## Documentation
-
-The Simp Programming Language syntax and semantics are specified in
-the mandoc manual page at `man/simp.7`.
-
-The Simp interpreter command and its invocation is described in the
-mandoc manual page at `man/simp.1`.
-
-The Simp C API is described in the mandoc manual page at `man/simp.3`.
-
-The Simp implementation is described by the code itself.
-Although the code is sparsely commented, descriptive blocks of
-comments are used to annotate nontrivial algorithms, intricate
-data structures, and nonobvious globals.  The choice for a given
-construct or technique in favor of another is also described in
-comments.
+• The language is documented in `./simp.7`.
+• The interpreter is documented in `./simp.1`.
+• The C API is documented in `./simp.3`.
 
 
-## Differences from other LISPs
+## Sex pressions
 
 One of the features of Simp that makes it different from other lisps
 is that it does not have pairs as a proper type.  It is the vector the
@@ -36,8 +20,8 @@ A pair is just a vector with two elements.
 A box is just a vector with one element.
 And nil is a vector with no element.
 
-Since pairs are vectors, we need a notation to express both data
-structures at the same time.
+Since pairs are vectors, we need to expand S-expressions to represent
+both vector and list data structures at the same time.
 
 Lists are still expressed with parentheses:
 

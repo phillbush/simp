@@ -277,7 +277,7 @@ simp_opdivide(Simp ctx, Simp operands, Simp env)
 	SimpInt num = 1;
 	SimpInt nops = 0;
 	Simp rat, arg, obj;
-	int gotop = FALSE;
+	bool gotop = false;
 
 	if ((nops = noperands(ctx, operands)) < 1)
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
@@ -292,7 +292,7 @@ simp_opdivide(Simp ctx, Simp operands, Simp env)
 			num /= simp_getnum(ctx, obj);
 		else
 			num = simp_getnum(ctx, obj);
-		gotop = TRUE;
+		gotop = true;
 	}
 	rat = simp_makenum(ctx, num);
 	return rat;
@@ -532,7 +532,7 @@ simp_opsubtract(Simp ctx, Simp operands, Simp env)
 	SimpInt num = 0;
 	SimpInt nops = 0;
 	Simp diff, arg, obj;
-	int gotop = FALSE;
+	bool gotop = false;
 
 	if ((nops = noperands(ctx, operands)) < 1)
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
@@ -547,7 +547,7 @@ simp_opsubtract(Simp ctx, Simp operands, Simp env)
 			num -= simp_getnum(ctx, obj);
 		else
 			num = simp_getnum(ctx, obj);
-		gotop = TRUE;
+		gotop = true;
 	}
 	diff = simp_makenum(ctx, num);
 	return diff;
@@ -618,9 +618,9 @@ simp_opwrite(Simp ctx, Simp operands, Simp env)
 Simp
 simp_eval(Simp ctx, Simp expr, Simp env)
 {
-	if (simp_issymbol(ctx, expr))           /* expression is a variable */
+	if (simp_issymbol(ctx, expr))   /* expression is variable */
 		return simp_envget(ctx, env, expr);
-	if (!simp_isvector(ctx, expr))          /* expression is a self-evaluating object */
+	if (!simp_isvector(ctx, expr))  /* expression is self-evaluating object */
 		return expr;
-	return combine(ctx, expr, env);    /* expression is an operation */
+	return combine(ctx, expr, env); /* expression is operation */
 }

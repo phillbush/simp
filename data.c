@@ -502,7 +502,7 @@ simp_errorstr(int exception)
 	return errortab[exception];
 }
 
-int
+bool
 simp_isbool(Simp ctx, Simp obj)
 {
 	enum Type t = simp_gettype(ctx, obj);
@@ -511,109 +511,109 @@ simp_isbool(Simp ctx, Simp obj)
 	return t == TYPE_TRUE || t == TYPE_FALSE;
 }
 
-int
+bool
 simp_isbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_BUILTIN;
 }
 
-int
+bool
 simp_isapplicative(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_APPLICATIVE;
 }
 
-int
+bool
 simp_isbyte(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_BYTE;
 }
 
-int
+bool
 simp_isempty(Simp ctx, Simp obj)
 {
 	return simp_isstring(ctx, obj) && obj.u.string == NULL;
 }
 
-int
+bool
 simp_isenvironment(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_ENVIRONMENT;
 }
 
-int
+bool
 simp_iseof(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_EOF;
 }
 
-int
+bool
 simp_isexception(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_EXCEPTION;
 }
 
-int
+bool
 simp_isfalse(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_FALSE;
 }
 
-int
+bool
 simp_isnil(Simp ctx, Simp obj)
 {
 	return simp_isvector(ctx, obj) && obj.u.vector == NULL;
 }
 
-int
+bool
 simp_isnum(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_SIGNUM;
 }
 
-int
+bool
 simp_isoperative(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_OPERATIVE;
 }
 
-int
+bool
 simp_ispair(Simp ctx, Simp obj)
 {
 	return simp_isvector(ctx, obj) && simp_getsize(ctx, obj) == 2;
 }
 
-int
+bool
 simp_isport(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_PORT;
 }
 
-int
+bool
 simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_REAL;
 }
 
-int
+bool
 simp_issame(Simp ctx, Simp a, Simp b)
 {
 	enum Type typea = simp_gettype(ctx, a);
 	enum Type typeb = simp_gettype(ctx, b);
 
 	if (typea != typeb)
-		return FALSE;
+		return false;
 	switch (typea) {
 	case TYPE_APPLICATIVE:
 	case TYPE_OPERATIVE:
@@ -641,39 +641,39 @@ simp_issame(Simp ctx, Simp a, Simp b)
 	case TYPE_TRUE:
 	case TYPE_FALSE:
 	case TYPE_VOID:
-		return TRUE;
+		return true;
 	}
-	return FALSE;
+	return false;
 }
 
-int
+bool
 simp_isstring(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_STRING;
 }
 
-int
+bool
 simp_issymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_SYMBOL;
 }
 
-int
+bool
 simp_istrue(Simp ctx, Simp obj)
 {
 	return !simp_isfalse(ctx, obj);
 }
 
-int
+bool
 simp_isvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return simp_gettype(ctx, obj) == TYPE_VECTOR;
 }
 
-int
+bool
 simp_isvoid(Simp ctx, Simp obj)
 {
 	return simp_gettype(ctx, obj) == TYPE_VOID;
