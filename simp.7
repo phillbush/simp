@@ -21,7 +21,7 @@ Imperative, functional, and message-passing programming styles (to name a few)
 may be conveniently expressed in the
 .Nm
 programming language.
-.Ss S-expressions
+.Pp
 .Nm
 (like most dialects of Lisp)
 employs a fully parenthesized prefix notation for programs and other data known as
@@ -29,7 +29,6 @@ employs a fully parenthesized prefix notation for programs and other data known 
 (or
 .Dq sexp
 for short).
-.Pp
 However,
 .Nm
 is based on a variation of S-expressions that permits lists to be built not only by means of chained pairs,
@@ -53,7 +52,7 @@ The set of all visible bindings in effect at some point in a program is known as
 .Em environment
 in effect at that point.
 The value stored in the location to which a variable is bound is called the variable's
-.Em value Ns .
+.Em value .
 By abuse of terminology, the variable is sometimes said to name the value or to be bound to the value.
 This is not quite accurate, but confusion rarely results from this practice.
 .Pp
@@ -65,7 +64,7 @@ of the program text within which the binding is visible.
 Every mention of an identifier refers to the binding of the identifier that established the innermost of the regions containing the use.
 If there is no binding of the identifier whose region contains the use, then the use refers to the binding for the variable in the top level environment, if any.
 If there is no binding for the identifier, it is said to be
-.Em unbound Ns .
+.Em unbound .
 .Ss External representations
 An important concept in
 .Nm
@@ -125,7 +124,7 @@ An object can even evaluate to itself (a so called self-evaluating object).
 An evaluation can do more than just compute objects,
 such as mutate an object or perform input/output;
 such additional processes are called
-.Em side effects Ns .
+.Em side effects .
 .Pp
 Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
 Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
@@ -206,155 +205,6 @@ There is also the notion of recursive equivalency,
 in which two objects are recursively equivalent if the values stored in their locations are equivalent.
 .Ss Proper tail recursion
 [TODO]
-.Sh PROGRAM STRUCTURE
-A
-.Nm
-program is a sequence of characters forming whitespace, comments, or tokens.
-The tokens in a program must form syntactically well formed expressions.
-Some characters, known as "delimiters", have special meaning during the the program parsing,
-because certain tokens require a delimiter to occur after them.
-Delimiters include all space characters and a few other characters (see below).
-See the section
-.Sx FORMAL SYNTAX
-below for a formal description of what is a program.
-.Ss Whitespace and comments
-Whitespace characters include the
-space,
-horizontal tab,
-newline (line feed),
-form feed,
-carriage return, and
-vertical tab.
-.Pp
-Whitespace is used for improved readability and as necessary to separate tokens from each other.
-Whitespace can occur between any two tokens, but not within a token.
-Whitespace occurring inside a string literal is significant.
-.Pp
-Comments are annotations in the source code and are treated exactly like whitespace.
-.Pp
-A hash character (#) outside a string literal indicates the start of a comment.
-The comment continues to the end of the line on which the hash character appears.
-.Ss Tokens
-.Pp
-The end-of-file character is the token that terminates a program.
-The end-of-file character is also a delimiter.
-(The end-of-file is actually not a character, but is interpreted as if it were.)
-.Pp
-The open and close parenthesis characters are tokens used to write lists.
-The open and close square bracket characters are tokens used to write vectors.
-Those characters are also delimiters.
-.Pp
-The dot character
-.Pq Ic "."
-is a token used inside list to inhibit the
-creation of a new chained vector.
-.Pp
-A string literal is any sequence of characters enclosed within double quotation marks
-.Pq Ic "\(dq" .
-The double quotation mark character itself is a delimiter.
-A string literal is used to write strings (also known as bytevectors).
-Within a string literal, sequences of characters beginning with a backslash
-.Pq Ic "\e"
-represent bytes other than the characters themselves.
-Most escape sequences represent a single byte,
-but some forms may represent more than one byte.
-An invalid escape sequence is equivalent to the character after the backslash;
-for example, the string literal
-.Dq Ic "\ej"
-does not contain a valid escape sequence, so it is equivalent to
-.Dq Ic "j" .
-The valid escape sequences are as follows:
-.Bl -tag -width Ds -compact
-.It Cm \ea
-Alarm (U+0007).
-.It Cm \eb
-Backspace (U+0008).
-.It Cm \et
-Horizontal tab (U+0009).
-.It Cm \en
-Line feed (U+000A).
-.It Cm \ev
-Vertical tab (U+000B).
-.It Cm \ef
-Form feed (U+000C).
-.It Cm \er
-Carriage return (U+000D).
-.It Cm \ee
-Escape character (U+001B).
-.It Cm \e"
-Double quote (U+0022).
-.It Cm \e\e
-Backslash (U+005C).
-.It Cm \e Ns Ar num
-Byte whose value is the 1-, 2-, or 3-digit octal number
-.Ar num Ns .
-.It Cm \ex Ns Ar num
-Byte whose value is the 1- or 2-digit hexadecimal number
-.Ar num Ns .
-.It Cm \eu Ns Ar num
-Bytes encoding, in UTF-8, the 4-digit hexadecimal number
-.Ar num Ns .
-.It Cm \eU Ns Ar num
-Bytes encoding, in UTF-8, the 8-digit hexadecimal number
-.Ar num Ns .
-.El
-.Pp
-A number literal is a valid sequence of characters beginning with
-either a decimal digit,
-or a plus character
-.Pq Ic "+"
-followed by a decimal digit,
-or a minus character
-.Pq Ic "-"
-followed by a decimal digit.
-A delimiter character must occur after a number literal.
-There are two forms of number literals;
-a number literal can be either an integer literal or a real literal.
-.Bl -bullet
-.It
-An integer literal has a zero character (0) as first decimal digit.
-This zero is followed by either:
-"B" or "b", and zero or more binary digits; or
-"O" or "o", and zero or more octal digits; or
-"D" or "d", and zero or more decimal digits; or
-"X" or "x", and zero or more hexadecimal digits.
-A integer literal may be suffixed by the character "E", "e", "I" or "i".
-.It
-A real literal consists of an integer part,
-a decimal point,
-a fraction part,
-an "e" or "E" character,
-an optionally signed integer exponent,
-and an optional suffix (one of "E", "e", "I" or "i").
-.El
-.Pp
-An identifier is any sequence of non-delimiter characters that does not form another type of token.
-A delimiter character must occur after an identifier.
-Different from certain versions of the Scheme programming language
-(which have case-insensitive identifiers);
-in the
-.Nm
-programming language, identifiers are case-sensitive.
-.Ss Expressions
-A well-formed expression (or just "expression" for short)
-is one of the following, and nothing more:
-.Bl -bullet
-.It
-An identifier token.
-.It
-A string literal token.
-.It
-A number literal token.
-.It
-An open square bracket token;
-followed by any number of expressions
-followed by a close square bracket token;.
-.It
-An open parenthesis token;
-followed by any number of expressions,
-each one optionally followed by a single dot token;
-followed by a close parenthesis token.
-.El
 .Sh DATA TYPES
 A
 .Em data type
@@ -384,7 +234,7 @@ For each primitive data type (and a few other non-primitve ones),
 the standard library defines a set of variables bound to objects
 (constants, predicates, constructors, mutators, and accessors)
 used to manipulate objects of that data type (see
-.Sx STANDARD LIBRARY Ns ).
+.Sx STANDARD LIBRARY ) .
 .Ss Numbers
 [TODO: fixnums, bignums, numerical tower, etc]
 .Ss Booleans
@@ -473,13 +323,13 @@ The first element in a vector is indexed by zero, and the last element is indexe
 A vector can contain any object as its elements, even other vectors.
 .Pp
 A vector with zero element is called a
-.Em nil Ns .
+.Em nil .
 A vector with one element is called a
-.Em box Ns .
+.Em box .
 A vector with two elements is called a
-.Em pair Ns .
+.Em pair .
 A vector with a number n of elements is called a
-.Em n-tuple Ns .
+.Em n-tuple .
 .Pp
 More complex data structures can be implemented in terms of vectors.
 The most important of those derived data structures is the list.
@@ -487,11 +337,11 @@ A list is a chain of vectors
 in which the last element of each vector is the next vector in the chain.
 The vector chain goes on until a zero-element vector (also known as nil) or a non-vector object occurs as the last element of a vector in the chain.
 A list in which the last element of the last chained vector is nil is called a
-.Em proper list Ns .
+.Em proper list .
 A list in which the last element of the last chained vector is a non-vector object is called a
-.Em improper list Ns .
+.Em improper list .
 A list in which all chained vectors are pairs is called a
-.Em pair list Ns .
+.Em pair list .
 .Pp
 Other data structures that can be implemented on top of vectors are hash tables, trees, assocition lists, and records (to name a few).
 .Pp
@@ -576,159 +426,302 @@ For example, the structure "(0 [2 2 2] "Annna")" from the previous paragraph has
 A vector can be mutable or immutable.
 A vector can only be evaluated when forming a proper pair list.
 Evaluating a vector that does not form a proper pair list is an error.
-.Sh STANDARD LIBRARY
-[TODO]
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for
 .Nm
 written in an extended Backus-Naur form (BNF).
-Nonterminals are written between angle braces (⟨...⟩).
-A terminal symbol is written between double quotation marks ("...").
+Nonterminals are written between angle braces
+.Pq Ic "<...>" .
+A terminal symbol is written between double quotation marks
+.Pq Ic "\(dq...\(dq" .
 .Pp
 The following extensions to BNF are used to make the description more consise:
-"⟨thing⟩*" means zero or more occurrences of "⟨thing⟩"; and
-"⟨thing⟩+" means one or more occurrences of "⟨thing⟩".
-"⟨thing⟩?" means zero or one occurrence of "⟨thing⟩".
+.Bl -bullet
+.It
+.Ic "<thing>*"
+means zero or more occurrences of
+.Ic "<thing>" .
+.It
+.Ic "<thing>+"
+means one or more occurrences of
+.Ic "<thing>" .
+.It
+.Ic "<thing>?\)"
+means zero or one occurrence of
+.Ic "<thing>" .
+.El
 .Pp
 The BNF is augmented with the concepts of character classes and character ranges.
 A
 .Em character class
-is expressed between square braces and colons ([:...:]) and denotes a named set of characters.
+is expressed between square braces and colons
+.Pq Ic "[:...:]"
+and denotes a named set of characters.
 A
 .Em character range
-is a set of characters and/or character classes between square braces and denotes any character in the set or in the classes.
-For example, "[abc[:delimiter:]]" means a "a", or "b", or "c" character, or a character in the "[:delimiter:]" class.
+is a set of characters and/or character classes between square braces
+.Pq Ic "[...]"
+and denotes any character in the set or in the classes.
+For example,
+.Pq Ic "[abc[:delimiter:]]"
+means an
+.Ic "a" ,
+or
+.Ic "b" ,
+or
+.Ic "c"
+character, or a character in the
+.Ic "[:delimiter:]"
+class.
+The notion of character range is augmented as follows.
+.Bl -bullet
+.It
+The
+.Ic "-"
+character has the same special meaning in a character range it has in ERE.
+For example,
+.Ic "[0-9]"
+is the same as
+.Ic "[0123456789]"
+(which is the same as
+.Ic "[:decimal:]" ) .
+.It
+The
+.Ic "^"
+character has the same special meaning in a character range it has in ERE.
+For example,
+.Ic "[^abc]"
+means any character but
+.Ic "a" ,
+.Ic "b" ,
+or
+.Ic "c" .
+.It
+The opening bracket
+.Ic "\)["
+may occur anywhere in a character range.
+.It
+The closing bracket
+.Ic "\)]"
+may occur only as the first character in a character range
+.El
 .Pp
-The "-" character has the same special meaning in a character range it has in ERE.
-"[0-9]" is the same as "[0123456789]".
-.Pp
-The "^" character has the same special meaning in a character range it has in ERE.
-"[^abc]" means any character but "a", "b", or "c".
-.Pp
-A "[" may occur anywhere in a character range.
-A "]" may occur only as the first character in a character range
-.Pp
+Unprintable and hard-to-type characters are represented in the same escape notation used in string literals.
+For example,
+.Ic "\en"
+is the newline.
+.Ss Alphabet
 The alphabet for this grammar is all the 256 bytes that can be read from a file augmented with the end-of-file indicator.
 .Pp
-Unprintable and hard-to-type characters are represented in the same escape notation used in string literals
-(for example, "\en" is a newline).
-The end-of-file indicator, in special, is represented by the special class "[:eof:]"
-.Ss Character classes
+The character classes are defined as follows.
 .Bd -literal -offset indent
-[:space:]           ← [ \ef\en\er\et\ev]
-[:binary:]          ← [0-1]
-[:octal:]           ← [0-7]
-[:decimal:]         ← [0-9]
-[:hexadecimal:]     ← [0-9A-Fa-f]
-[:delimiter:]       ← [][()#[:eof:][:space:]]
-.Ed
-.Ss Lexical structure
-.Bd -literal -offset indent
-⟨token⟩             ← [:eof:]
-                    | ⟨left-paren⟩
-                    | ⟨left-brace⟩
-                    | ⟨right-paren⟩
-                    | ⟨right-brace⟩
-                    | ⟨dot⟩
-                    | ⟨identifier⟩
-                    | ⟨string-literal⟩
-                    | ⟨number-literal⟩
+[:space:]         ← [ \ef\en\er\et\ev]
+[:binary:]        ← [0-1]
+[:octal:]         ← [0-7]
+[:decimal:]       ← [0-9]
+[:hexadecimal:]   ← [0-9A-Fa-f]
+[:delimiter:]     ← [][()#[:eof:][:space:]]
 .Ed
 .Pp
+The end-of-file indicator, in special, is represented by the special class
+.Ic "[:eof:]" .
+.Pp
+The backslash character
+.Pq Ic "\e"
+and the double-quote character
+.Pq Ic "\(dq" ,
+which have special meanings and thus would need to be escaped,
+are represented by the special classes
+.Ic "[:slash:]"
+and
+.Ic "[:quote:]"
+respectively.
+.Pp
+The special character class
+.Ic "[:anything:]"
+represents any character in the alphabet.
+.Ss Tokens
+A
+.Sy token
+is the lexical element used to compose well formed expressions.
+Some characters, known as
+.Sy delimiters ,
+have special meaning during the program parsing,
+because certain tokens require a delimiter to occur after them.
+A token is defined as follows:
 .Bd -literal -offset indent
-⟨left-paren⟩        ← "("
-⟨left-brace⟩        ← "["
-⟨right-paren⟩       ← ")"
-⟨right-brace⟩       ← "]"
-⟨dot⟩               ← "."
+<token>           ← <end-of-file>
+                  | <left-paren>
+                  | <left-brace>
+                  | <right-paren>
+                  | <right-brace>
+                  | <dot>
+                  | <identifier>
+                  | <string-literal>
+                  | <number-literal>
 .Ed
 .Pp
-An identifier is a sequence of non-delimiter characters.
-In addition to not containing delimiters;
-an idenfier must begin with either
-a plus sign followed by a non decimal digit;
-a minus sign followed by a non decimal digit;
-or any character other than the plus sign, the minus sign, the dot, or a decimal digit.
+The end-of-file is the token that terminates a program.
+It is actually not a character, but is interpreted as if it were.
 .Bd -literal -offset indent
-⟨identifier⟩        ← ⟨initial⟩ [^[:delimiter:]]*
-⟨initial⟩           ← "+" [^[:decimal:][:delimiter:]]
-                    | "-" [^[:decimal:][:delimiter:]]
-                    | [^+-.[:decimal:][:delimiter:]]
+<end-of-file>     ← [:eof:]
+.Ed
+.Pp
+Single-character tokens are the following:
+.Bd -literal -offset indent
+<left-paren>      ← "("
+<left-brace>      ← "["
+<right-paren>     ← ")"
+<right-brace>     ← "]"
+<dot>             ← "."
 .Ed
 .Pp
 A string literal is composed by zero or more string elements between double quotes.
-A string element is any character other than a double quote or a backslash,
-or an escaped double quote,
-or an escaped backslash.
+A string element is any character other than a double quote or a backslash
+or an escaped character.
+String literals are used to represent strings (alsow known as bytevectors).
+The double quotation mark character that terminates a string is itself a delimiter.
 .Bd -literal -offset indent
-⟨string-literal⟩    ← "\e\(dq" ⟨string-element⟩* "\e\(dq"
-⟨string-element⟩    ← [^\e\e\(dq] | \e\(dq | \e\e
+<string-literal>  ← [:quote:] <string-element>* [:quote:]
+<string-element>  ← [^[:quote:][:slash:]]
+                  | [:slash:][:anything:]
 .Ed
 .Pp
-A number literal begins with a decimal digit optionally prefixed by a plus or minus sign,
-and optionally suffixed by a exactness indicator.
+A number literal begins with an optional signal and is followed by the number body.
+A delimiter must occur after a numer literal.
 .Bd -literal -offset indent
-⟨number-literal⟩    ← ⟨signal⟩ ⟨number-body⟩ ⟨exactness⟩
-⟨signal⟩            ← [+-]?
-⟨exactness⟩         ← [EeIi]?
-⟨number-body⟩       ← ⟨binary-literal⟩
-                    | ⟨octal-literal⟩
-                    | ⟨decimal-literal⟩
-                    | ⟨hex-literal⟩
-                    | ⟨real-literal⟩
-⟨binary-literal⟩    ← 0 [bB] [[:binary:]]*
-⟨octal-literal⟩     ← 0 [oO] [[:octal:]]*
-⟨decimal-literal⟩   ← 0 [dD] [[:decimal:]]*
-⟨hex-literal⟩       ← 0 [dD] [[:hexadecimal:]]*
-⟨real-literal⟩      ← [[:decimal:]]+ ⟨fraction⟩? ⟨exponent⟩?
-⟨fraction⟩          ← "." [[:decimal:]]*
-⟨exponent⟩          ← ⟨signal⟩ [[:decimal:]]*
+<number-literal>  ← <signal> <number-body>
+<signal>          ← [+-]?
+<number-body>     ← <binary-literal>
+                  | <octal-literal>
+                  | <decimal-literal>
+                  | <hex-literal>
+                  | <real-literal>
+<binary-literal>  ← 0 [bB] [[:binary:]]*
+<octal-literal>   ← 0 [oO] [[:octal:]]*
+<decimal-literal> ← 0 [dD] [[:decimal:]]*
+<hex-literal>     ← 0 [dD] [[:hexadecimal:]]*
+<real-literal>    ← [[:decimal:]]+ <fraction>? <exponent>?
+<fraction>        ← "." [[:decimal:]]*
+<exponent>        ← <signal> [[:decimal:]]*
 .Ed
+.Pp
+An identifier is any sequence of non-delimiter characters
+that does not form another type of token.
+A delimiter character must occur after an identifier.
+.Bd -literal -offset indent
+<identifier>      ← <initial> [^[:delimiter:]]*
+<initial>         ← "+" [^[:decimal:][:delimiter:]]
+                  | "-" [^[:decimal:][:delimiter:]]
+                  | [^+-.[:decimal:][:delimiter:]]
+.Ed
+.Ss Escape sequences
+Within a string literal, sequences of characters beginning with a backslash
+.Pq Ic "\e"
+are called
+.Sy "escape sequences"
+and represent bytes other than the characters themselves.
+Most escape sequences represent a single byte,
+but some forms may represent more than one byte.
+An invalid escape sequence is equivalent to the character after the backslash;
+for example, the string literal
+.Dq Ic "\ej"
+does not contain a valid escape sequence, so it is equivalent to
+.Dq Ic "j" .
+The valid escape sequences are as follows:
+.Bl -tag -width Ds -compact
+.It Ic \ea
+Alarm (U+0007).
+.It Ic \eb
+Backspace (U+0008).
+.It Ic \et
+Horizontal tab (U+0009).
+.It Ic \en
+Line feed (U+000A).
+.It Ic \ev
+Vertical tab (U+000B).
+.It Ic \ef
+Form feed (U+000C).
+.It Ic \er
+Carriage return (U+000D).
+.It Ic \ee
+Escape character (U+001B).
+.It Ic \e"
+Double quote (U+0022).
+.It Ic \e\e
+Backslash (U+005C).
+.It Ic "\e" Ns Ar num
+Byte whose value is the 1-, 2-, or 3-digit octal number
+.Ar num .
+.It Ic "\ex" Ns Ar num
+Byte whose value is the 1- or 2-digit hexadecimal number
+.Ar num .
+.It Ic "\eu" Ns Ar num
+Bytes encoding, in UTF-8, the 4-digit hexadecimal number
+.Ar num .
+.It Ic "\eU" Ns Ar num
+Bytes encoding, in UTF-8, the 8-digit hexadecimal number
+.Ar num .
+.El
 .Ss Intertoken space
+Tokens are separated by intertoken space, which includes both whitespace and comments.
+Intertoken space is used for improved readability,
+and as necessary to separate tokens from each other.
 .Bd -literal -offset indent
-⟨whitespace⟩        ← [[:space:]]
-⟨comment⟩           ← "#" [^\en]* "\en"
-⟨atmosphere⟩        ← ⟨whitespace⟩ | ⟨comment⟩
-⟨intertoken-space⟩  ← ⟨atmosphere⟩*
+<whitespace>      ← [[:space:]]
+<comment>         ← "#" [^\en]* "\en"
+<atmosphere>      ← <whitespace> | <comment>
+<intertoken>      ← <atmosphere>*
 .Ed
+Whitespace can occur between any two tokens, but not within a token.
+Whitespace occurring inside a string literal is significant.
+.Pp
+Comments are annotations in the source code and are treated exactly like whitespace.
+A hash character
+.Pq Ic "#"
+outside a string literal indicates the start of a comment.
+The comment continues to the end of the line on which the hash character appears.
 .Ss Read external representation
 The following is a simplification of the syntax of a read external representation.
 This syntax is not complete, because intertoken-space may occur on either side of any token
 (but not within a token).
 .Bd -literal -offset indent
-⟨representation⟩    ← ⟨number⟩
-                    | ⟨string⟩
-                    | ⟨symbol⟩
-                    | ⟨vector⟩
-                    | ⟨list⟩
-⟨number⟩            ← ⟨number-literal⟩
-⟨string⟩            ← ⟨string-literal⟩
-⟨symbol⟩            ← ⟨identifier⟩
-⟨vector⟩            ← ⟨left-brace⟩ ⟨representation⟩* ⟨right-brace⟩
-⟨list⟩              ← ⟨left-paren⟩ ⟨list-element⟩* ⟨right-paren⟩
-⟨list-element⟩      ← ⟨representation⟩ | ⟨representation⟩ ⟨dot⟩
+<representation>  ← <number>
+                  | <string>
+                  | <symbol>
+                  | <vector>
+                  | <list>
+<number>          ← <number-literal>
+<string>          ← <string-literal>
+<symbol>          ← <identifier>
+<vector>          ← <left-brace> <representation>* <right-brace>
+<list>            ← <left-paren> <list-element>* <right-paren>
+<list-element>    ← <representation> | <representation> <dot>
 .Ed
 .Pp
 The definitions of read external representation of proper pair list is given below.
 Note that all proper pair list is also a list.
 .Bd -literal -offset indent
-⟨properpair-list⟩   ← ⟨left-paren⟩ ⟨representation⟩ ⟨right-paren⟩
-.Ed
-.Ss Expression
-.Bd -literal -offset indent
-⟨expression⟩        ← ⟨variable⟩
-                    | ⟨literal⟩
-                    | ⟨application⟩
-⟨variable⟩          ← ⟨symbol⟩
-⟨literal⟩           ← ⟨number⟩ | ⟨string⟩
-⟨application⟩       ← ⟨proper-pair-list⟩
+<properpair-list> ← <left-paren> <representation>* <right-paren>
 .Ed
 .Ss Program
+A
+.Nm
+program is a sequence of characters forming whitespace, comments, and tokens.
+The tokens in a program must form syntactically well formed expressions.
 .Bd -literal -offset indent
-⟨program⟩           ← ⟨expression⟩*
+<program>         ← <expression>*
+<expression>      ← <variable>
+                  | <literal>
+                  | <application>
+<variable>        ← <symbol>
+<literal>         ← <number> | <string>
+<application>     ← <proper-list>
 .Ed
 .Sh FORMAL SEMANTICS
 I have no idea what a formal semantics is or does.
+.Sh STANDARD LIBRARY
+[TODO]
 .Sh EXAMPLES
 [TODO]
 .Sh SEE ALSO
@@ -756,10 +749,10 @@ Parts of this manual (especially at the
 section) were blatantly stolen from
 .Rs
 .%B Revised⁵ Report on the Algorithmic Language Scheme
-.Re Ns .
+.Re
 .Sh HISTORY
 The
-.NM
+.Nm
 programming language was developed as a personal playground for
 programming language theory, motivated by the reading of the Wizard Book
 (Abelson & Sussman).  It first appeared as a C library in 2022.
