@@ -198,9 +198,10 @@ int     simp_porterr(Simp ctx, Simp obj);
 int     simp_readbyte(Simp ctx, Simp port);
 int     simp_peekbyte(Simp ctx, Simp port);
 void    simp_unreadbyte(Simp ctx, Simp obj, int c);
-void    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
+Simp    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
 
 /* eval */
 Simp    simp_read(Simp ctx, Simp port);
-void    simp_write(Simp ctx, Simp port, Simp obj);
+Simp    simp_write(Simp ctx, Simp port, Simp obj);
+Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);

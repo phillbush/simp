@@ -48,7 +48,7 @@ canread(Port *port)
 	       !(port->mode & PORT_EOF);
 }
 
-void
+Simp
 simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 {
 	Port *port;
@@ -72,6 +72,7 @@ simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 		break;
 	}
 	va_end(ap);
+	return simp_void();
 }
 
 int

@@ -2,20 +2,10 @@
 
 #include "simp.h"
 
-static SimpInt
-noperands(Simp ctx, Simp list)
-{
-	SimpInt n = 0;
-	Simp obj;
-
-	/* returns -1 if is not proper list */
-	for (obj = list; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj)) {
-		if (!simp_ispair(ctx, obj))
-			return -1;
-		n++;
-	}
-	return n;
-}
+typedef struct Argument {
+	Simp    argument;
+	bool    evaluate;
+} Argument;
 
 static Simp
 operate(Simp ctx, Simp macro, Simp args, Simp env)
@@ -131,38 +121,59 @@ combine(Simp ctx, Simp expr, Simp env)
 	return simp_makeexception(ctx, -1);
 }
 
-static Simp
-getargs(Simp ctx, Simp operands, Simp env, Simp args[], SimpInt nargs)
+static SimpInt
+getargs(Simp ctx, Simp operands, Simp env, Argument args[], SimpInt min, SimpInt max, Simp *ret)
 {
-	SimpInt i;
+	SimpInt i, nargs;
 
-	for (i = 0; i < nargs; i++) {
+	/*
+	 * Return number of read arguments (between min and max,
+	 * inclusive); or -1 if could not get the arguments or
+	 * evaluate them.
+	 *
+	 * Fills args[] with the (evaluated) arguments.
+	 */
+	*ret = simp_makeexception(ctx, ERROR_ILLEXPR);
+	for (i = 0; i < max; i++) {
+		if (simp_isnil(ctx, operands))
+			break;
 		if (!simp_ispair(ctx, operands))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		args[i] = simp_car(ctx, operands);
+			return -1;
+		args[i].argument = simp_car(ctx, operands);
 		operands = simp_cdr(ctx, operands);
 	}
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	nargs = i;
+	if (nargs < min || !simp_isnil(ctx, operands))
+		return -1;
 	for (i = 0; i < nargs; i++) {
-		args[i] = simp_eval(ctx, args[i], env);
-		if (simp_isexception(ctx, args[i])) {
-			return args[i];
+		if (!args[i].evaluate)
+			continue;
+		args[i].argument = simp_eval(ctx, args[i].argument, env);
+		if (simp_isexception(ctx, args[i].argument)) {
+			*ret = args[i].argument;
+			return -1;
 		}
 	}
-	return simp_nil();
+	return nargs;
 }
+
+#define GETARGS(c, o, e, a, m, n)                           \
+	do {                                                \
+		Simp r;                                     \
+		if(getargs((c),(o),(e),(a),(m),(n),&r) < 0) \
+			return r;                           \
+	} while(0)
 
 Simp
 simp_opadd(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 0;
-	Simp sum, arg, obj;
+	Simp sum, pair, obj;
 
-	if (noperands(ctx, operands) < 0)
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (arg = operands; !simp_isnil(ctx, arg); arg = simp_cdr(ctx, arg)) {
-		obj = simp_car(ctx, arg);
+	for (pair = operands; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
+		if (!simp_ispair(ctx, pair))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		obj = simp_car(ctx, pair);
 		if (simp_isexception(ctx, obj))
 			return obj;
 		obj = simp_eval(ctx, obj, env);
@@ -177,23 +188,17 @@ simp_opadd(Simp ctx, Simp operands, Simp env)
 Simp
 simp_opbooleanp(Simp ctx, Simp operands, Simp env)
 {
-	Simp arg, ret;
+	Argument arg = { simp_void(), true };
 
-	ret = getargs(ctx, operands, env, &arg, 1);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_isbool(ctx, arg))
-		return simp_true();
-	else
-		return simp_false();
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_isbool(ctx, arg.argument) ? simp_true() : simp_false();
 }
 
 Simp
 simp_opcuriport(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_contextiport(ctx);
 }
 
@@ -201,8 +206,7 @@ Simp
 simp_opcuroport(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_contextoport(ctx);
 }
 
@@ -210,8 +214,7 @@ Simp
 simp_opcureport(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_contexteport(ctx);
 }
 
@@ -244,31 +247,18 @@ error:
 Simp
 simp_opdisplay(Simp ctx, Simp operands, Simp env)
 {
-	Simp obj, port;
+	enum { ARG_OBJECT, ARG_PORT, NARGS };
+	Argument args[NARGS] = {
+		[ARG_OBJECT] = { simp_void(),            true },
+		[ARG_PORT]   = { simp_contextoport(ctx), true },
+	};
 
-	(void)env;
-	if (!simp_ispair(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	obj = simp_car(ctx, operands);
-	operands = simp_cdr(ctx, operands);
-	if (simp_isnil(ctx, operands)) {
-		port = simp_contextoport(ctx);
-	} else if (simp_ispair(ctx, operands) &&
-	           simp_isnil(ctx, simp_cdr(ctx, operands))) {
-		port = simp_car(ctx, operands);
-	} else {
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	}
-	obj = simp_eval(ctx, obj, env);
-	port = simp_eval(ctx, port, env);
-	if (simp_isexception(ctx, obj))
-		return obj;
-	if (simp_isexception(ctx, port))
-		return port;
-	if (!simp_isport(ctx, port))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	simp_display(ctx, port, obj);
-	return simp_void();
+	GETARGS(ctx, operands, env, args, 1, 2);
+	return simp_display(
+		ctx,
+		args[ARG_PORT].argument,
+		args[ARG_OBJECT].argument
+	);
 }
 
 Simp
@@ -276,40 +266,42 @@ simp_opdivide(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 1;
 	SimpInt nops = 0;
-	Simp rat, arg, obj;
+	Simp pair, obj;
 	bool gotop = false;
 
-	if ((nops = noperands(ctx, operands)) < 1)
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (arg = operands; !simp_isnil(ctx, arg); arg = simp_cdr(ctx, arg)) {
-		obj = simp_car(ctx, arg);
+	for (pair = operands; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
+		if (!simp_ispair(ctx, pair))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		nops++;
+		obj = simp_car(ctx, pair);
 		if (simp_isexception(ctx, obj))
 			return obj;
 		obj = simp_eval(ctx, obj, env);
 		if (!simp_isnum(ctx, obj))
 			return simp_makeexception(ctx, ERROR_ILLTYPE);
-		if (gotop || nops == 1)
+		if (gotop)
 			num /= simp_getnum(ctx, obj);
 		else
 			num = simp_getnum(ctx, obj);
 		gotop = true;
 	}
-	rat = simp_makenum(ctx, num);
-	return rat;
+	if (nops == 0)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (nops == 1)
+		return simp_makenum(ctx, 1 / num);
+	return simp_makenum(ctx, num);
 }
 
 Simp
 simp_opequal(Simp ctx, Simp operands, Simp env)
 {
-	Simp args[2];
-	Simp ret;
+	Argument args[2];
 
-	ret = getargs(ctx, operands, env, args, 2);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	if (!simp_isnum(ctx, args[0].argument) || !simp_isnum(ctx, args[1].argument))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (simp_getnum(ctx, args[0]) == simp_getnum(ctx, args[1]))
+	if (simp_getnum(ctx, args[0].argument) == simp_getnum(ctx, args[1].argument))
 		return simp_true();
 	else
 		return simp_false();
@@ -319,23 +311,20 @@ Simp
 simp_opfalse(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_false();
 }
 
 Simp
 simp_opgt(Simp ctx, Simp operands, Simp env)
 {
-	Simp args[2];
-	Simp ret;
+	Argument args[2];
 
-	ret = getargs(ctx, operands, env, args, 2);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	if (!simp_isnum(ctx, args[0].argument) || !simp_isnum(ctx, args[1].argument))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (simp_getnum(ctx, args[0]) > simp_getnum(ctx, args[1]))
+	if (simp_getnum(ctx, args[0].argument) > simp_getnum(ctx, args[1].argument))
 		return simp_true();
 	else
 		return simp_false();
@@ -344,31 +333,15 @@ simp_opgt(Simp ctx, Simp operands, Simp env)
 Simp
 simp_opif(Simp ctx, Simp operands, Simp env)
 {
-	Simp test, exprs[2] = { simp_nil(), simp_nil() };
-	int i = 0;
+	enum { COND, THEN, ELSE, LAST };
+	Argument args[LAST];
+	int n = ELSE;
 
-	if (!simp_ispair(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	test = simp_car(ctx, operands);
-	operands = simp_cdr(ctx, operands);
-	if (!simp_ispair(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	exprs[0] = simp_car(ctx, operands);
-	operands = simp_cdr(ctx, operands);
-	if (simp_ispair(ctx, operands)) {
-		exprs[1] = simp_car(ctx, operands);
-		operands = simp_cdr(ctx, operands);
-	}
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	test = simp_eval(ctx, test, env);
-	if (simp_isexception(ctx, test))
-		return test;
-	if (simp_istrue(ctx, test))
-		i = 0;
-	else
-		i = 1;
-	return simp_eval(ctx, exprs[i], env);
+	args[COND].evaluate = true;
+	args[THEN].evaluate = args[ELSE].evaluate = false;
+	GETARGS(ctx, operands, env, args, 2, 3);
+	n = simp_istrue(ctx, args[COND].argument) ? THEN : ELSE;
+	return simp_eval(ctx, args[n].argument, env);
 }
 
 Simp
@@ -386,15 +359,13 @@ simp_oplambda(Simp ctx, Simp operands, Simp env)
 Simp
 simp_oplt(Simp ctx, Simp operands, Simp env)
 {
-	Simp args[2];
-	Simp ret;
+	Argument args[2];
 
-	ret = getargs(ctx, operands, env, args, 2);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (!simp_isnum(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	if (!simp_isnum(ctx, args[0].argument) || !simp_isnum(ctx, args[1].argument))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (simp_getnum(ctx, args[0]) < simp_getnum(ctx, args[1]))
+	if (simp_getnum(ctx, args[0].argument) < simp_getnum(ctx, args[1].argument))
 		return simp_true();
 	else
 		return simp_false();
@@ -416,12 +387,12 @@ Simp
 simp_opmultiply(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 1;
-	Simp prod, arg, obj;
+	Simp prod, pair, obj;
 
-	if (noperands(ctx, operands) < 0)
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (arg = operands; !simp_isnil(ctx, arg); arg = simp_cdr(ctx, arg)) {
-		obj = simp_car(ctx, arg);
+	for (pair = operands; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
+		if (!simp_ispair(ctx, pair))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		obj = simp_car(ctx, pair);
 		if (simp_isexception(ctx, obj))
 			return obj;
 		obj = simp_eval(ctx, obj, env);
@@ -436,94 +407,61 @@ simp_opmultiply(Simp ctx, Simp operands, Simp env)
 Simp
 simp_opnewline(Simp ctx, Simp operands, Simp env)
 {
-	Simp port;
+	Argument arg = {
+		.argument = simp_contextoport(ctx),
+		.evaluate = true,
+	};
 
-	(void)env;
-	if (simp_isnil(ctx, operands)) {
-		port = simp_contextoport(ctx);
-	} else if (simp_ispair(ctx, operands) &&
-	           simp_isnil(ctx, simp_cdr(ctx, operands))) {
-		port = simp_car(ctx, operands);
-	} else {
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	}
-	port = simp_eval(ctx, port, env);
-	if (simp_isexception(ctx, port))
-		return port;
-	if (!simp_isport(ctx, port))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	simp_printf(ctx, port, "\n");
-	return simp_void();
+	GETARGS(ctx, operands, env, &arg, 0, 1);
+	return simp_printf(ctx, arg.argument, "\n");
 }
 
 Simp
 simp_opnullp(Simp ctx, Simp operands, Simp env)
 {
-	Simp arg, ret;
+	Argument arg = { simp_void(), true };
 
-	ret = getargs(ctx, operands, env, &arg, 1);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_isnil(ctx, arg))
-		return simp_true();
-	else
-		return simp_false();
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_isnil(ctx, arg.argument) ? simp_true() : simp_false();
 }
 
 Simp
 simp_oppairp(Simp ctx, Simp operands, Simp env)
 {
-	Simp arg, ret;
+	Argument arg = { simp_void(), true };
 
-	ret = getargs(ctx, operands, env, &arg, 1);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_ispair(ctx, arg))
-		return simp_true();
-	else
-		return simp_false();
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_ispair(ctx, arg.argument) ? simp_true() : simp_false();
 }
 
 Simp
 simp_opportp(Simp ctx, Simp operands, Simp env)
 {
-	Simp arg, ret;
+	Argument arg = { simp_void(), true };
 
-	ret = getargs(ctx, operands, env, &arg, 1);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_isport(ctx, arg))
-		return simp_true();
-	else
-		return simp_false();
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_isport(ctx, arg.argument) ? simp_true() : simp_false();
 }
 
 Simp
 simp_opquote(Simp ctx, Simp operands, Simp env)
 {
-	(void)env;
-	if (!simp_ispair(ctx, operands))
-		goto error;
-	if (!simp_isnil(ctx, simp_cdr(ctx, operands)))
-		goto error;
-	return simp_car(ctx, operands);
-error:
-	return simp_makeexception(ctx, ERROR_ILLEXPR);
+	Argument arg = { simp_void(), false };
+
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return arg.argument;
 }
 
 Simp
 simp_opsamep(Simp ctx, Simp operands, Simp env)
 {
-	Simp args[2];
-	Simp ret;
+	Argument args[2];
 
-	ret = getargs(ctx, operands, env, args, 2);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_issame(ctx, args[0], args[1]))
-		return simp_true();
-	else
-		return simp_false();
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	return simp_issame(ctx, args[0].argument, args[1].argument)
+		? simp_true()
+		: simp_false();
 }
 
 Simp
@@ -531,48 +469,46 @@ simp_opsubtract(Simp ctx, Simp operands, Simp env)
 {
 	SimpInt num = 0;
 	SimpInt nops = 0;
-	Simp diff, arg, obj;
+	Simp pair, obj;
 	bool gotop = false;
 
-	if ((nops = noperands(ctx, operands)) < 1)
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (arg = operands; !simp_isnil(ctx, arg); arg = simp_cdr(ctx, arg)) {
-		obj = simp_car(ctx, arg);
+	for (pair = operands; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
+		if (!simp_ispair(ctx, pair))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		nops++;
+		obj = simp_car(ctx, pair);
 		if (simp_isexception(ctx, obj))
 			return obj;
 		obj = simp_eval(ctx, obj, env);
 		if (!simp_isnum(ctx, obj))
 			return simp_makeexception(ctx, ERROR_ILLTYPE);
-		if (gotop || nops == 1)
+		if (gotop)
 			num -= simp_getnum(ctx, obj);
 		else
 			num = simp_getnum(ctx, obj);
 		gotop = true;
 	}
-	diff = simp_makenum(ctx, num);
-	return diff;
+	if (nops == 0)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (nops == 1)
+		return simp_makenum(ctx, -num);
+	return simp_makenum(ctx, num);
 }
 
 Simp
 simp_opsymbolp(Simp ctx, Simp operands, Simp env)
 {
-	Simp arg, ret;
+	Argument arg = { simp_void(), true };
 
-	ret = getargs(ctx, operands, env, &arg, 1);
-	if (simp_isexception(ctx, ret))
-		return ret;
-	if (simp_issymbol(ctx, arg))
-		return simp_true();
-	else
-		return simp_false();
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_issymbol(ctx, arg.argument) ? simp_true() : simp_false();
 }
 
 Simp
 simp_optrue(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_true();
 }
 
@@ -580,39 +516,25 @@ Simp
 simp_opvoid(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
-	if (!simp_isnil(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	GETARGS(ctx, operands, env, NULL, 0, 0);
 	return simp_void();
 }
 
 Simp
 simp_opwrite(Simp ctx, Simp operands, Simp env)
 {
-	Simp obj, port;
+	enum { ARG_OBJECT, ARG_PORT, NARGS };
+	Argument args[NARGS] = {
+		[ARG_OBJECT] = { simp_void(),            true },
+		[ARG_PORT]   = { simp_contextoport(ctx), true },
+	};
 
-	(void)env;
-	if (!simp_ispair(ctx, operands))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	obj = simp_car(ctx, operands);
-	operands = simp_cdr(ctx, operands);
-	if (simp_isnil(ctx, operands)) {
-		port = simp_contextoport(ctx);
-	} else if (simp_ispair(ctx, operands) &&
-	           simp_isnil(ctx, simp_cdr(ctx, operands))) {
-		port = simp_car(ctx, operands);
-	} else {
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	}
-	obj = simp_eval(ctx, obj, env);
-	port = simp_eval(ctx, port, env);
-	if (simp_isexception(ctx, obj))
-		return obj;
-	if (simp_isexception(ctx, port))
-		return port;
-	if (!simp_isport(ctx, port))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	simp_write(ctx, port, obj);
-	return simp_void();
+	GETARGS(ctx, operands, env, args, 1, 2);
+	return simp_write(
+		ctx,
+		args[ARG_PORT].argument,
+		args[ARG_OBJECT].argument
+	);
 }
 
 Simp

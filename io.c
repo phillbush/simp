@@ -770,14 +770,16 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 	}
 }
 
-void
+Simp
 simp_write(Simp ctx, Simp port, Simp obj)
 {
 	dowrite(ctx, port, obj, false);
+	return simp_void();     // TODO: check write error
 }
 
-void
+Simp
 simp_display(Simp ctx, Simp port, Simp obj)
 {
 	dowrite(ctx, port, obj, true);
+	return simp_void();     // TODO: check write error
 }
