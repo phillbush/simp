@@ -741,9 +741,15 @@ simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body)
 
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
-		if (!simp_ispair(ctx, obj) || !simp_issymbol(ctx, simp_car(ctx, obj)))
+	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj)) {
+		if (!simp_isvector(ctx, obj) || simp_getsize(ctx, obj) > 2)
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, obj, 0)))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (!simp_ispair(ctx, obj)) {
+			break;
+		}
+	}
 	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
 		if (!simp_ispair(ctx, obj))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
@@ -802,9 +808,15 @@ simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body)
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	if (!simp_ispair(ctx, param))
 		return simp_makeexception(ctx, ERROR_ENVIRON);
-	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
-		if (!simp_ispair(ctx, obj) || !simp_issymbol(ctx, simp_car(ctx, obj)))
+	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj)) {
+		if (!simp_isvector(ctx, obj) || simp_getsize(ctx, obj) > 2)
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, obj, 0)))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (!simp_ispair(ctx, obj)) {
+			break;
+		}
+	}
 	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
 		if (!simp_ispair(ctx, obj))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);

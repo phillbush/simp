@@ -8,89 +8,88 @@ typedef struct Argument {
 } Argument;
 
 static Simp
-operate(Simp ctx, Simp macro, Simp args, Simp env)
+evalargs(Simp ctx, Simp list, Simp env)
 {
-	Simp cloenv, param, body, var, val, expr;
+	Simp val, pair, prev, args;
 
-	cloenv = simp_getoperativeenv(ctx, macro);
-	if (!simp_isenvironment(ctx, cloenv))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	cloenv = simp_makeenvironment(ctx, cloenv);
-	if (simp_isexception(ctx, cloenv))
-		return cloenv;
-	param = simp_getoperativeparam(ctx, macro);
-	if (!simp_ispair(ctx, param))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	var = simp_car(ctx, param);
-	if (!simp_issymbol(ctx, var))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	simp_envset(ctx, cloenv, var, env);
-	param = simp_cdr(ctx, param);
-	while (!simp_isnil(ctx, param)) {
-		if (!simp_ispair(ctx, param))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (simp_isnil(ctx, args))
-			return simp_makeexception(ctx, ERROR_ARGS);
-		if (!simp_ispair(ctx, args))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		var = simp_car(ctx, param);
-		val = simp_car(ctx, args);
-		if (!simp_issymbol(ctx, var))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		simp_envset(ctx, cloenv, var, val);
-		param = simp_cdr(ctx, param);
-		args = simp_cdr(ctx, args);
-	}
-	if (!simp_isnil(ctx, args))
-		return simp_makeexception(ctx, ERROR_ARGS);
-	expr = simp_nil();
-	for (body = simp_getoperativebody(ctx, macro);
-	     !simp_isnil(ctx, body); body = simp_cdr(ctx, body)) {
-		if (!simp_ispair(ctx, body))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		expr = simp_car(ctx, body);
-		val = simp_eval(ctx, expr, cloenv);
-		if (simp_isexception(ctx, val))
-			return val;
-	}
-	return val;
-}
-
-static Simp
-apply(Simp ctx, Simp lambda, Simp args, Simp env)
-{
-	Simp cloenv, param, body, var, val, expr;
-
-	cloenv = simp_getapplicativeenv(ctx, lambda);
-	if (!simp_isenvironment(ctx, cloenv))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	cloenv = simp_makeenvironment(ctx, cloenv);
-	if (simp_isexception(ctx, cloenv))
-		return cloenv;
-	param = simp_getapplicativeparam(ctx, lambda);
-	while (!simp_isnil(ctx, param)) {
-		if (!simp_ispair(ctx, param))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (simp_isnil(ctx, args))
-			return simp_makeexception(ctx, ERROR_ARGS);
-		if (!simp_ispair(ctx, args))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		var = simp_car(ctx, param);
-		val = simp_car(ctx, args);
+	args = simp_nil();
+	prev = simp_nil();
+	for (; !simp_isnil(ctx, list); list = simp_cdr(ctx, list)) {
+		if (!simp_ispair(ctx, list))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		val = simp_car(ctx, list);
 		val = simp_eval(ctx, val, env);
 		if (simp_isexception(ctx, val))
 			return val;
+		pair = simp_cons(ctx, val, simp_nil());
+		if (simp_isexception(ctx, pair))
+			return pair;
+		if (!simp_isnil(pair, prev))
+			simp_setcdr(ctx, prev, pair);
+		else
+			args = pair;
+		prev = pair;
+	}
+	return args;
+}
+
+static Simp
+operate(Simp ctx, Simp operator, Simp args, Simp env)
+{
+	Simp var, val, expr;
+	Simp body, cloenv, param;
+
+	if (simp_isapplicative(ctx, operator)) {
+		args = evalargs(ctx, args, env);
+		if (simp_isexception(ctx, args))
+			return args;
+		body = simp_getapplicativebody(ctx, operator);
+		param = simp_getapplicativeparam(ctx, operator);
+		cloenv = simp_getapplicativeenv(ctx, operator);
+	} else if (simp_isoperative(ctx, operator)) {
+		body = simp_getoperativebody(ctx, operator);
+		param = simp_getoperativeparam(ctx, operator);
+		cloenv = simp_getoperativeenv(ctx, operator);
+	} else {
+		return simp_makeexception(ctx, -1);
+	}
+	if (!simp_isenvironment(ctx, cloenv))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	cloenv = simp_makeenvironment(ctx, cloenv);
+	if (simp_isexception(ctx, cloenv))
+		return cloenv;
+	if (simp_isoperative(ctx, operator)) {
+		if (!simp_ispair(ctx, param))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		var = simp_car(ctx, param);
 		if (!simp_issymbol(ctx, var))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		simp_envset(ctx, cloenv, var, env);
+		param = simp_cdr(ctx, param);
+	}
+	while (!simp_isnil(ctx, param)) {
+		if (simp_isnil(ctx, args))
+			return simp_makeexception(ctx, ERROR_ARGS);
+		if (!simp_ispair(ctx, args))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		var = simp_getvectormemb(ctx, param, 0);
+		if (!simp_issymbol(ctx, var))
+			return simp_makeexception(ctx, ERROR_ILLEXPR);
+		if (simp_getsize(ctx, param) == 1)
+			val = args;
+		else
+			val = simp_car(ctx, args);
 		simp_envset(ctx, cloenv, var, val);
+		if (simp_getsize(ctx, param) == 1)
+			goto done;
 		param = simp_cdr(ctx, param);
 		args = simp_cdr(ctx, args);
 	}
 	if (!simp_isnil(ctx, args))
 		return simp_makeexception(ctx, ERROR_ARGS);
+done:
 	expr = simp_nil();
-	for (body = simp_getapplicativebody(ctx, lambda);
-	     !simp_isnil(ctx, body); body = simp_cdr(ctx, body)) {
+	for (; !simp_isnil(ctx, body); body = simp_cdr(ctx, body)) {
 		if (!simp_ispair(ctx, body))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
 		expr = simp_car(ctx, body);
@@ -114,11 +113,7 @@ combine(Simp ctx, Simp expr, Simp env)
 	operands = simp_cdr(ctx, expr);
 	if (simp_isbuiltin(ctx, operator))
 		return (*simp_getbuiltin(ctx, operator))(ctx, operands, env);
-	if (simp_isapplicative(ctx, operator))
-		return apply(ctx, operator, operands, env);
-	if (simp_isoperative(ctx, operator))
-		return operate(ctx, operator, operands, env);
-	return simp_makeexception(ctx, -1);
+	return operate(ctx, operator, operands, env);
 }
 
 static SimpInt
@@ -192,6 +187,34 @@ simp_opbooleanp(Simp ctx, Simp operands, Simp env)
 
 	GETARGS(ctx, operands, env, &arg, 1, 1);
 	return simp_isbool(ctx, arg.argument) ? simp_true() : simp_false();
+}
+
+Simp
+simp_opcar(Simp ctx, Simp operands, Simp env)
+{
+	Argument arg = { simp_void(), true };
+
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_car(ctx, arg.argument);
+}
+
+Simp
+simp_opcdr(Simp ctx, Simp operands, Simp env)
+{
+	Argument arg = { simp_void(), true };
+
+	GETARGS(ctx, operands, env, &arg, 1, 1);
+	return simp_cdr(ctx, arg.argument);
+}
+
+Simp
+simp_opcons(Simp ctx, Simp operands, Simp env)
+{
+	Argument args[2];
+
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	return simp_cons(ctx, args[0].argument, args[1].argument);
 }
 
 Simp
@@ -308,6 +331,18 @@ simp_opequal(Simp ctx, Simp operands, Simp env)
 }
 
 Simp
+simp_opeval(Simp ctx, Simp operands, Simp env)
+{
+	Argument args[2];
+
+	args[0].evaluate = args[1].evaluate = true;
+	GETARGS(ctx, operands, env, args, 2, 2);
+	if (!simp_isenvironment(ctx, args[1].argument))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_eval(ctx, args[0].argument, args[1].argument);
+}
+
+Simp
 simp_opfalse(Simp ctx, Simp operands, Simp env)
 {
 	(void)env;
@@ -349,7 +384,7 @@ simp_oplambda(Simp ctx, Simp operands, Simp env)
 {
 	Simp body, parameters;
 
-	if (!simp_ispair(ctx, operands))
+	if (!simp_ispair(ctx, operands) && !simp_isnil(ctx, operands))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	parameters = simp_car(ctx, operands);
 	body = simp_cdr(ctx, operands);
@@ -372,11 +407,18 @@ simp_oplt(Simp ctx, Simp operands, Simp env)
 }
 
 Simp
+simp_opmakeenvironment(Simp ctx, Simp operands, Simp env)
+{
+	GETARGS(ctx, operands, env, NULL, 0, 0);
+	return simp_makeenvironment(ctx, env);
+}
+
+Simp
 simp_opmacro(Simp ctx, Simp operands, Simp env)
 {
 	Simp body, parameters;
 
-	if (!simp_ispair(ctx, operands))
+	if (!simp_ispair(ctx, operands) && !simp_isnil(ctx, operands))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	parameters = simp_car(ctx, operands);
 	body = simp_cdr(ctx, operands);
@@ -441,15 +483,6 @@ simp_opportp(Simp ctx, Simp operands, Simp env)
 
 	GETARGS(ctx, operands, env, &arg, 1, 1);
 	return simp_isport(ctx, arg.argument) ? simp_true() : simp_false();
-}
-
-Simp
-simp_opquote(Simp ctx, Simp operands, Simp env)
-{
-	Argument arg = { simp_void(), false };
-
-	GETARGS(ctx, operands, env, &arg, 1, 1);
-	return arg.argument;
 }
 
 Simp
