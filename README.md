@@ -5,12 +5,12 @@
 </p>
 
 Simp is my attempt to design and implement a minimalist lisp language.
-• The language is documented in `./simp.7`.
-• The interpreter is documented in `./simp.1`.
-• The C API is documented in `./simp.3`.
+* The language is documented in `./simp.7`.
+* The interpreter is documented in `./simp.1`.
+* The C API is documented in `./simp.3`.
 
 
-## Sex pressions
+## S expressions
 
 One of the features of Simp that makes it different from other lisps
 is that it does not have pairs as a proper type.  It is the vector the
