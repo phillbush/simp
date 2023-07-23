@@ -20,9 +20,6 @@
 #define OPERATIONS                                                       \
 	X(OP_ADD,       "+",                    simp_opadd              )\
 	X(OP_BOOLEANP,  "boolean?",             simp_opbooleanp         )\
-	X(OP_CAR,       "car",                  simp_opcar              )\
-	X(OP_CDR,       "cdr",                  simp_opcdr              )\
-	X(OP_CONS,      "cons",                 simp_opcons             )\
 	X(OP_CURIPORT,  "current-input-port",   simp_opcuriport         )\
 	X(OP_CUROPORT,  "current-output-port",  simp_opcuroport         )\
 	X(OP_CUREPORT,  "current-error-port",   simp_opcureport         )\
@@ -30,7 +27,6 @@
 	X(OP_DISPLAY,   "display",              simp_opdisplay          )\
 	X(OP_DIVIDE,    "/",                    simp_opdivide           )\
 	X(OP_EQUAL,     "=",                    simp_opequal            )\
-	X(OP_EVAL,      "eval",                 simp_opeval             )\
 	X(OP_FALSE,     "false",                simp_opfalse            )\
 	X(OP_GT,        ">",                    simp_opgt               )\
 	X(OP_IF,        "if",                   simp_opif               )\
@@ -41,7 +37,6 @@
 	X(OP_MULTIPLY,  "*",                    simp_opmultiply         )\
 	X(OP_NEWLINE,   "newline",              simp_opnewline          )\
 	X(OP_NULLP,     "null?",                simp_opnullp            )\
-	X(OP_PAIRP,     "pair?",                simp_oppairp            )\
 	X(OP_PORTP,     "port?",                simp_opportp            )\
 	X(OP_SAMEP,     "same?",                simp_opsamep            )\
 	X(OP_SUBTRACT,  "-",                    simp_opsubtract         )\
@@ -104,11 +99,6 @@ struct Simp {
 /* error handling */
 unsigned char *simp_errorstr(int exception);
 
-/* data pair utils */
-Simp    simp_car(Simp ctx, Simp obj);
-Simp    simp_cdr(Simp ctx, Simp obj);
-Simp    simp_cons(Simp ctx, Simp a, Simp b);
-
 /* data constant utils */
 Simp    simp_nil(void);
 Simp    simp_empty(void);
@@ -164,8 +154,6 @@ bool    simp_isvoid(Simp ctx, Simp obj);
 bool    simp_issame(Simp ctx, Simp a, Simp b);
 
 /* data type mutators */
-void    simp_setcar(Simp ctx, Simp obj, Simp val);
-void    simp_setcdr(Simp ctx, Simp obj, Simp val);
 void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val);
 void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
 

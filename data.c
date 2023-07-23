@@ -291,35 +291,6 @@ simp_contexteport(Simp ctx)
 }
 
 Simp
-simp_car(Simp ctx, Simp obj)
-{
-	if (!simp_ispair(ctx, obj))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getvector(ctx, obj)[0];
-}
-
-Simp
-simp_cdr(Simp ctx, Simp obj)
-{
-	if (!simp_ispair(ctx, obj))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getvector(ctx, obj)[1];
-}
-
-Simp
-simp_cons(Simp ctx, Simp a, Simp b)
-{
-	Simp pair;
-
-	pair = simp_makevector(ctx, 2, simp_nil());
-	if (simp_isexception(ctx, pair))
-		return pair;
-	simp_setcar(ctx, pair, a);
-	simp_setcdr(ctx, pair, b);
-	return pair;
-}
-
-Simp
 simp_empty(void)
 {
 	return (Simp){
@@ -587,12 +558,6 @@ simp_isoperative(Simp ctx, Simp obj)
 }
 
 bool
-simp_ispair(Simp ctx, Simp obj)
-{
-	return simp_isvector(ctx, obj) && simp_getsize(ctx, obj) == 2;
-}
-
-bool
 simp_isport(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -680,18 +645,6 @@ simp_isvoid(Simp ctx, Simp obj)
 }
 
 void
-simp_setcar(Simp ctx, Simp obj, Simp val)
-{
-	simp_setvector(ctx, obj, 0, val);
-}
-
-void
-simp_setcdr(Simp ctx, Simp obj, Simp val)
-{
-	simp_setvector(ctx, obj, 1, val);
-}
-
-void
 simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val)
 {
 	unsigned char *string;
@@ -735,29 +688,24 @@ simp_makebyte(Simp ctx, unsigned char byte)
 }
 
 Simp
-simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body)
+simp_makeapplicative(Simp ctx, Simp env, Simp params, Simp body)
 {
-	Simp lambda, obj;
+	Simp lambda;
+	SimpSiz nparams, i;
 
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj)) {
-		if (!simp_isvector(ctx, obj) || simp_getsize(ctx, obj) > 2)
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, obj, 0)))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (!simp_ispair(ctx, obj)) {
-			break;
-		}
-	}
-	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
-		if (!simp_ispair(ctx, obj))
+	if (!simp_isvector(ctx, params))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	nparams = simp_getsize(ctx, params);
+	for (i = 0; i < nparams; i++)
+		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i)))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
 	lambda = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
 	if (simp_isexception(ctx, lambda))
 		return lambda;
 	simp_setvector(ctx, lambda, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, param);
+	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, params);
 	simp_setvector(ctx, lambda, CLOSURE_EXPRESSIONS, body);
 	lambda.type = TYPE_APPLICATIVE;
 	return lambda;
@@ -800,31 +748,26 @@ simp_makenum(Simp ctx, SimpInt n)
 }
 
 Simp
-simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body)
+simp_makeoperative(Simp ctx, Simp env, Simp params, Simp body)
 {
-	Simp macro, obj;
+	Simp macro;
+	SimpSiz nparams, i;
 
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (!simp_ispair(ctx, param))
+	if (!simp_isvector(ctx, params))
+		return simp_makeexception(ctx, ERROR_ILLEXPR);
+	nparams = simp_getsize(ctx, params);
+	if (nparams < 1)
 		return simp_makeexception(ctx, ERROR_ENVIRON);
-	for (obj = param; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj)) {
-		if (!simp_isvector(ctx, obj) || simp_getsize(ctx, obj) > 2)
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, obj, 0)))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-		if (!simp_ispair(ctx, obj)) {
-			break;
-		}
-	}
-	for (obj = body; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
-		if (!simp_ispair(ctx, obj))
+	for (i = 0; i < nparams; i++)
+		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i)))
 			return simp_makeexception(ctx, ERROR_ILLEXPR);
 	macro = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
 	if (simp_isexception(ctx, macro))
 		return macro;
 	simp_setvector(ctx, macro, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(ctx, macro, CLOSURE_PARAMETERS, param);
+	simp_setvector(ctx, macro, CLOSURE_PARAMETERS, params);
 	simp_setvector(ctx, macro, CLOSURE_EXPRESSIONS, body);
 	macro.type = TYPE_OPERATIVE;
 	return macro;
@@ -896,8 +839,8 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 	bucket %= SYMTAB_SIZE;
 	list = simp_getvectormemb(ctx, symtab, bucket);
 	prev = simp_nil();
-	for (pair = list; !simp_isnil(ctx, pair); pair = simp_cdr(ctx, pair)) {
-		sym = simp_car(ctx, pair);
+	for (pair = list; !simp_isnil(ctx, pair); pair = simp_getvectormemb(ctx, pair, 1)) {
+		sym = simp_getvectormemb(ctx, pair, 0);
 		dst = simp_getstring(ctx, sym);
 		len = simp_getsize(ctx, sym);
 		if (len == size && memcmp(src, dst, size) == 0)
@@ -908,13 +851,14 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 	if (simp_isexception(ctx, sym))
 		return sym;
 	sym.type = TYPE_SYMBOL;
-	pair = simp_cons(ctx, sym, simp_nil());
+	pair = simp_makevector(ctx, 2, simp_nil());
 	if (simp_isexception(ctx, pair))
 		return pair;
+	simp_setvector(ctx, pair, 0, sym);
 	if (simp_isnil(ctx, prev))
 		simp_setvector(ctx, symtab, bucket, pair);
 	else
-		simp_setcdr(ctx, prev, pair);
+		simp_setvector(ctx, prev, 1, pair);
 	return sym;
 }
 

@@ -22,9 +22,6 @@ struct Token {
 		TOK_EOF,
 		TOK_LPAREN,
 		TOK_RPAREN,
-		TOK_LBRACE,
-		TOK_RBRACE,
-		TOK_DOT,
 		TOK_CHAR,
 		TOK_STRING,
 		TOK_FIXNUM,
@@ -39,6 +36,11 @@ struct Token {
 			SimpSiz    len;
 		} str;
 	} u;
+};
+
+struct List {
+	Simp obj;
+	struct List *next;
 };
 
 static Simp toktoobj(Simp ctx, Simp port, Token tok);
@@ -424,15 +426,6 @@ readtok(Simp ctx, Simp port)
 	case ')':
 		tok.type = TOK_RPAREN;
 		return tok;
-	case '[':
-		tok.type = TOK_LBRACE;
-		return tok;
-	case ']':
-		tok.type = TOK_RBRACE;
-		return tok;
-	case '.':
-		tok.type = TOK_DOT;
-		return tok;
 	case '"':
 		return readstr(ctx, port);
 	case '\'':
@@ -468,114 +461,74 @@ token:
 	return tok;
 }
 
-static Simp
-fillvector(Simp ctx, Simp list, SimpSiz nitems)
+static void
+cleanvector(struct List *list)
 {
-	Simp vect, obj;
-	SimpSiz i = 0;
+	struct List *tmp;
 
-	vect = simp_makevector(ctx, nitems, simp_nil());
-	// TODO: check if vector could not be built
-	for (obj = list; !simp_isnil(ctx, obj); obj = simp_cdr(ctx, obj))
-		simp_setvector(ctx, vect, i++, simp_car(ctx, obj));
-	return vect;
+	while (list != NULL) {
+		tmp = list;
+		list = list->next;
+		free(tmp);
+	}
 }
 
 static Simp
-readlist(Simp ctx, Simp port)
+fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 {
-	Token tok;
-	enum Toktype prevtype = TOK_DOT;
-	Simp list = simp_nil();
-	Simp last = simp_nil();
-	Simp vect = simp_nil();
-	Simp prev = simp_nil();
-	Simp pair, obj;
-	SimpSiz nitems = 0;
-	SimpSiz i;
+	struct List *tmp;
+	Simp vect;
+	SimpSiz i = 0;
 
-	for (;;) {
-		tok = readtok(ctx, port);
-		switch (tok.type) {
-		case TOK_ERROR:
-		case TOK_EOF:
-		case TOK_RBRACE:
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-			break;
-		case TOK_RPAREN:
-			i = (prevtype != TOK_DOT ? 1 : 0);
-			if (simp_isnil(ctx, vect))
-				return fillvector(ctx, list, nitems + i);
-			obj = fillvector(ctx, list, nitems + i);
-			i = simp_getsize(ctx, prev);
-			simp_setvector(ctx, prev, i - 1, obj);
-			return vect;
-		case TOK_DOT:
-			break;
-		default:
-			if (prevtype != TOK_DOT) {
-				obj = fillvector(ctx, list, nitems + 1);
-				if (simp_isnil(ctx, vect)) {
-					vect = obj;
-				} else {
-					i = simp_getsize(ctx, prev);
-					simp_setvector(ctx, prev, i - 1, obj);
-				}
-				prev = obj;
-				list = simp_nil();
-				nitems = 0;
-			}
-			obj = toktoobj(ctx, port, tok);
-			pair = simp_cons(ctx, obj, simp_nil());
-			if (simp_isnil(ctx, list))
-				list = pair;
-			else
-				simp_setcdr(ctx, last, pair);
-			last = pair;
-			nitems++;
-			break;
-		}
-		prevtype = tok.type;
+	vect = simp_makevector(ctx, nitems, simp_nil());
+	if (simp_isexception(ctx, vect)) {
+		cleanvector(list);
+		return simp_makeexception(ctx, ERROR_MEMORY);
 	}
-	/* UNREACHABLE */
-	return list;
+	while (list != NULL) {
+		tmp = list;
+		list = list->next;
+		simp_setvector(ctx, vect, i++, tmp->obj);
+		free(tmp);
+	}
+	return vect;
 }
 
 static Simp
 readvector(Simp ctx, Simp port)
 {
 	Token tok;
-	Simp list = simp_nil();
-	Simp last = simp_nil();
-	Simp pair, obj;
+	struct List *pair, *list, *last;
 	SimpSiz nitems = 0;
 
+	list = NULL;
+	last = NULL;
 	for (;;) {
 		tok = readtok(ctx, port);
 		switch (tok.type) {
 		case TOK_ERROR:
 		case TOK_EOF:
 		case TOK_RPAREN:
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-			break;
-		case TOK_RBRACE:
 			return fillvector(ctx, list, nitems);
-		case TOK_DOT:
-			break;
 		default:
-			obj = toktoobj(ctx, port, tok);
-			pair = simp_cons(ctx, obj, simp_nil());
-			if (simp_isnil(ctx, last))
+			pair = malloc(sizeof(*pair));
+			if (pair == NULL) {
+				cleanvector(list);
+				return simp_makeexception(ctx, ERROR_MEMORY);
+			}
+			pair->obj = toktoobj(ctx, port, tok);
+			pair->next = NULL;
+			if (last == NULL)
 				list = pair;
 			else
-				simp_setcdr(ctx, last, pair);
+				last->next = pair;
 			last = pair;
 			nitems++;
 			break;
 		}
 	}
 	/* UNREACHABLE */
-	return list;
+	return simp_makeexception(ctx, -1);
 }
 
 static void
@@ -642,8 +595,6 @@ toktoobj(Simp ctx, Simp port, Token tok)
 
 	switch (tok.type) {
 	case TOK_LPAREN:
-		return readlist(ctx, port);
-	case TOK_LBRACE:
 		return readvector(ctx, port);
 	case TOK_IDENTIFIER:
 		obj = simp_makesymbol(ctx, tok.u.str.str, tok.u.str.len);
@@ -662,8 +613,6 @@ toktoobj(Simp ctx, Simp port, Token tok)
 	case TOK_EOF:
 		return simp_eof();
 	case TOK_RPAREN:
-	case TOK_RBRACE:
-	case TOK_DOT:
 	case TOK_ERROR:
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	}
