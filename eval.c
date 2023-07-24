@@ -127,6 +127,13 @@ f_false(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 }
 
 static Simp
+f_falsep(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	(void)env;
+	return typepred(ctx, args, nargs, simp_isfalse);
+}
+
+static Simp
 f_gt(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 {
 	(void)env;
@@ -254,6 +261,13 @@ f_true(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 	if (nargs != 0)
 		return simp_makeexception(ctx, ERROR_ARGS);
 	return simp_true();
+}
+
+static Simp
+f_truep(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	(void)env;
+	return typepred(ctx, args, nargs, simp_istrue);
 }
 
 Simp

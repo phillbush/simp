@@ -44,7 +44,137 @@ In
 .Nm
 lists can be implemented as a chain of vectors,
 in which the last element of each vector is a pointer to the next vector.
-.Ss Scope
+.Pp
+A
+.Nm
+program is a sequence of expressions, possibly alternated with comments and whitespace.
+Expressions are parenthesized S-expressions.
+See the section
+.Sx FORMAL SYNTAX
+for explanation on the composition of a
+.Nm
+program.
+.Sh EVALUATION
+.Em Evaluation
+is the process of computing objects from other objects.
+An object can evaluate to zero or more objects.
+An object can even evaluate to itself (a so called
+.Em self-evaluating
+object).
+An evaluation can do more than just compute objects,
+such as mutate an object or perform input/output;
+such additional processes are called
+.Em side effects .
+.Pp
+Given an object
+.Ar obj
+and an environment
+.Ar env ,
+the algorithm for evaluating
+.Ar obj
+in
+.Ar env
+is as follows:
+.Bl -enum
+.It
+If
+.Ar obj
+is a symbol, look for a binding to it in
+.Ar env .
+.Bl -bullet
+.It
+If a binding is found,
+.Ar obj
+evaluates to the value it is bound to.
+.It
+If a binding is not found, an error is signaled.
+.El
+.It
+If
+.Ar obj
+is not a vector,
+.Ar obj
+evaluates to itself (it is a self-evaluating object).
+.It
+If
+.Ar obj
+is the empty vector, an error is signalled.
+.It
+If
+.Ar obj
+is a non-empty vector,
+recursivelly evaluate its first element into
+.Ar env
+following this algorithm.
+This first element is called the
+.Em operator
+and the remaining elements, if any, are called
+.Em operands .
+.Bl -bullet
+.It
+If the operator evaluates to an applicative operation,
+recursivelly evaluate the operands into
+.Ar env .
+Then
+.Ar obj
+evaluates to the result of the application of the evaluated operands into the operation.
+.It
+If the operator evaluates to an non-applicative operation, then
+.Ar obj
+evaluates to the result of the application of the operands into the operation.
+.It
+If the operator does not evaluates to an operation at all,
+an error is signalled.
+.El
+.El
+.Pp
+Signalling an error interrupts the algorithm, even when at a deep level of recursion.
+.Pp
+Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
+Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
+For example, the sequence of characters
+.Qq Ic "(+ 2 6)"
+is an external representation of an object that evaluates to the integer 8;
+it is not however an external representation of the integer 8.
+The syntax of
+.Nm
+has the property that any sequence of characters that is an expression is also the external representation of some object.
+That can lead to confusion, since it may not be obvious out of context whether a given sequence of characters is intended to denote data or program,
+but it is also a source of power, since it facilitates writing programs such as interpreters and compilers that treat programs as data (or vice versa).
+.Pp
+This manual uses the rightwards double arrow symbol
+.Dq Ic "⇒"
+.Pq "U+21D2"
+to separate the external representation of an object from the external representation of the objects it evaluates to.
+For example
+.Qq Ic "(+ 2 6) ⇒ 8"
+means that the object represented by
+.Qq Ic "(+ 2 6)"
+evaluates to the object represented by
+.Qq Ic "8" .
+.Pp
+This manual also uses the triple bar symbol
+.Dq Ic "≡"
+.Pq U+2261
+to separate the external representations of two objects that evaluate to the same objects.
+For example
+.Qq Ic "(+ 2 6) ≡ (+ 4 4)"
+means that the object represented by
+.Qq Ic "(+ 2 6)"
+and the object represented by
+.Qq Ic "(+ 4 4)"
+evaluate to the same thing.
+.Pp
+There are two means of comparing objects.
+Two objects are the
+.Em same
+if they denote they are bound to the same thing or location.
+Two objects are
+.Em equivalent
+if the values stored in their locations are the same.
+.Pp
+Evaluation is subject to the current environment (see below).
+.Ss Environment
 An identifier may name a location in memory where a value can be stored.
 Such identifier is called a
 .Em variable
@@ -58,6 +188,33 @@ The value stored in the location to which a variable is bound is called the vari
 .Em value .
 By abuse of terminology, the variable is sometimes said to name the value or to be bound to the value.
 This is not quite accurate, but confusion rarely results from this practice.
+.Pp
+An environment is a sequence of
+.Em frames .
+Each frame is a table (possible empty) of
+.Em bindings ,
+which associate variable names with their corresponding location in memory.
+Frames are structured as a tree:
+each frame can point to either nothing or to a parent tree.
+The
+.Em value of a variable
+with respect to an environment
+is the value on the location given by the binding of the variable
+in the first frame in the environment that contains a binding for that variable.
+If no frame in the sequence specifies a binding for the variable,
+then the variable is said to be
+.Em unbound
+in the environment.
+.Pp
+The environment is crucial for the evaluation process,
+because it determines the context in which an expression should be evaluated.
+Indeed, one could say that expressions do not, in themselves, have any meaning.
+Rather, an expression aquires a meaning only with respect to some environment in which it is evaluated.
+Even the interpretation of an expression as straightforward as
+.Ic "(+ 1 1)"
+depends on an understanding that one is operating in a context in which
+.Ic "\)+"
+is the symbol of addition.
 .Pp
 .Nm
 is a statically scoped language with block structure.
@@ -112,95 +269,6 @@ and
 .Qq Ic ">" .
 For example, the printed external representation of the an output port is something like
 .Qq Ic "#<output-port 0x0123456789ABCDEF>".
-.Ss Evaluation
-.Em Evaluation
-is the process of computing objects from other objects.
-An object can evaluate to zero or more objects.
-An object can even evaluate to itself (a so called self-evaluating object).
-An evaluation can do more than just compute objects,
-such as mutate an object or perform input/output;
-such additional processes are called
-.Em side effects .
-.Pp
-Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
-Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
-For example, the sequence of characters
-.Qq Ic "(+ 2 6)"
-is an external representation of an object that evaluates to the integer 8;
-it is not however an external representation of the integer 8.
-The syntax of
-.Nm
-has the property that any sequence of characters that is an expression is also the external representation of some object.
-That can lead to confusion, since it may not be obvious out of context whether a given sequence of characters is intended to denote data or program,
-but it is also a source of power, since it facilitates writing programs such as interpreters and compilers that treat programs as data (or vice versa).
-.Pp
-This manual uses the rightwards double arrow symbol
-.Dq Ic "⇒"
-.Pq "U+21D2"
-to separate the external representation of an object from the external representation of the objects it evaluates to.
-For example
-.Qq Ic "(+ 2 6) ⇒ 8"
-means that the object represented by
-.Qq Ic "(+ 2 6)"
-evaluates to the object represented by
-.Qq Ic "8" .
-.Pp
-This manual also uses the triple bar symbol
-.Dq Ic "≡"
-.Pq U+2261
-to separate the external representations of two objects that evaluate to the same objects.
-For example
-.Qq Ic "(+ 2 6) ≡ (+ 4 4)"
-means that the object represented by
-.Qq Ic "(+ 2 6)"
-and the object represented by
-.Qq Ic "(+ 4 4)"
-evaluate to the same thing.
-.Pp
-Evaluation is subject to the current environment (see the section
-.Sx Scope
-for more information on environments).
-For example, a symbol evaluates to the value bound to a homonymous variable in the current environment.
-.Pp
-Evaluation is performed by the
-.Ic eval
-procedure.
-.Ss Storage model
-Objects such as vectors and bytevectors implictly denote locations or sequences of locations.
-.Pp
-An object can be immutable or mutable.
-An
-.Em immutable
-object denotes a read-only location or sequence of locations;
-the values stored in one of these locations cannot be modified after the object has been created.
-A
-.Em mutable
-object denotes a readable and writeable location or sequence of locations;
-a new value may be stored into one of these locations using a destructive procedure involving side effects called
-.Em mutator
-(and the object is said to be
-.Dq mutated ) .
-A mutated object continues to denote the same locations as before.
-In general, literal constants evaluate to immutable objects.
-It is an error to attempt to store a new value into a location that is denoted by an immutable object.
-.Pp
-Every location is marked to show whether it is in use.
-No variable or object ever refers to a location that is not in use.
-Whenever this manual speaks of storage being allocated for a variable or object,
-what is meant is that an appropriate number of locations are chosen from the set of locations that are not in use,
-and the chosen locations are marked to indicate that they are now in use before the variable or object is made to denote them.
-.Pp
-There are two means of comparing objects.
-Two objects are the
-.Em same
-if they denote the same location.
-Two objects are
-.Em equivalent
-if the values stored in their locations are the same.
-There is also the notion of recursive equivalency,
-in which two objects are recursively equivalent if the values stored in their locations are equivalent.
-.Ss Proper tail recursion
-[TODO]
 .Sh DATA TYPES
 A
 .Em data type
@@ -330,6 +398,108 @@ A vector with a number n of elements is called a
 More complex data structures,
 such as linked lists, hash tables, trees, and records (to name a few),
 can be implemented in terms of vectors.
+.Sh STANDARD LIBRARY
+The standard library only contains operations, which are listed below,
+followed by an annotation of its operands and resulting evaluated value in parentheses.
+.Pp
+Each annotation contains types of operands and the types of evaluation,
+separated by a right-pointing arrow.
+An interrocation point
+.Pq Ic "\)?\)"
+after a type indicates zero or one object of that type.
+An asterisk
+.Pq Ic "\)*"
+after a type indicates zero or more objects of that type.
+A plus sign
+.Pq Ic "\)+"
+after a type indicates one or more objects of that type.
+A exclamation point
+.Pq Ic "\)!"
+before a type indicates that the operand is not evaluated.
+The empty symbol
+.Pq Ic "\)∅"
+means that the operation consumes no operand or evaluates to nothing.
+.Pp
+For each type there is a corresponding predicate operation
+(with the same name but ending with parenthesis)
+that expects an object and determines whether the given object is of such type.
+For example, for the type
+.Ic number
+there is the predicate
+.Ic "number?\)" .
+The type
+.Ic any
+means any type.
+.Bl -tag -width Ds -compact
+.It Ic + Em "(number* → number)"
+Addition.
+.It Ic * Em "(number* → number)"
+Multiplication.
+.It Ic - Em "(number+ → number)"
+Subtraction.
+.It Ic / Em "(number+ → number)"
+Division.
+.It Ic = Em "(number × number → boolean)"
+Number equivalency.
+.It Ic < Em "(number × number → boolean)"
+Lesser than.
+.It Ic > Em "(number × number → boolean)"
+Greater than.
+.It Ic "boolean?\)" Em "any → boolean)"
+Predicate for the boolean type.
+.It Ic "current-input-port" Em "(∅ → port)"
+The standard input port.
+.It Ic "current-error-port" Em "(∅ → port)"
+The standard error port.
+.It Ic "current-output-port" Em "(∅ → port)"
+The standard output port.
+.It Ic "define" Em "(symbol × any → ∅)"
+Binds symbol to object in current environment.
+.It Ic display Em "(any × output-port? → ∅)"
+Print user-readable form of object into port (default to current output port).
+.It Ic "false" Em "(∅ → false)"
+False.
+.It Ic "false?\)" Em "(any → boolean)"
+Predicate for false.
+.It Ic "lambda" Em "(vector × any → closure)"
+Creates applicative procedure closure.
+The given vector must contain zero or more symbols,
+which are used as formal parameters for the procedure.
+.It Ic "macro" Em "(vector × any → closure)"
+Creates non-applicative procedure closure.
+The given vector must contain one or more symbols,
+which are used as formal parameters for the procedure.
+.It Ic "make-environment" Em "(environment? → environment)"
+Creates a new environment.
+If an environment is provided, uses it as parent environment,
+other wise the created environment is orphan.
+.It Ic newline Em "(output-port? → ∅)"
+Print newline into port (default to current output port).
+.It Ic "null?\)" Em "(any → boolean)"
+Predicate for the empty vector.
+.It Ic "not\)" Em "(any → boolean)"
+Negation.
+.It Ic "port?\)" Em "(any → boolean)"
+Predicate for port.
+.It Ic "quote" Em "(any → any)"
+Quote object.
+.It Ic "same?\)" Em "(any any → boolean)"
+Whether two objects are the same.
+.It Ic "symbol?\)" Em "(any → boolean)"
+Predicate for symbol.
+.It Ic "true" Em "(∅ → false)"
+True.
+.It Ic "true?\)" Em "(any → boolean)"
+Predicate for true.
+.It Ic "void" Em "(∅ → ∅)"
+Nothing.
+.It Ic "vector" Em "(any* → vector)"
+Create vector with given elements.
+.It Ic "wrap" Em "(operative → applicative)"
+Converts operative to applicative.
+.It Ic "write" Em "(any × output-port? → ∅)"
+Print printed external representation of object into port (default to current output port).
+.El
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for
 .Nm
@@ -609,8 +779,6 @@ The tokens in a program must form syntactically well formed expressions.
 .Ed
 .Sh FORMAL SEMANTICS
 I have no idea what a formal semantics is or does.
-.Sh STANDARD LIBRARY
-[TODO]
 .Sh EXAMPLES
 [TODO]
 .Sh SEE ALSO

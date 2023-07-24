@@ -39,6 +39,7 @@
 	X(F_DIVIDE,   "/",                   NULL,             -1, -1 )\
 	X(F_EQUAL,    "=",                   f_equal,           2,  2 )\
 	X(F_FALSE,    "false",               f_false,           0,  0 )\
+	X(F_FALSEP,   "falsep",              f_falsep,          1,  1 )\
 	X(F_GT,       ">",                   f_gt,              2,  2 )\
 	X(F_LT,       "<",                   f_lt,              2,  2 )\
 	X(F_MAKEENV,  "make-environment",    f_makeenvironment, 0,  1 )\
@@ -50,6 +51,7 @@
 	X(F_SUBTRACT, "-",                   NULL,             -1, -1 )\
 	X(F_SYMBOLP,  "symbol?",             f_symbolp,         1,  1 )\
 	X(F_TRUE,     "true",                f_true,            0,  0 )\
+	X(F_TRUEP,    "true?",               f_truep,           1,  1 )\
 	X(F_VOID,     "void",                f_void,            0,  0 )\
 	X(F_WRITE,    "write",               f_write,           1,  2 )
 
