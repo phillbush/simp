@@ -759,8 +759,8 @@ simp_makenum(Simp ctx, SimpInt n)
 	};
 }
 
-Simp
-simp_makeoperative(Simp ctx, Simp env, Simp params, Simp body)
+static Simp
+makeclosure(Simp ctx, Simp env, Simp params, Simp body, enum Type type)
 {
 	Simp macro;
 	SimpSiz nparams, i;
@@ -770,7 +770,7 @@ simp_makeoperative(Simp ctx, Simp env, Simp params, Simp body)
 	if (!simp_isvector(ctx, params))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	nparams = simp_getsize(ctx, params);
-	if (nparams < 1)
+	if (type == TYPE_OPERATIVE && nparams < 1)
 		return simp_makeexception(ctx, ERROR_ENVIRON);
 	for (i = 0; i < nparams; i++)
 		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i)))
@@ -781,8 +781,20 @@ simp_makeoperative(Simp ctx, Simp env, Simp params, Simp body)
 	simp_setvector(ctx, macro, CLOSURE_ENVIRONMENT, env);
 	simp_setvector(ctx, macro, CLOSURE_PARAMETERS, params);
 	simp_setvector(ctx, macro, CLOSURE_EXPRESSIONS, body);
-	macro.type = TYPE_OPERATIVE;
+	macro.type = type;
 	return macro;
+}
+
+Simp
+simp_makeapplicative(Simp ctx, Simp env, Simp params, Simp body)
+{
+	return makeclosure(ctx, env, params, body, TYPE_APPLICATIVE);
+}
+
+Simp
+simp_makeoperative(Simp ctx, Simp env, Simp params, Simp body)
+{
+	return makeclosure(ctx, env, params, body, TYPE_OPERATIVE);
 }
 
 Simp

@@ -313,12 +313,13 @@ macro(Simp ctx, Simp expr, Simp env)
 static Simp
 lambda(Simp ctx, Simp expr, Simp env)
 {
-	Simp lambda;
-
-	lambda = macro(ctx, expr, env);
-	if (simp_isexception(ctx, lambda))
-		return lambda;
-	return simp_wrap(ctx, lambda);
+	if (simp_getsize(ctx, expr) != 3)   /* (lambda (args) body) */
+		return simp_makeexception(ctx, ERROR_ARGS);
+	return simp_makeapplicative(
+		ctx, env,
+		simp_getvectormemb(ctx, expr, 1),
+		simp_getvectormemb(ctx, expr, 2)
+	);
 }
 
 static Simp
