@@ -63,7 +63,7 @@ static int
 cisdelimiter(int c)
 {
 	return cisspace(c)  || c == '"' || c == '(' || c == ')' ||
-	       c == NOTHING || c == '#' || c == '[' || c == ']';
+	       c == NOTHING || c == '#';
 }
 
 static int
@@ -406,14 +406,16 @@ readtok(Simp ctx, Simp port)
 	Token tok = { 0 };
 	int c;
 
+loop:
 	do {
 		c = simp_readbyte(ctx, port);
 	} while (c != NOTHING && cisspace(c));
-	if (cisspace(c))
 	if (c != NOTHING && c == '#') {
 		do {
 			c = simp_readbyte(ctx, port);
 		} while (c != NOTHING && c != '\n');
+		if (c == '\n')
+			goto loop;
 	}
 	if (c == NOTHING) {
 		tok.type = TOK_EOF;
@@ -632,7 +634,6 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 {
 	Simp curr;
 	SimpSiz len, i;
-	bool printspace;
 
 	switch (simp_gettype(ctx, obj)) {
 	case TYPE_VOID:
@@ -665,6 +666,7 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 	case TYPE_REAL:
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
 		break;
+	case TYPE_FORM:
 	case TYPE_BUILTIN:
 	case TYPE_APPLICATIVE:
 	case TYPE_OPERATIVE:
@@ -688,31 +690,12 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 		break;
 	case TYPE_VECTOR:
 		simp_printf(ctx, port, "(");
-		printspace = false;
-		while (!simp_isnil(ctx, obj)) {
-			if (printspace)
+		len = simp_getsize(ctx, obj);
+		for (i = 0; i < len; i++) {
+			if (i > 0)
 				simp_printf(ctx, port, " ");
-			printspace = true;
-			len = simp_getsize(ctx, obj);
-			for (i = 0; i < len; i++) {
-				curr = simp_getvectormemb(ctx, obj, i);
-				if (i + 1 == len) {
-					if (i > 0 && simp_isvector(ctx, curr)) {
-						obj = curr;
-					} else {
-						if (i > 0)
-							simp_printf(ctx, port, " . ");
-						dowrite(ctx, port, curr, display);
-						simp_printf(ctx, port, " .");
-						obj = simp_nil();
-					}
-					break;
-				} else {
-					if (i > 0)
-						simp_printf(ctx, port, " . ");
-					dowrite(ctx, port, curr, display);
-				}
-			}
+			curr = simp_getvectormemb(ctx, obj, i);
+			dowrite(ctx, port, curr, display);
 		}
 		simp_printf(ctx, port, ")");
 		break;

@@ -7,10 +7,6 @@
 #define SYMTAB_SIZE     389
 #define SYMTAB_MULT     37
 
-#define X(n, s, p) extern Builtin p;
-	OPERATIONS
-#undef  X
-
 enum {
 	CONTEXT_IPORT,
 	CONTEXT_OPORT,
@@ -232,12 +228,14 @@ simp_contextnew(void)
 	Simp ctx, sym, val, obj;
 	Simp membs[NCONTEXTS];
 	SimpSiz i, len;
-	struct {
-		unsigned char *name;
-		Builtin *func;
-	} builtins[NOPERATIONS] = {
-#define X(n, s, p) [n] = { .name = (unsigned char *)s, .func = p, },
+	unsigned char *operations[NOPERATIONS] = {
+#define X(n, s) [n] = (unsigned char *)s,
 		OPERATIONS
+#undef  X
+	};
+	unsigned char *builtins[NBUILTINS] = {
+#define X(n, s, p, min, max) [n] = (unsigned char *)s,
+		BUILTINS
 #undef  X
 	};
 
@@ -250,11 +248,23 @@ simp_contextnew(void)
 	for (i = 0; i < NCONTEXTS; i++)
 		simp_setvector(simp_nil(), ctx, i, membs[i]);
 	for (i = 0; i < NOPERATIONS; i++) {
-		len = strlen((char *)builtins[i].name);
-		sym = simp_makesymbol(ctx, builtins[i].name, len);
+		len = strlen((char *)operations[i]);
+		sym = simp_makesymbol(ctx, operations[i], len);
 		if (simp_isexception(ctx, sym))
 			goto error;
-		val = simp_makebuiltin(ctx, builtins[i].func);
+		val = simp_makeform(ctx, i);
+		if (simp_isexception(ctx, val))
+			goto error;
+		obj = simp_envset(ctx, membs[CONTEXT_ENVIRONMENT], sym, val);
+		if (simp_isexception(ctx, obj))
+			goto error;
+	}
+	for (i = 0; i < NBUILTINS; i++) {
+		len = strlen((char *)builtins[i]);
+		sym = simp_makesymbol(ctx, builtins[i], len);
+		if (simp_isexception(ctx, sym))
+			goto error;
+		val = simp_makebuiltin(ctx, i);
 		if (simp_isexception(ctx, val))
 			goto error;
 		obj = simp_envset(ctx, membs[CONTEXT_ENVIRONMENT], sym, val);
@@ -311,7 +321,14 @@ simp_false(void)
 	return (Simp){ .type = TYPE_FALSE };
 }
 
-Builtin *
+enum Operations
+simp_getform(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return obj.u.form;
+}
+
+enum Builtins
 simp_getbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -490,6 +507,13 @@ simp_isbuiltin(Simp ctx, Simp obj)
 }
 
 bool
+simp_isform(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_FORM;
+}
+
+bool
 simp_isapplicative(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -600,6 +624,8 @@ simp_issame(Simp ctx, Simp a, Simp b)
 		return simp_getstring(ctx, a) == simp_getstring(ctx, b);
 	case TYPE_EXCEPTION:
 		return simp_getexception(ctx, a) == simp_getexception(ctx, b);
+	case TYPE_FORM:
+		return simp_getform(ctx, a) == simp_getform(ctx, b);
 	case TYPE_BUILTIN:
 		return simp_getbuiltin(ctx, a) == simp_getbuiltin(ctx, b);
 	case TYPE_EOF:
@@ -668,12 +694,22 @@ simp_true(void)
 }
 
 Simp
-simp_makebuiltin(Simp ctx, Builtin *fun)
+simp_makeform(Simp ctx, enum Operations form)
+{
+	(void)ctx;
+	return (Simp){
+		.type = TYPE_FORM,
+		.u.form = form,
+	};
+}
+
+Simp
+simp_makebuiltin(Simp ctx, enum Builtins builtin)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_BUILTIN,
-		.u.builtin = fun,
+		.u.builtin = builtin,
 	};
 }
 
@@ -685,30 +721,6 @@ simp_makebyte(Simp ctx, unsigned char byte)
 		.type = TYPE_BYTE,
 		.u.byte = byte,
 	};
-}
-
-Simp
-simp_makeapplicative(Simp ctx, Simp env, Simp params, Simp body)
-{
-	Simp lambda;
-	SimpSiz nparams, i;
-
-	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (!simp_isvector(ctx, params))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	nparams = simp_getsize(ctx, params);
-	for (i = 0; i < nparams; i++)
-		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i)))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
-	lambda = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
-	if (simp_isexception(ctx, lambda))
-		return lambda;
-	simp_setvector(ctx, lambda, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, params);
-	simp_setvector(ctx, lambda, CLOSURE_EXPRESSIONS, body);
-	lambda.type = TYPE_APPLICATIVE;
-	return lambda;
 }
 
 Simp
@@ -896,4 +908,26 @@ Simp
 simp_void(void)
 {
 	return (Simp){ .type = TYPE_VOID };
+}
+
+Simp
+simp_unwrap(Simp ctx, Simp obj)
+{
+	if (simp_isoperative(ctx, obj))
+		return obj;
+	if (!simp_isapplicative(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	obj.type = TYPE_OPERATIVE;
+	return obj;
+}
+
+Simp
+simp_wrap(Simp ctx, Simp obj)
+{
+	if (simp_isapplicative(ctx, obj))
+		return obj;
+	if (!simp_isoperative(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	obj.type = TYPE_APPLICATIVE;
+	return obj;
 }

@@ -7,48 +7,55 @@
 #define RETURN_SUCCESS  0
 #define NOTHING         (-1)
 
-#define EXCEPTIONS                                               \
-	X(ERROR_ARGS,    "wrong number of arguments"            )\
-	X(ERROR_ENVIRON, "symbol for environment not supplied"  )\
-	X(ERROR_UNBOUND, "unbound variable"                     )\
-	X(ERROR_ILLEXPR, "ill expression"                       )\
-	X(ERROR_ILLTYPE, "improper type"                        )\
-	X(ERROR_STREAM,  "stream error"                         )\
-	X(ERROR_RANGE,   "out of range"                         )\
-	X(ERROR_MEMORY,  "allocation error"                     )
+#define EXCEPTIONS                                                       \
+	X(ERROR_ARGS,           "wrong number of arguments"             )\
+	X(ERROR_EMPTY,          "empty operation"                       )\
+	X(ERROR_ENVIRON,        "symbol for environment not supplied"   )\
+	X(ERROR_UNBOUND,        "unbound variable"                      )\
+	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
+	X(ERROR_ILLEXPR,        "ill expression"                        )\
+	X(ERROR_ILLTYPE,        "improper type"                         )\
+	X(ERROR_NOTSYM,         "not a symbol"                          )\
+	X(ERROR_STREAM,         "stream error"                          )\
+	X(ERROR_RANGE,          "out of range"                          )\
+	X(ERROR_MEMORY,         "allocation error"                      )
 
-#define OPERATIONS                                                       \
-	X(OP_ADD,       "+",                    simp_opadd              )\
-	X(OP_BOOLEANP,  "boolean?",             simp_opbooleanp         )\
-	X(OP_CURIPORT,  "current-input-port",   simp_opcuriport         )\
-	X(OP_CUROPORT,  "current-output-port",  simp_opcuroport         )\
-	X(OP_CUREPORT,  "current-error-port",   simp_opcureport         )\
-	X(OP_DEFINE,    "define",               simp_opdefine           )\
-	X(OP_DISPLAY,   "display",              simp_opdisplay          )\
-	X(OP_DIVIDE,    "/",                    simp_opdivide           )\
-	X(OP_EQUAL,     "=",                    simp_opequal            )\
-	X(OP_FALSE,     "false",                simp_opfalse            )\
-	X(OP_GT,        ">",                    simp_opgt               )\
-	X(OP_IF,        "if",                   simp_opif               )\
-	X(OP_LAMBDA,    "lambda",               simp_oplambda           )\
-	X(OP_LT,        "<",                    simp_oplt               )\
-	X(OP_MACRO,     "macro",                simp_opmacro            )\
-	X(OP_MAKEENV,   "make-environment",     simp_opmakeenvironment  )\
-	X(OP_MULTIPLY,  "*",                    simp_opmultiply         )\
-	X(OP_NEWLINE,   "newline",              simp_opnewline          )\
-	X(OP_NULLP,     "null?",                simp_opnullp            )\
-	X(OP_PORTP,     "port?",                simp_opportp            )\
-	X(OP_SAMEP,     "same?",                simp_opsamep            )\
-	X(OP_SUBTRACT,  "-",                    simp_opsubtract         )\
-	X(OP_SYMBOLP,   "symbol?",              simp_opsymbolp          )\
-	X(OP_TRUE,      "true",                 simp_optrue             )\
-	X(OP_VOID,      "void",                 simp_opvoid             )\
-	X(OP_WRITE,     "write",                simp_opwrite            )
+#define OPERATIONS                                       \
+	X(OP_DEFINE,            "define"                )\
+	X(OP_EVAL,              "eval"                  )\
+	X(OP_IF,                "if"                    )\
+	X(OP_MACRO,             "macro"                 )\
+	X(OP_LAMBDA,            "lambda"                )\
+	X(OP_VECTOR,            "vector"                )\
+	X(OP_WRAP,              "wrap"                  )
+
+#define BUILTINS                                                       \
+	X(F_ADD,      "+",                   NULL,             -1, -1 )\
+	X(F_BOOLEANP, "boolean?",            f_booleanp,        1,  1 )\
+	X(F_CURIPORT, "current-input-port",  f_curiport,        0,  0 )\
+	X(F_CUROPORT, "current-output-port", f_curoport,        0,  0 )\
+	X(F_CUREPORT, "current-error-port",  f_cureport,        0,  0 )\
+	X(F_DISPLAY,  "display",             f_display,         1,  2 )\
+	X(F_DIVIDE,   "/",                   NULL,             -1, -1 )\
+	X(F_EQUAL,    "=",                   f_equal,           2,  2 )\
+	X(F_FALSE,    "false",               f_false,           0,  0 )\
+	X(F_GT,       ">",                   f_gt,              2,  2 )\
+	X(F_LT,       "<",                   f_lt,              2,  2 )\
+	X(F_MAKEENV,  "make-environment",    f_makeenvironment, 0,  1 )\
+	X(F_MULTIPLY, "*",                   NULL,             -1, -1 )\
+	X(F_NEWLINE,  "newline",             f_newline,         0,  1 )\
+	X(F_NULLP,    "null?",               f_nullp,           1,  1 )\
+	X(F_PORTP,    "port?",               f_portp,           1,  1 )\
+	X(F_SAMEP,    "same?",               f_samep,           2,  2 )\
+	X(F_SUBTRACT, "-",                   NULL,             -1, -1 )\
+	X(F_SYMBOLP,  "symbol?",             f_symbolp,         1,  1 )\
+	X(F_TRUE,     "true",                f_true,            0,  0 )\
+	X(F_VOID,     "void",                f_void,            0,  0 )\
+	X(F_WRITE,    "write",               f_write,           1,  2 )
 
 typedef struct Simp             Simp;
 typedef unsigned long long      SimpSiz;
 typedef long long               SimpInt;
-typedef Simp Builtin(Simp ctx, Simp oprnds, Simp env);
 
 enum Exceptions {
 #define X(n, s) n,
@@ -58,9 +65,16 @@ enum Exceptions {
 };
 
 enum Operations {
-#define X(n, s, p) n,
+#define X(n, s) n,
 	OPERATIONS
 	NOPERATIONS
+#undef  X
+};
+
+enum Builtins {
+#define X(n, s, p, min, max) n,
+	BUILTINS
+	NBUILTINS
 #undef  X
 };
 
@@ -73,7 +87,8 @@ struct Simp {
 		unsigned char  *errmsg;
 		unsigned char   byte;
 		void           *port;
-		Builtin        *builtin;
+		enum Operations form;
+		enum Builtins   builtin;
 	} u;
 	enum Type {
 		TYPE_APPLICATIVE,
@@ -85,6 +100,7 @@ struct Simp {
 		TYPE_FALSE,
 		TYPE_OPERATIVE,
 		TYPE_BINDING,
+		TYPE_FORM,
 		TYPE_PORT,
 		TYPE_REAL,
 		TYPE_SIGNUM,
@@ -108,7 +124,8 @@ Simp    simp_true(void);
 Simp    simp_void(void);
 
 /* data type accessors */
-Builtin *simp_getbuiltin(Simp ctx, Simp obj);
+enum Operations simp_getform(Simp ctx, Simp obj);
+enum Builtins simp_getbuiltin(Simp ctx, Simp obj);
 unsigned char simp_getbyte(Simp ctx, Simp obj);
 SimpInt simp_getnum(Simp ctx, Simp obj);
 void   *simp_getport(Simp ctx, Simp obj);
@@ -137,6 +154,7 @@ bool    simp_isenvironment(Simp ctx, Simp obj);
 bool    simp_iseof(Simp ctx, Simp obj);
 bool    simp_isexception(Simp ctx, Simp obj);
 bool    simp_isfalse(Simp ctx, Simp obj);
+bool    simp_isform(Simp ctx, Simp obj);
 bool    simp_isnum(Simp ctx, Simp obj);
 bool    simp_isnil(Simp ctx, Simp obj);
 bool    simp_isoperative(Simp ctx, Simp obj);
@@ -158,8 +176,9 @@ void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val);
 void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
 
 /* data type constructors */
-Simp    simp_makebuiltin(Simp ctx, Builtin *fun);
+Simp    simp_makeform(Simp ctx, enum Operations form);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
+Simp    simp_makebuiltin(Simp ctx, enum Builtins);
 Simp    simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
@@ -197,3 +216,6 @@ Simp    simp_read(Simp ctx, Simp port);
 Simp    simp_write(Simp ctx, Simp port, Simp obj);
 Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
+
+Simp    simp_wrap(Simp ctx, Simp obj);
+Simp    simp_unwrap(Simp ctx, Simp obj);
