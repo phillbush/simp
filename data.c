@@ -196,25 +196,47 @@ simp_envget(Simp ctx, Simp env, Simp sym)
 	return simp_makeexception(ctx, ERROR_UNBOUND);
 }
 
-Simp
-simp_envset(Simp ctx, Simp env, Simp var, Simp val)
+bool
+xenvset(Simp ctx, Simp env, Simp var, Simp val)
 {
-	Simp frame, bind, sym;
+	Simp bind, sym;
 
-	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (!simp_issymbol(ctx, var))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	frame = simp_getenvframe(ctx, env);
-	for (bind = frame;
+	for (bind = simp_getenvframe(ctx, env);
 	     !simp_isnulbind(ctx, bind);
 	     bind = simp_getbindnext(ctx, bind)) {
 		sym = simp_getbindvariable(ctx, bind);
 		if (simp_issame(ctx, var, sym)) {
 			simp_setvector(ctx, bind, BINDING_VALUE, val);
-			return var;
+			return true;
 		}
 	}
+	return false;
+}
+
+Simp
+simp_envset(Simp ctx, Simp env, Simp var, Simp val)
+{
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_issymbol(ctx, var))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (xenvset(ctx, env, var, val))
+		return var;
+	return simp_makeexception(ctx, ERROR_UNBOUND);
+}
+
+Simp
+simp_envdef(Simp ctx, Simp env, Simp var, Simp val)
+{
+	Simp frame, bind;
+
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_issymbol(ctx, var))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (xenvset(ctx, env, var, val))
+		return var;
+	frame = simp_getenvframe(ctx, env);
 	bind = simp_makebind(ctx, var, val, frame);
 	if (simp_isexception(ctx, bind))
 		return bind;
@@ -227,16 +249,30 @@ simp_contextnew(void)
 {
 	Simp ctx, sym, val, obj;
 	Simp membs[NCONTEXTS];
-	SimpSiz i, len;
+	SimpSiz i, j, len;
 	unsigned char *operations[NOPERATIONS] = {
 #define X(n, s) [n] = (unsigned char *)s,
 		OPERATIONS
+#undef  X
+	};
+	unsigned char *varargs[NVARARGS] = {
+#define X(n, s, p) [n] = (unsigned char *)s,
+		VARARGS
 #undef  X
 	};
 	unsigned char *builtins[NBUILTINS] = {
 #define X(n, s, p, min, max) [n] = (unsigned char *)s,
 		BUILTINS
 #undef  X
+	};
+	struct {
+		Simp (*maker)(Simp, int);
+		unsigned char **names;
+		SimpSiz size;
+	} funs[3] = {
+		{ simp_makeform, operations, LEN(operations) },
+		{ simp_makebuiltin, builtins, LEN(builtins) },
+		{ simp_makevarargs, varargs, LEN(varargs) },
 	};
 
 	ctx = simp_makevector(simp_nil(), NCONTEXTS, simp_nil());
@@ -247,29 +283,19 @@ simp_contextnew(void)
 	membs[CONTEXT_ENVIRONMENT] = simp_makeenvironment(simp_nil(), simp_nulenv());
 	for (i = 0; i < NCONTEXTS; i++)
 		simp_setvector(simp_nil(), ctx, i, membs[i]);
-	for (i = 0; i < NOPERATIONS; i++) {
-		len = strlen((char *)operations[i]);
-		sym = simp_makesymbol(ctx, operations[i], len);
-		if (simp_isexception(ctx, sym))
-			goto error;
-		val = simp_makeform(ctx, i);
-		if (simp_isexception(ctx, val))
-			goto error;
-		obj = simp_envset(ctx, membs[CONTEXT_ENVIRONMENT], sym, val);
-		if (simp_isexception(ctx, obj))
-			goto error;
-	}
-	for (i = 0; i < NBUILTINS; i++) {
-		len = strlen((char *)builtins[i]);
-		sym = simp_makesymbol(ctx, builtins[i], len);
-		if (simp_isexception(ctx, sym))
-			goto error;
-		val = simp_makebuiltin(ctx, i);
-		if (simp_isexception(ctx, val))
-			goto error;
-		obj = simp_envset(ctx, membs[CONTEXT_ENVIRONMENT], sym, val);
-		if (simp_isexception(ctx, obj))
-			goto error;
+	for (j = 0; j < LEN(funs); j++) {
+		for (i = 0; i < funs[j].size; i++) {
+			len = strlen((char *)funs[j].names[i]);
+			sym = simp_makesymbol(ctx, funs[j].names[i], len);
+			if (simp_isexception(ctx, sym))
+				goto error;
+			val = (*funs[j].maker)(ctx, i);
+			if (simp_isexception(ctx, val))
+				goto error;
+			obj = simp_envdef(ctx, membs[CONTEXT_ENVIRONMENT], sym, val);
+			if (simp_isexception(ctx, obj))
+				goto error;
+		}
 	}
 	return ctx;
 error:
@@ -333,6 +359,13 @@ simp_getbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
 	return obj.u.builtin;
+}
+
+enum Varargs
+simp_getvarargs(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return obj.u.varargs;
 }
 
 unsigned char
@@ -500,6 +533,13 @@ simp_isbool(Simp ctx, Simp obj)
 }
 
 bool
+simp_isvarargs(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return simp_gettype(ctx, obj) == TYPE_VARARGS;
+}
+
+bool
 simp_isbuiltin(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -628,6 +668,8 @@ simp_issame(Simp ctx, Simp a, Simp b)
 		return simp_getform(ctx, a) == simp_getform(ctx, b);
 	case TYPE_BUILTIN:
 		return simp_getbuiltin(ctx, a) == simp_getbuiltin(ctx, b);
+	case TYPE_VARARGS:
+		return simp_getvarargs(ctx, a) == simp_getvarargs(ctx, b);
 	case TYPE_EOF:
 	case TYPE_TRUE:
 	case TYPE_FALSE:
@@ -694,7 +736,7 @@ simp_true(void)
 }
 
 Simp
-simp_makeform(Simp ctx, enum Operations form)
+simp_makeform(Simp ctx, int form)
 {
 	(void)ctx;
 	return (Simp){
@@ -704,12 +746,22 @@ simp_makeform(Simp ctx, enum Operations form)
 }
 
 Simp
-simp_makebuiltin(Simp ctx, enum Builtins builtin)
+simp_makebuiltin(Simp ctx, int builtin)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_BUILTIN,
 		.u.builtin = builtin,
+	};
+}
+
+Simp
+simp_makevarargs(Simp ctx, int varargs)
+{
+	(void)ctx;
+	return (Simp){
+		.type = TYPE_VARARGS,
+		.u.varargs = varargs,
 	};
 }
 

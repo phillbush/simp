@@ -26,34 +26,37 @@
 	X(OP_IF,                "if"                    )\
 	X(OP_MACRO,             "macro"                 )\
 	X(OP_LAMBDA,            "lambda"                )\
-	X(OP_VECTOR,            "vector"                )\
+	X(OP_SET,               "set"                   )\
 	X(OP_WRAP,              "wrap"                  )
 
 #define BUILTINS                                                       \
-	X(F_ADD,      "+",                   NULL,             -1, -1 )\
 	X(F_BOOLEANP, "boolean?",            f_booleanp,        1,  1 )\
 	X(F_CURIPORT, "current-input-port",  f_curiport,        0,  0 )\
 	X(F_CUROPORT, "current-output-port", f_curoport,        0,  0 )\
 	X(F_CUREPORT, "current-error-port",  f_cureport,        0,  0 )\
 	X(F_DISPLAY,  "display",             f_display,         1,  2 )\
-	X(F_DIVIDE,   "/",                   NULL,             -1, -1 )\
 	X(F_EQUAL,    "=",                   f_equal,           2,  2 )\
 	X(F_FALSE,    "false",               f_false,           0,  0 )\
 	X(F_FALSEP,   "falsep",              f_falsep,          1,  1 )\
 	X(F_GT,       ">",                   f_gt,              2,  2 )\
 	X(F_LT,       "<",                   f_lt,              2,  2 )\
 	X(F_MAKEENV,  "make-environment",    f_makeenvironment, 0,  1 )\
-	X(F_MULTIPLY, "*",                   NULL,             -1, -1 )\
 	X(F_NEWLINE,  "newline",             f_newline,         0,  1 )\
 	X(F_NULLP,    "null?",               f_nullp,           1,  1 )\
 	X(F_PORTP,    "port?",               f_portp,           1,  1 )\
 	X(F_SAMEP,    "same?",               f_samep,           2,  2 )\
-	X(F_SUBTRACT, "-",                   NULL,             -1, -1 )\
 	X(F_SYMBOLP,  "symbol?",             f_symbolp,         1,  1 )\
 	X(F_TRUE,     "true",                f_true,            0,  0 )\
 	X(F_TRUEP,    "true?",               f_truep,           1,  1 )\
 	X(F_VOID,     "void",                f_void,            0,  0 )\
 	X(F_WRITE,    "write",               f_write,           1,  2 )
+
+#define VARARGS                                          \
+	X(F_ADD,      "+",                   f_add      )\
+	X(F_DIVIDE,   "/",                   f_divide   )\
+	X(F_MULTIPLY, "*",                   f_multiply )\
+	X(F_SUBTRACT, "-",                   f_subtract )\
+	X(F_VECTOR  , "vector",              f_vector )
 
 typedef struct Simp             Simp;
 typedef unsigned long long      SimpSiz;
@@ -80,6 +83,13 @@ enum Builtins {
 #undef  X
 };
 
+enum Varargs {
+#define X(n, s, p) n,
+	VARARGS
+	NVARARGS
+#undef  X
+};
+
 struct Simp {
 	union {
 		SimpInt         num;
@@ -91,10 +101,12 @@ struct Simp {
 		void           *port;
 		enum Operations form;
 		enum Builtins   builtin;
+		enum Varargs    varargs;
 	} u;
 	enum Type {
 		TYPE_APPLICATIVE,
 		TYPE_BUILTIN,
+		TYPE_VARARGS,
 		TYPE_BYTE,
 		TYPE_ENVIRONMENT,
 		TYPE_EOF,
@@ -128,6 +140,7 @@ Simp    simp_void(void);
 /* data type accessors */
 enum Operations simp_getform(Simp ctx, Simp obj);
 enum Builtins simp_getbuiltin(Simp ctx, Simp obj);
+enum Varargs simp_getvarargs(Simp ctx, Simp obj);
 unsigned char simp_getbyte(Simp ctx, Simp obj);
 SimpInt simp_getnum(Simp ctx, Simp obj);
 void   *simp_getport(Simp ctx, Simp obj);
@@ -150,6 +163,7 @@ Simp    simp_getoperativebody(Simp ctx, Simp obj);
 bool    simp_isapplicative(Simp ctx, Simp obj);
 bool    simp_isbool(Simp ctx, Simp obj);
 bool    simp_isbuiltin(Simp ctx, Simp obj);
+bool    simp_isvarargs(Simp ctx, Simp obj);
 bool    simp_isbyte(Simp ctx, Simp obj);
 bool    simp_isempty(Simp ctx, Simp obj);
 bool    simp_isenvironment(Simp ctx, Simp obj);
@@ -178,9 +192,10 @@ void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val);
 void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
 
 /* data type constructors */
-Simp    simp_makeform(Simp ctx, enum Operations form);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
-Simp    simp_makebuiltin(Simp ctx, enum Builtins);
+Simp    simp_makeform(Simp ctx, int);
+Simp    simp_makebuiltin(Simp ctx, int);
+Simp    simp_makevarargs(Simp ctx, int);
 Simp    simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
@@ -201,6 +216,7 @@ Simp    simp_contextnew(void);
 
 /* environment operations */
 Simp    simp_envget(Simp ctx, Simp env, Simp sym);
+Simp    simp_envdef(Simp ctx, Simp env, Simp var, Simp val);
 Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 
 /* port operations */

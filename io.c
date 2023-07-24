@@ -668,6 +668,7 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 		break;
 	case TYPE_FORM:
 	case TYPE_BUILTIN:
+	case TYPE_VARARGS:
 	case TYPE_APPLICATIVE:
 	case TYPE_OPERATIVE:
 		simp_printf(ctx, port, "#<operation>");

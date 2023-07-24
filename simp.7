@@ -485,6 +485,10 @@ Predicate for port.
 Quote object.
 .It Ic "same?\)" Em "(any any → boolean)"
 Whether two objects are the same.
+.It Ic "set!\)" Em "(symbol × any → ∅)"
+If the symbol is bound in the current environment,
+rebound it to the given object;
+signals an error otherwise
 .It Ic "symbol?\)" Em "(any → boolean)"
 Predicate for symbol.
 .It Ic "true" Em "(∅ → false)"
@@ -495,6 +499,18 @@ Predicate for true.
 Nothing.
 .It Ic "vector" Em "(any* → vector)"
 Create vector with given elements.
+.It Ic "vector-set!\)" Em "(v:vector × i:number × o:any → ∅)"
+Sets the
+.Ar i Ns "-nth"
+element of
+.Ar v
+to
+.Ar o .
+It is an error if
+.Ar v
+has no
+.Ar i
+element.
 .It Ic "wrap" Em "(operative → applicative)"
 Converts operative to applicative.
 .It Ic "write" Em "(any × output-port? → ∅)"

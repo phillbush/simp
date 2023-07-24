@@ -291,9 +291,9 @@ f_write(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 }
 
 static Simp
-vector(Simp ctx, Simp expr, Simp env)
+f_vector(Simp ctx, Simp expr, Simp env)
 {
-	Simp vector;
+	Simp vector, obj;
 	SimpSiz i, nobjs;
 
 	(void)env;
@@ -304,10 +304,11 @@ vector(Simp ctx, Simp expr, Simp env)
 	if (simp_isexception(ctx, vector))
 		return vector;
 	for (i = 0; i < nobjs; i++) {
-		simp_setvector(
-			ctx, vector, i,
-			simp_getvectormemb(ctx, expr, i + 1)
-		);
+		obj = simp_getvectormemb(ctx, expr, i + 1);
+		obj = simp_eval(ctx, obj, env);
+		if (simp_isexception(ctx, obj))
+			return obj;
+		simp_setvector(ctx, vector, i, obj);
 	}
 	return vector;
 }
@@ -337,7 +338,7 @@ lambda(Simp ctx, Simp expr, Simp env)
 }
 
 static Simp
-define(Simp ctx, Simp expr, Simp env)
+defineorset(Simp ctx, Simp expr, Simp env, bool define)
 {
 	Simp symbol, value;
 
@@ -350,8 +351,25 @@ define(Simp ctx, Simp expr, Simp env)
 	value = simp_eval(ctx, value, env);
 	if (simp_isexception(ctx, value))
 		return value;
-	(void)simp_envset(ctx, env, symbol, value);
+	if (define)
+		value = simp_envdef(ctx, env, symbol, value);
+	else
+		value = simp_envset(ctx, env, symbol, value);
+	if (simp_isexception(ctx, value))
+		return value;
 	return simp_void();
+}
+
+static Simp
+set(Simp ctx, Simp expr, Simp env)
+{
+	defineorset(ctx, expr, env, false);
+}
+
+static Simp
+define(Simp ctx, Simp expr, Simp env)
+{
+	defineorset(ctx, expr, env, true);
 }
 
 static Simp
@@ -363,6 +381,18 @@ wrap(Simp ctx, Simp expr, Simp env)
 	if (!simp_isoperative(ctx, expr))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_wrap(ctx, simp_getvectormemb(ctx, expr, 1));
+}
+
+static Simp
+varargs(Simp ctx, Simp expr, Simp env, enum Varargs varg)
+{
+	Simp (*fun[NVARARGS])(Simp, Simp, Simp) = {
+#define X(n, s, p) [n] = p,
+		VARARGS
+#undef  X
+	};
+
+	return (*fun[varg])(ctx, expr, env);
 }
 
 static Simp
@@ -451,16 +481,24 @@ loop:
 			return simp_makeexception(ctx, ERROR_ARGS);
 		}
 		goto loop;
-	case OP_VECTOR:
-		return vector(ctx, expr, env);
 	case OP_MACRO:
 		return macro(ctx, expr, env);
 	case OP_LAMBDA:
 		return lambda(ctx, expr, env);
+	case OP_SET:
+		return set(ctx, expr, env);
 	case OP_WRAP:
 		return wrap(ctx, expr, env);
 	default:
 		return simp_makeexception(ctx, -1);
+	}
+	if (simp_isvarargs(ctx, operator)) {
+		return varargs(
+			ctx,
+			expr,
+			env,
+			simp_getvarargs(ctx, operator)
+		);
 	}
 	if (simp_isbuiltin(ctx, operator)) {
 		return builtin(
@@ -511,7 +549,7 @@ loop:
 		}
 		if (simp_isexception(ctx, val))
 			return val;
-		simp_envset(ctx, cloenv, var, val);
+		simp_envdef(ctx, cloenv, var, val);
 	}
 	expr = body;
 	env = cloenv;
