@@ -33,6 +33,13 @@ f_add(Simp ctx, Simp expr, Simp env)
 }
 
 static Simp
+f_bytep(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	(void)env;
+	return typepred(ctx, args, nargs, simp_isbyte);
+}
+
+static Simp
 f_booleanp(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 {
 	(void)env;
@@ -248,6 +255,27 @@ f_subtract(Simp ctx, Simp expr, Simp env)
 }
 
 static Simp
+f_stringp(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	(void)env;
+	return typepred(ctx, args, nargs, simp_isstring);
+}
+
+Simp
+f_stringset(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	Simp val;
+
+	(void)env;
+	if (nargs != 3)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	val = simp_setstring(ctx, args[0], args[1], args[2]);
+	if (simp_isexception(ctx, val))
+		return val;
+	return simp_void();
+}
+
+static Simp
 f_symbolp(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 {
 	(void)env;
@@ -268,6 +296,20 @@ f_truep(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 {
 	(void)env;
 	return typepred(ctx, args, nargs, simp_istrue);
+}
+
+Simp
+f_vectorset(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	Simp val;
+
+	(void)env;
+	if (nargs != 3)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	val = simp_setvector(ctx, args[0], args[1], args[2]);
+	if (simp_isexception(ctx, val))
+		return val;
+	return simp_void();
 }
 
 Simp
@@ -308,7 +350,7 @@ f_vector(Simp ctx, Simp expr, Simp env)
 		obj = simp_eval(ctx, obj, env);
 		if (simp_isexception(ctx, obj))
 			return obj;
-		simp_setvector(ctx, vector, i, obj);
+		simp_getvector(ctx, vector)[i] = obj;
 	}
 	return vector;
 }
@@ -363,13 +405,13 @@ defineorset(Simp ctx, Simp expr, Simp env, bool define)
 static Simp
 set(Simp ctx, Simp expr, Simp env)
 {
-	defineorset(ctx, expr, env, false);
+	return defineorset(ctx, expr, env, false);
 }
 
 static Simp
 define(Simp ctx, Simp expr, Simp env)
 {
-	defineorset(ctx, expr, env, true);
+	return defineorset(ctx, expr, env, true);
 }
 
 static Simp

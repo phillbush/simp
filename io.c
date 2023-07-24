@@ -490,7 +490,7 @@ fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 	while (list != NULL) {
 		tmp = list;
 		list = list->next;
-		simp_setvector(ctx, vect, i++, tmp->obj);
+		simp_getvector(ctx, vect)[i++] = tmp->obj;
 		free(tmp);
 	}
 	return vect;

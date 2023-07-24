@@ -13,6 +13,7 @@
 	X(ERROR_ENVIRON,        "symbol for environment not supplied"   )\
 	X(ERROR_UNBOUND,        "unbound variable"                      )\
 	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
+	X(ERROR_OUTOFRANGE,     "out of range"                          )\
 	X(ERROR_ILLEXPR,        "ill expression"                        )\
 	X(ERROR_ILLTYPE,        "improper type"                         )\
 	X(ERROR_NOTSYM,         "not a symbol"                          )\
@@ -26,30 +27,34 @@
 	X(OP_IF,                "if"                    )\
 	X(OP_MACRO,             "macro"                 )\
 	X(OP_LAMBDA,            "lambda"                )\
-	X(OP_SET,               "set"                   )\
+	X(OP_SET,               "set!"                  )\
 	X(OP_WRAP,              "wrap"                  )
 
 #define BUILTINS                                                       \
-	X(F_BOOLEANP, "boolean?",            f_booleanp,        1,  1 )\
-	X(F_CURIPORT, "current-input-port",  f_curiport,        0,  0 )\
-	X(F_CUROPORT, "current-output-port", f_curoport,        0,  0 )\
-	X(F_CUREPORT, "current-error-port",  f_cureport,        0,  0 )\
-	X(F_DISPLAY,  "display",             f_display,         1,  2 )\
-	X(F_EQUAL,    "=",                   f_equal,           2,  2 )\
-	X(F_FALSE,    "false",               f_false,           0,  0 )\
-	X(F_FALSEP,   "falsep",              f_falsep,          1,  1 )\
-	X(F_GT,       ">",                   f_gt,              2,  2 )\
-	X(F_LT,       "<",                   f_lt,              2,  2 )\
-	X(F_MAKEENV,  "make-environment",    f_makeenvironment, 0,  1 )\
-	X(F_NEWLINE,  "newline",             f_newline,         0,  1 )\
-	X(F_NULLP,    "null?",               f_nullp,           1,  1 )\
-	X(F_PORTP,    "port?",               f_portp,           1,  1 )\
-	X(F_SAMEP,    "same?",               f_samep,           2,  2 )\
-	X(F_SYMBOLP,  "symbol?",             f_symbolp,         1,  1 )\
-	X(F_TRUE,     "true",                f_true,            0,  0 )\
-	X(F_TRUEP,    "true?",               f_truep,           1,  1 )\
-	X(F_VOID,     "void",                f_void,            0,  0 )\
-	X(F_WRITE,    "write",               f_write,           1,  2 )
+	X(F_BOOLEANP,  "boolean?",            f_booleanp,        1, 1 )\
+	X(F_BYTEP,     "byte?",               f_bytep,           1, 1 )\
+	X(F_CURIPORT,  "current-input-port",  f_curiport,        0, 0 )\
+	X(F_CUROPORT,  "current-output-port", f_curoport,        0, 0 )\
+	X(F_CUREPORT,  "current-error-port",  f_cureport,        0, 0 )\
+	X(F_DISPLAY,   "display",             f_display,         1, 2 )\
+	X(F_EQUAL,     "=",                   f_equal,           2, 2 )\
+	X(F_FALSE,     "false",               f_false,           0, 0 )\
+	X(F_FALSEP,    "falsep",              f_falsep,          1, 1 )\
+	X(F_GT,        ">",                   f_gt,              2, 2 )\
+	X(F_LT,        "<",                   f_lt,              2, 2 )\
+	X(F_MAKEENV,   "make-environment",    f_makeenvironment, 0, 1 )\
+	X(F_NEWLINE,   "newline",             f_newline,         0, 1 )\
+	X(F_NULLP,     "null?",               f_nullp,           1, 1 )\
+	X(F_PORTP,     "port?",               f_portp,           1, 1 )\
+	X(F_SAMEP,     "same?",               f_samep,           2, 2 )\
+	X(F_STRINGP,   "string?",             f_stringp,         1, 1 )\
+	X(F_STRINGSET, "string-set!",         f_stringset,       3, 3 )\
+	X(F_SYMBOLP,   "symbol?",             f_symbolp,         1, 1 )\
+	X(F_TRUE,      "true",                f_true,            0, 0 )\
+	X(F_TRUEP,     "true?",               f_truep,           1, 1 )\
+	X(F_VECTORSET, "vector-set!",         f_vectorset,       3, 3 )\
+	X(F_VOID,      "void",                f_void,            0, 0 )\
+	X(F_WRITE,     "write",               f_write,           1, 2 )
 
 #define VARARGS                                          \
 	X(F_ADD,      "+",                   f_add      )\
@@ -152,6 +157,7 @@ unsigned char *simp_getexception(Simp ctx, Simp obj);
 Simp    simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
 enum Type simp_gettype(Simp ctx, Simp obj);
+Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getapplicativeenv(Simp ctx, Simp obj);
 Simp    simp_getapplicativeparam(Simp ctx, Simp obj);
 Simp    simp_getapplicativebody(Simp ctx, Simp obj);
@@ -188,8 +194,8 @@ bool    simp_isvoid(Simp ctx, Simp obj);
 bool    simp_issame(Simp ctx, Simp a, Simp b);
 
 /* data type mutators */
-void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val);
-void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
+Simp    simp_setstring(Simp ctx, Simp obj, Simp pos, Simp val);
+Simp    simp_setvector(Simp ctx, Simp obj, Simp pos, Simp val);
 
 /* data type constructors */
 Simp    simp_makebyte(Simp ctx, unsigned char byte);

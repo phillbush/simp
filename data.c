@@ -93,9 +93,9 @@ simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 	bind = simp_makevector(ctx, BINDING_SIZE, simp_nil());
 	if (simp_isexception(ctx, bind))
 		return bind;
-	simp_setvector(ctx, bind, BINDING_VARIABLE, sym);
-	simp_setvector(ctx, bind, BINDING_VALUE, val);
-	simp_setvector(ctx, bind, BINDING_NEXT, frame);
+	simp_getvector(ctx, bind)[BINDING_VARIABLE] = sym;
+	simp_getvector(ctx, bind)[BINDING_VALUE] = val;
+	simp_getvector(ctx, bind)[BINDING_NEXT] = frame;
 	bind.type = TYPE_BINDING;
 	return bind;
 }
@@ -112,7 +112,7 @@ simp_isnulbind(Simp ctx, Simp obj)
 	return simp_isbinding(ctx, obj) && obj.u.vector == NULL;
 }
 
-static Simp *
+Simp *
 simp_getvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
@@ -206,7 +206,7 @@ xenvset(Simp ctx, Simp env, Simp var, Simp val)
 	     bind = simp_getbindnext(ctx, bind)) {
 		sym = simp_getbindvariable(ctx, bind);
 		if (simp_issame(ctx, var, sym)) {
-			simp_setvector(ctx, bind, BINDING_VALUE, val);
+			simp_getvector(ctx, bind)[BINDING_VALUE] = val;
 			return true;
 		}
 	}
@@ -240,7 +240,7 @@ simp_envdef(Simp ctx, Simp env, Simp var, Simp val)
 	bind = simp_makebind(ctx, var, val, frame);
 	if (simp_isexception(ctx, bind))
 		return bind;
-	simp_setvector(ctx, env, ENVIRONMENT_FRAME, bind);
+	simp_getvector(ctx, env)[ENVIRONMENT_FRAME] = bind;
 	return var;
 }
 
@@ -282,7 +282,7 @@ simp_contextnew(void)
 	membs[CONTEXT_SYMTAB] = simp_makevector(simp_nil(), SYMTAB_SIZE, simp_nil());
 	membs[CONTEXT_ENVIRONMENT] = simp_makeenvironment(simp_nil(), simp_nulenv());
 	for (i = 0; i < NCONTEXTS; i++)
-		simp_setvector(simp_nil(), ctx, i, membs[i]);
+		simp_getvector(simp_nil(), ctx)[i] = membs[i];
 	for (j = 0; j < LEN(funs); j++) {
 		for (i = 0; i < funs[j].size; i++) {
 			len = strlen((char *)funs[j].names[i]);
@@ -712,21 +712,42 @@ simp_isvoid(Simp ctx, Simp obj)
 	return simp_gettype(ctx, obj) == TYPE_VOID;
 }
 
-void
-simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char val)
+Simp
+simp_setstring(Simp ctx, Simp obj, Simp pos, Simp val)
 {
-	unsigned char *string;
+	SimpInt size, n;
+	unsigned char u;
 
-	(void)ctx;
-	string = simp_getstring(ctx, obj);
-	string[pos] = val;
+	if (!simp_isstring(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, pos))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isbyte(ctx, val))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, obj);
+	n = simp_getnum(ctx, pos);
+	u = simp_getbyte(ctx, val);
+	if (n < 0 || n >= size)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	simp_getstring(ctx, obj)[n] = u;
+	return obj;
 }
 
-void
-simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
+Simp
+simp_setvector(Simp ctx, Simp obj, Simp pos, Simp val)
 {
-	(void)ctx;
-	simp_getvector(ctx, obj)[pos] = val;
+	SimpInt size, n;
+
+	if (!simp_isvector(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, pos))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, obj);
+	n = simp_getnum(ctx, pos);
+	if (n < 0 || n >= size)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	simp_getvector(ctx, obj)[n] = val;
+	return obj;
 }
 
 Simp
@@ -785,8 +806,8 @@ simp_makeenvironment(Simp ctx, Simp parent)
 	env = simp_makevector(ctx, ENVIRONMENT_SIZE, simp_nil());
 	if (simp_isexception(ctx, env))
 		return env;
-	simp_setvector(ctx, env, ENVIRONMENT_PARENT, parent);
-	simp_setvector(ctx, env, ENVIRONMENT_FRAME, simp_nulbind());
+	simp_getvector(ctx, env)[ENVIRONMENT_PARENT] = parent;
+	simp_getvector(ctx, env)[ENVIRONMENT_FRAME] = simp_nulbind();
 	env.type = TYPE_ENVIRONMENT;
 	return env;
 }
@@ -830,9 +851,9 @@ makeclosure(Simp ctx, Simp env, Simp params, Simp body, enum Type type)
 	macro = simp_makevector(ctx, CLOSURE_SIZE, simp_nil());
 	if (simp_isexception(ctx, macro))
 		return macro;
-	simp_setvector(ctx, macro, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(ctx, macro, CLOSURE_PARAMETERS, params);
-	simp_setvector(ctx, macro, CLOSURE_EXPRESSIONS, body);
+	simp_getvector(ctx, macro)[CLOSURE_ENVIRONMENT] = env;
+	simp_getvector(ctx, macro)[CLOSURE_PARAMETERS] = params;
+	simp_getvector(ctx, macro)[CLOSURE_EXPRESSIONS] = body;
 	macro.type = type;
 	return macro;
 }
@@ -930,11 +951,11 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 	pair = simp_makevector(ctx, 2, simp_nil());
 	if (simp_isexception(ctx, pair))
 		return pair;
-	simp_setvector(ctx, pair, 0, sym);
+	simp_getvector(ctx, pair)[0] = sym;
 	if (simp_isnil(ctx, prev))
-		simp_setvector(ctx, symtab, bucket, pair);
+		simp_getvector(ctx, symtab)[bucket] = pair;
 	else
-		simp_setvector(ctx, prev, 1, pair);
+		simp_getvector(ctx, prev)[1] = pair;
 	return sym;
 }
 

@@ -346,8 +346,13 @@ When a port is closed, no further input/output operation is permited on that por
 Input/output operation can be buffered, and closing a port flushes the buffer.
 .Pp
 A port is immutable and self-evaluating.
+.Ss Byte
+The byte data type (also known as "character" data type)
+contains a value from 0 to 255 inclusive.
+The external representation of a byte is a character literal.
 .Ss Bytevectors
-The bytevector data type (also known as "string" data type) contains objects denoting a sequence of zero or more locations in memory,
+The bytevector data type (also known as "string" data type)
+contains objects denoting a sequence of zero or more locations in memory,
 each one holding exactly a byte.
 Where a
 .Em byte
@@ -355,7 +360,7 @@ is an exact integer in the range from 0 to 255 inclusive.
 A bytevector is typically more space-efficient than a vector containing the same values.
 The external representation of bytevectors is a string literal.
 .Pp
-Bytevector objects (or "bytevectors" for short) are homogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
+Bytevector objects are homogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
 The
 .Em length
 of a bytevector is the number of elements that it contains.
@@ -447,6 +452,8 @@ Lesser than.
 Greater than.
 .It Ic "boolean?\)" Em "any → boolean)"
 Predicate for the boolean type.
+.It Ic "byte?\)" Em "any → boolean)"
+Predicate for the byte type.
 .It Ic "current-input-port" Em "(∅ → port)"
 The standard input port.
 .It Ic "current-error-port" Em "(∅ → port)"
@@ -489,6 +496,20 @@ Whether two objects are the same.
 If the symbol is bound in the current environment,
 rebound it to the given object;
 signals an error otherwise
+.It Ic "string?\)" Em "(any → boolean)"
+Predicate for string.
+.It Ic "string-set!\)" Em "(s:string × i:number × o: any → boolean)"
+Set the
+.Ar i Ns -th
+element of
+.Ar s
+to
+.Ar o.
+It is an error if
+.Ar s
+has no
+.Ar i
+element.
 .It Ic "symbol?\)" Em "(any → boolean)"
 Predicate for symbol.
 .It Ic "true" Em "(∅ → false)"
@@ -500,7 +521,7 @@ Nothing.
 .It Ic "vector" Em "(any* → vector)"
 Create vector with given elements.
 .It Ic "vector-set!\)" Em "(v:vector × i:number × o:any → ∅)"
-Sets the
+Set the
 .Ar i Ns "-nth"
 element of
 .Ar v
@@ -617,14 +638,17 @@ The end-of-file indicator, in special, is represented by the special class
 .Ic "[:eof:]" .
 .Pp
 The backslash character
-.Pq Ic "\e"
-and the double-quote character
+.Pq Ic "\e" ,
+the double-quote character
 .Pq Ic "\(dq" ,
+and the single-quote character
+.Pq Ic "'" ,
 which have special meanings and thus would need to be escaped,
 are represented by the special classes
-.Ic "[:slash:]"
+.Ic "[:slash:]" ,
+.Ic "[:double-quote:]" ,
 and
-.Ic "[:quote:]"
+.Ic "[:single-quote:]" ,
 respectively.
 .Pp
 The special character class
@@ -644,6 +668,7 @@ A token is defined as follows:
                   | <left-paren>
                   | <right-paren>
                   | <identifier>
+                  | <char-literal>
                   | <string-literal>
                   | <number-literal>
 .Ed
@@ -659,15 +684,18 @@ Single-character tokens are the following:
 <left-paren>      ← "("
 <right-paren>     ← ")"
 .Ed
-.Pp
-A string literal is composed by zero or more string elements between double quotes.
-A string element is any character other than a double quote or a backslash
+A character literal is composed by one character element between single quotes.
+A string literal is composed by zero or more character elements between double quotes.
+A character element is any character other than a double quote or a backslash
 or an escaped character.
-String literals are used to represent strings (alsow known as bytevectors).
-The double quotation mark character that terminates a string is itself a delimiter.
+Chracter literals and string literals are used to represent
+characters and strings (alsow known as bytevectors) respectively.
+The single and the double quotation mark characters that terminates a
+character and a string are themselves delimiters.
 .Bd -literal -offset indent
-<string-literal>  ← [:quote:] <string-element>* [:quote:]
-<string-element>  ← [^[:quote:][:slash:]]
+<char-literal>    ← [:single-quote:] <string-element> [:single-quote:]
+<string-literal>  ← [:double-quote:] <string-element>* [:double-quote:]
+<string-element>  ← [^[:double-quote:][:slash:]]
                   | [:slash:][:anything:]
 .Ed
 .Pp
@@ -775,6 +803,7 @@ This syntax is not complete, because intertoken-space may occur on either side o
                   | <symbol>
                   | <vector>
 <number>          ← <number-literal>
+<byte>            ← <char-literal>
 <string>          ← <string-literal>
 <symbol>          ← <identifier>
 <vector>          ← <left-paren> <representation>* <right-paren>
