@@ -30,31 +30,39 @@
 	X(OP_SET,               "set!"                  )\
 	X(OP_WRAP,              "wrap"                  )
 
-#define BUILTINS                                                       \
-	X(F_BOOLEANP,  "boolean?",            f_booleanp,        1, 1 )\
-	X(F_BYTEP,     "byte?",               f_bytep,           1, 1 )\
-	X(F_CURIPORT,  "current-input-port",  f_curiport,        0, 0 )\
-	X(F_CUROPORT,  "current-output-port", f_curoport,        0, 0 )\
-	X(F_CUREPORT,  "current-error-port",  f_cureport,        0, 0 )\
-	X(F_DISPLAY,   "display",             f_display,         1, 2 )\
-	X(F_EQUAL,     "=",                   f_equal,           2, 2 )\
-	X(F_FALSE,     "false",               f_false,           0, 0 )\
-	X(F_FALSEP,    "falsep",              f_falsep,          1, 1 )\
-	X(F_GT,        ">",                   f_gt,              2, 2 )\
-	X(F_LT,        "<",                   f_lt,              2, 2 )\
-	X(F_MAKEENV,   "make-environment",    f_makeenvironment, 0, 1 )\
-	X(F_NEWLINE,   "newline",             f_newline,         0, 1 )\
-	X(F_NULLP,     "null?",               f_nullp,           1, 1 )\
-	X(F_PORTP,     "port?",               f_portp,           1, 1 )\
-	X(F_SAMEP,     "same?",               f_samep,           2, 2 )\
-	X(F_STRINGP,   "string?",             f_stringp,         1, 1 )\
-	X(F_STRINGSET, "string-set!",         f_stringset,       3, 3 )\
-	X(F_SYMBOLP,   "symbol?",             f_symbolp,         1, 1 )\
-	X(F_TRUE,      "true",                f_true,            0, 0 )\
-	X(F_TRUEP,     "true?",               f_truep,           1, 1 )\
-	X(F_VECTORSET, "vector-set!",         f_vectorset,       3, 3 )\
-	X(F_VOID,      "void",                f_void,            0, 0 )\
-	X(F_WRITE,     "write",               f_write,           1, 2 )
+#define BUILTINS                                                          \
+	X(F_BOOLEANP,     "boolean?",            f_booleanp,        1, 1 )\
+	X(F_BYTEP,        "byte?",               f_bytep,           1, 1 )\
+	X(F_CURIPORT,     "current-input-port",  f_curiport,        0, 0 )\
+	X(F_CUROPORT,     "current-output-port", f_curoport,        0, 0 )\
+	X(F_CUREPORT,     "current-error-port",  f_cureport,        0, 0 )\
+	X(F_DISPLAY,      "display",             f_display,         1, 2 )\
+	X(F_EQUAL,        "=",                   f_equal,           2, 2 )\
+	X(F_FALSE,        "false",               f_false,           0, 0 )\
+	X(F_FALSEP,       "falsep",              f_falsep,          1, 1 )\
+	X(F_GT,           ">",                   f_gt,              2, 2 )\
+	X(F_LT,           "<",                   f_lt,              2, 2 )\
+	X(F_MAKESTRING,   "make-string",         f_makestring,      1, 2 )\
+	X(F_MAKEVECTOR,   "make-vector",         f_makevector,      1, 2 )\
+	X(F_MAKEENV,      "make-environment",    f_makeenvironment, 0, 1 )\
+	X(F_NEWLINE,      "newline",             f_newline,         0, 1 )\
+	X(F_NULLP,        "null?",               f_nullp,           1, 1 )\
+	X(F_PORTP,        "port?",               f_portp,           1, 1 )\
+	X(F_SAMEP,        "same?",               f_samep,           2, 2 )\
+	X(F_STRINGCMP,    "string-compare",      f_stringcmp,       2, 2 )\
+	X(F_STRINGLEN,    "string-length",       f_stringlen,       1, 1 )\
+	X(F_STRINGREF,    "string-ref",          f_stringref,       2, 2 )\
+	X(F_STRINGP,      "string?",             f_stringp,         1, 1 )\
+	X(F_STRINGSET,    "string-set!",         f_stringset,       3, 3 )\
+	X(F_STRINGVECTOR, "string->vector",      f_stringvector,    1, 1 )\
+	X(F_SYMBOLP,      "symbol?",             f_symbolp,         1, 1 )\
+	X(F_TRUE,         "true",                f_true,            0, 0 )\
+	X(F_TRUEP,        "true?",               f_truep,           1, 1 )\
+	X(F_VECTORREF,    "vector-ref",          f_vectorref,       2, 2 )\
+	X(F_VECTORLEN,    "vector-length",       f_vectorlen,       1, 1 )\
+	X(F_VECTORSET,    "vector-set!",         f_vectorset,       3, 3 )\
+	X(F_VOID,         "void",                f_void,            0, 0 )\
+	X(F_WRITE,        "write",               f_write,           1, 2 )
 
 #define VARARGS                                          \
 	X(F_ADD,      "+",                   f_add      )\
@@ -154,7 +162,6 @@ SimpSiz   simp_getsize(Simp ctx, Simp obj);
 unsigned char *simp_getstring(Simp ctx, Simp obj);
 unsigned char *simp_getsymbol(Simp ctx, Simp obj);
 unsigned char *simp_getexception(Simp ctx, Simp obj);
-Simp    simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
 enum Type simp_gettype(Simp ctx, Simp obj);
 Simp   *simp_getvector(Simp ctx, Simp obj);

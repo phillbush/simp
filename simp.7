@@ -480,6 +480,18 @@ which are used as formal parameters for the procedure.
 Creates a new environment.
 If an environment is provided, uses it as parent environment,
 other wise the created environment is orphan.
+.It Ic "make-string" Em "(n:size × c:byte? → string)"
+Return newly allocated string of size
+.Ar n
+filled with either
+.Ar c
+or the zero byte.
+.It Ic "make-vector" Em "(n:size × o:any? → string)"
+Return newly allocated vector of size
+.Ar n
+filled with either
+.Ar o
+or the null element.
 .It Ic newline Em "(output-port? → ∅)"
 Print newline into port (default to current output port).
 .It Ic "null?\)" Em "(any → boolean)"
@@ -496,20 +508,47 @@ Whether two objects are the same.
 If the symbol is bound in the current environment,
 rebound it to the given object;
 signals an error otherwise
+.It Ic "string-compare" Em "(s0:string × s1:string → number)"
+Returns an integer less than, equal to, or greater than 0, according as
+.Ar s0
+is lexicographically less than, equal to, or greater than
+.Ar s1 .
 .It Ic "string?\)" Em "(any → boolean)"
 Predicate for string.
-.It Ic "string-set!\)" Em "(s:string × i:number × o: any → boolean)"
+.It Ic "string-equiv?\)" Em "(s0:string × s1:string → boolean)"
+Return whether
+.Ar s0
+and
+.Ar s1
+are equivalent.
+.It Ic "stirng-ref" Em "(s:string × i:number → byte)"
+Return the
+.Ar i Ns -th
+element of
+.Ar s .
+It is an error if 
+.Ar s
+has no
+.Ar i
+element.
+.It Ic "string-set!\)" Em "(s:string × i:number × b:byte → ∅)"
 Set the
 .Ar i Ns -th
 element of
 .Ar s
 to
-.Ar o.
+.Ar b .
 It is an error if
 .Ar s
 has no
 .Ar i
 element.
+.It Ic "string-copy" Em "(string → string)"
+Return newly allocated string with elements from given string.
+.It Ic "string-length" Em "(string → number)"
+Return number of bytes in the given string.
+.It Ic "string->vector" Em "(string → vector)"
+Return newly allocated vector of bytes from given string.
 .It Ic "symbol?\)" Em "(any → boolean)"
 Predicate for symbol.
 .It Ic "true" Em "(∅ → false)"
@@ -520,6 +559,20 @@ Predicate for true.
 Nothing.
 .It Ic "vector" Em "(any* → vector)"
 Create vector with given elements.
+.It Ic "vector-copy" Em "(string → string)"
+Return newly allocated vector with elements from given vector.
+.It Ic "vector-length" Em "(vector → number)"
+Returns the number of bytes in the given vector.
+.It Ic "vector-ref\)" Em "(v:vector × i:number → any)"
+Returns the
+.Ar i Ns "-nth"
+element of
+.Ar v .
+It is an error if
+.Ar v
+has no
+.Ar i
+element.
 .It Ic "vector-set!\)" Em "(v:vector × i:number × o:any → ∅)"
 Set the
 .Ar i Ns "-nth"

@@ -173,6 +173,60 @@ f_makeenvironment(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 }
 
 static Simp
+f_makestring(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpInt i, size;
+	Simp obj;
+	unsigned char byte;
+	unsigned char *string;
+
+	(void)env;
+	if (nargs > 2)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isnum(ctx, args[0]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (nargs == 2) {
+		if (!simp_isbyte(ctx, args[1]))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		byte = simp_getbyte(ctx, args[1]);
+	} else {
+		byte = '\0';
+	}
+	size = simp_getnum(ctx, args[0]);
+	if (size < 0)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	obj = simp_makestring(ctx, NULL, size);
+	if (simp_isexception(ctx, obj))
+		return obj;
+	string = simp_getstring(ctx, obj);
+	for (i = 0; i < size; i++)
+		string[i] = byte;
+	return obj;
+}
+
+static Simp
+f_makevector(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpInt size;
+	Simp fill;
+
+	(void)env;
+	if (nargs > 2)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isnum(ctx, args[0]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (nargs == 2) {
+		fill = args[1];
+	} else {
+		fill = simp_nil();
+	}
+	size = simp_getnum(ctx, args[0]);
+	if (size < 0)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	return simp_makevector(ctx, size, fill);
+}
+
+static Simp
 f_multiply(Simp ctx, Simp expr, Simp env)
 {
 	SimpSiz i, noperands;
@@ -255,10 +309,97 @@ f_subtract(Simp ctx, Simp expr, Simp env)
 }
 
 static Simp
+f_stringcmp(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpSiz size0, size1;
+	int cmp;
+
+	(void)env;
+	if (nargs != 2)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isstring(ctx, args[0]) || !simp_isstring(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size0 = simp_getsize(ctx, args[0]);
+	size1 = simp_getsize(ctx, args[1]);
+	cmp = memcmp(
+		simp_getstring(ctx, args[0]),
+		simp_getstring(ctx, args[1]),
+		size0 < size1 ? size0 : size1
+	);
+	if (cmp == 0 && size0 != size1)
+		cmp = size0 < size1 ? -1 : +1;
+	else if (cmp < 0)
+		cmp = -1;
+	else if (cmp > 0)
+		cmp = +1;
+	return simp_makenum(ctx, cmp);
+}
+
+static Simp
+f_stringlen(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpInt size;
+
+	(void)env;
+	if (nargs != 1)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isstring(ctx, args[0]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, args[0]);
+	return simp_makenum(ctx, size);
+}
+
+static Simp
+f_stringref(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpSiz size;
+	SimpInt pos;
+	unsigned char byte;
+
+	(void)env;
+	if (nargs != 2)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isstring(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, args[0]);
+	pos = simp_getnum(ctx, args[1]);
+	if (pos < 0 || pos >= (SimpInt)size)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	byte = simp_getstring(ctx, args[0])[pos];
+	return simp_makebyte(ctx, byte);
+}
+
+static Simp
 f_stringp(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 {
 	(void)env;
 	return typepred(ctx, args, nargs, simp_isstring);
+}
+
+static Simp
+f_stringvector(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpSiz i, size;
+	Simp vector, byte;
+	unsigned char *string;
+
+	(void)env;
+	if (nargs != 1)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isstring(ctx, args[0]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, args[0]);
+	vector = simp_makevector(ctx, size, simp_nil());
+	if (simp_isexception(ctx, vector))
+		return vector;
+	string = simp_getstring(ctx, args[0]);
+	for (i = 0; i < size; i++) {
+		byte = simp_makebyte(ctx, string[i]);
+		if (simp_isexception(ctx, byte))
+			return byte;
+		simp_getvector(ctx, vector)[i] = byte;
+	}
+	return vector;
 }
 
 Simp
@@ -310,6 +451,38 @@ f_vectorset(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
 	if (simp_isexception(ctx, val))
 		return val;
 	return simp_void();
+}
+
+static Simp
+f_vectorlen(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpInt size;
+
+	(void)env;
+	if (nargs != 1)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isvector(ctx, args[0]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, args[0]);
+	return simp_makenum(ctx, size);
+}
+
+static Simp
+f_vectorref(Simp ctx, Simp env, Simp args[], SimpSiz nargs)
+{
+	SimpSiz size;
+	SimpInt pos;
+
+	(void)env;
+	if (nargs != 2)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (!simp_isvector(ctx, args[0]) || !simp_isnum(ctx, args[1]))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, args[0]);
+	pos = simp_getnum(ctx, args[1]);
+	if (pos < 0 || pos >= (SimpInt)size)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	return simp_getvector(ctx, args[0])[pos];
 }
 
 Simp

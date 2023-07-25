@@ -500,14 +500,6 @@ simp_getsymbol(Simp ctx, Simp obj)
 }
 
 Simp
-simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos)
-{
-	if (!simp_isstring(ctx, obj) || pos >= simp_getsize(ctx, obj))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_makebyte(ctx, simp_getstring(ctx, obj)[pos]);
-}
-
-Simp
 simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos)
 {
 	if (!simp_isvector(ctx, obj) || pos >= simp_getsize(ctx, obj))
