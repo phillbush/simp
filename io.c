@@ -581,12 +581,22 @@ simp_printbyte(Simp ctx, Simp port, Simp obj)
 }
 
 static void
-simp_printstr(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
+simp_printsym(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
 {
 	SimpSiz i;
 
 	for (i = 0; i < len; i++) {
 		simp_printchar(ctx, port, (int)str[i]);
+	}
+}
+
+static void
+simp_printstr(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
+{
+	SimpSiz i;
+
+	for (i = 0; i < len; i++) {
+		simp_printf(ctx, port, "%c", str[i]);
 	}
 }
 
@@ -679,12 +689,15 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 	case TYPE_STRING:
 		if (!display)
 			simp_printf(ctx, port, "\"");
-		simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
+		if (display)
+			simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
+		else
+			simp_printsym(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
 		if (!display)
 			simp_printf(ctx, port, "\"");
 		break;
 	case TYPE_SYMBOL:
-		simp_printstr(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
+		simp_printsym(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
 		break;
 	case TYPE_EXCEPTION:
 		simp_printf(ctx, port, "ERROR: %s", simp_getexception(ctx, obj));
