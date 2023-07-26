@@ -94,6 +94,7 @@ sweep(Simp ctx)
 	while (vector != NULL) {
 		tmp = vector;
 		vector = vector->next;
+		free(tmp->data);
 		free(tmp);
 	}
 }
