@@ -10,7 +10,6 @@ Simp is my attempt to design and implement a minimalist lisp language.
 * The C API is documented in `./simp.3`.
 
 TODO:
-* Garbage collection.
 * Sequences.
 * Multiple values.
 * Arbitrary precision arithmetic.
