@@ -274,13 +274,13 @@ simp_contextnew(void)
 	};
 
 	ctx = simp_makevector(simp_nil(), NCONTEXTS, simp_nil());
-	membs[CONTEXT_IPORT] = simp_openstream(simp_nil(), stdin, "r");
-	membs[CONTEXT_OPORT] = simp_openstream(simp_nil(), stdout, "w");
-	membs[CONTEXT_EPORT] = simp_openstream(simp_nil(), stderr, "w");
-	membs[CONTEXT_SYMTAB] = simp_makevector(simp_nil(), SYMTAB_SIZE, simp_nil());
-	membs[CONTEXT_ENVIRONMENT] = simp_makeenvironment(simp_nil(), simp_nulenv());
+	membs[CONTEXT_IPORT] = simp_openstream(ctx, stdin, "r");
+	membs[CONTEXT_OPORT] = simp_openstream(ctx, stdout, "w");
+	membs[CONTEXT_EPORT] = simp_openstream(ctx, stderr, "w");
+	membs[CONTEXT_SYMTAB] = simp_makevector(ctx, SYMTAB_SIZE, simp_nil());
+	membs[CONTEXT_ENVIRONMENT] = simp_makeenvironment(ctx, simp_nulenv());
 	for (i = 0; i < NCONTEXTS; i++)
-		simp_getvector(simp_nil(), ctx)[i] = membs[i];
+		simp_getvector(ctx, ctx)[i] = membs[i];
 	for (j = 0; j < LEN(funs); j++) {
 		for (i = 0; i < funs[j].size; i++) {
 			len = strlen((char *)funs[j].names[i]);
@@ -298,6 +298,12 @@ simp_contextnew(void)
 	return ctx;
 error:
 	return simp_makeexception(ctx, ERROR_MEMORY);
+}
+
+Simp
+simp_contextsymtab(Simp ctx)
+{
+	return simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
 }
 
 Simp
@@ -960,7 +966,7 @@ simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
-	vector = simp_gcnewvector((GC *)ctx.u.vector, size);
+	vector = simp_gcnewvector(ctx, size);
 	if (vector == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
 	data = simp_gcgetvector(vector);
@@ -1007,4 +1013,11 @@ simp_wrap(Simp ctx, Simp obj)
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	obj.type = TYPE_APPLICATIVE;
 	return obj;
+}
+
+Vector *
+simp_getgcmemory(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return obj.u.vector;
 }

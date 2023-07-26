@@ -52,6 +52,7 @@ repl(Simp ctx, Simp iport, int prompt)
 	oport = simp_contextoport(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
+		simp_gc(ctx);
 		if (simp_porterr(ctx, iport))
 			return EXIT_FAILURE;
 		if (prompt)
@@ -83,7 +84,7 @@ main(int argc, char *argv[])
 	enum { MODE_INTERACTIVE, MODE_STRING, MODE_PRINT, MODE_SCRIPT } mode;
 	FILE *fp;
 	Simp ctx, iport, port;
-	int ch, retval = EXIT_SUCCESS;
+	int ch, retval = EXIT_FAILURE;
 	int iflag = 0;
 	char *expr = NULL;
 
@@ -123,7 +124,7 @@ main(int argc, char *argv[])
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(ctx, port))
 			goto error;
-		retval = rel(ctx, port);
+		rel(ctx, port);
 		if (iflag)
 			repl(ctx, iport, 1);
 		break;
@@ -131,7 +132,7 @@ main(int argc, char *argv[])
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(ctx, port))
 			goto error;
-		retval = repl(ctx, port, 0);
+		repl(ctx, port, 0);
 		if (iflag)
 			repl(ctx, iport, 1);
 		break;
@@ -146,7 +147,7 @@ main(int argc, char *argv[])
 		}
 		if (simp_isexception(ctx, port))
 			goto error;
-		retval = rel(ctx, port);
+		rel(ctx, port);
 		if (fp != stdin)
 			(void)fclose(fp);
 		if (iflag)
@@ -156,7 +157,8 @@ main(int argc, char *argv[])
 		repl(ctx, iport, 1);
 		break;
 	}
-	return retval;
+	retval = EXIT_SUCCESS;
 error:
-	return EXIT_FAILURE;
+	simp_gcfree(ctx);
+	return retval;
 }

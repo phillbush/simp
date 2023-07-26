@@ -71,6 +71,28 @@
 	X(F_SUBTRACT, "-",                   f_subtract )\
 	X(F_VECTOR  , "vector",              f_vector )
 
+#define TYPES                                            \
+	/* Object type          Is a vector            */\
+	X(TYPE_APPLICATIVE,     true                    )\
+	X(TYPE_BUILTIN,         false                   )\
+	X(TYPE_VARARGS,         false                   )\
+	X(TYPE_BYTE,            false                   )\
+	X(TYPE_ENVIRONMENT,     true                    )\
+	X(TYPE_EOF,             false                   )\
+	X(TYPE_EXCEPTION,       false                   )\
+	X(TYPE_FALSE,           false                   )\
+	X(TYPE_OPERATIVE,       true                    )\
+	X(TYPE_BINDING,         true                    )\
+	X(TYPE_FORM,            false                   )\
+	X(TYPE_PORT,            false                   )\
+	X(TYPE_REAL,            false                   )\
+	X(TYPE_SIGNUM,          false                   )\
+	X(TYPE_STRING,          false                   )\
+	X(TYPE_SYMBOL,          false                   )\
+	X(TYPE_TRUE,            false                   )\
+	X(TYPE_VECTOR,          true                    )\
+	X(TYPE_VOID,            false                   )
+
 typedef struct GC               GC;
 typedef struct Vector           Vector;
 typedef struct Simp             Simp;
@@ -119,25 +141,9 @@ struct Simp {
 		enum Varargs    varargs;
 	} u;
 	enum Type {
-		TYPE_APPLICATIVE,
-		TYPE_BUILTIN,
-		TYPE_VARARGS,
-		TYPE_BYTE,
-		TYPE_ENVIRONMENT,
-		TYPE_EOF,
-		TYPE_EXCEPTION,
-		TYPE_FALSE,
-		TYPE_OPERATIVE,
-		TYPE_BINDING,
-		TYPE_FORM,
-		TYPE_PORT,
-		TYPE_REAL,
-		TYPE_SIGNUM,
-		TYPE_STRING,
-		TYPE_SYMBOL,
-		TYPE_TRUE,
-		TYPE_VECTOR,
-		TYPE_VOID,
+#define X(n, v) n,
+	TYPES
+#undef  X
 	} type;
 };
 
@@ -173,6 +179,7 @@ Simp    simp_getapplicativebody(Simp ctx, Simp obj);
 Simp    simp_getoperativeenv(Simp ctx, Simp obj);
 Simp    simp_getoperativeparam(Simp ctx, Simp obj);
 Simp    simp_getoperativebody(Simp ctx, Simp obj);
+Vector *simp_getgcmemory(Simp ctx, Simp obj);
 
 /* data type predicates */
 bool    simp_isapplicative(Simp ctx, Simp obj);
@@ -224,6 +231,7 @@ Simp    simp_makevector(Simp ctx, SimpSiz size, Simp fill);
 
 /* context operations */
 Simp    simp_contextenvironment(Simp ctx);
+Simp    simp_contextsymtab(Simp ctx);
 Simp    simp_contextiport(Simp ctx);
 Simp    simp_contextoport(Simp ctx);
 Simp    simp_contexteport(Simp ctx);
@@ -251,6 +259,8 @@ Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
 
 /* gc */
-Vector *simp_gcnewvector(GC *gc, SimpSiz size);
+Vector *simp_gcnewvector(Simp ctx, SimpSiz size);
 Simp   *simp_gcgetvector(Vector *vector);
 SimpSiz simp_gcgetlength(Vector *vector);
+void    simp_gc(Simp ctx);
+void    simp_gcfree(Simp ctx);
