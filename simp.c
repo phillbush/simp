@@ -23,6 +23,7 @@ rel(Simp ctx, Simp iport)
 	env = simp_contextenvironment(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
+		simp_gc(ctx);
 		if (simp_porterr(ctx, iport))
 			break;
 		obj = simp_read(ctx, iport);
