@@ -106,11 +106,12 @@ void
 simp_gc(Simp ctx)
 {
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	SimpSiz i;
 
 	gc->free = gc->curr;
 	gc->curr = NULL;
-	mark(ctx, simp_contextenvironment(ctx));
-	mark(ctx, simp_contextsymtab(ctx));
+	for (i = 0; i < gc->size; i++)
+		mark(ctx, ((Simp *)gc->data)[i]);
 	sweep(ctx);
 	gc->mark *= MARK_MUL;
 	gc->free = NULL;
@@ -123,6 +124,7 @@ simp_gcfree(Simp ctx)
 
 	gc->free = gc->curr;
 	sweep(ctx);
+	free(gc->data);
 }
 
 Vector *
