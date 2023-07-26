@@ -116,9 +116,7 @@ Simp *
 simp_getvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	if (obj.u.vector == NULL)
-		return NULL;
-	return obj.u.vector + 1;        /* +1 for the first element is the size */
+	return simp_gcgetvector(obj.u.vector);
 }
 
 static Simp *
@@ -471,7 +469,7 @@ simp_getsize(Simp ctx, Simp obj)
 	case TYPE_VECTOR:
 		if (obj.u.vector == NULL)
 			return 0;
-		return (SimpSiz)simp_getnum(ctx, obj.u.vector[0]);      /* first element is the size */
+		return simp_gcgetlength(obj.u.vector);
 	case TYPE_STRING:
 	case TYPE_SYMBOL:
 	case TYPE_EXCEPTION:
@@ -954,21 +952,23 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 Simp
 simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 {
-	Simp *dst = NULL;
+	Vector *vector;
 	SimpSiz i;
+	Simp *data;
 
 	if (size < 0)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
-	if ((dst = calloc(size + 1, sizeof(*dst))) == NULL)
+	vector = simp_gcnewvector((GC *)ctx.u.vector, size);
+	if (vector == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	dst[0] = simp_makenum(ctx, (SimpInt)size);
+	data = simp_gcgetvector(vector);
 	for (i = 0; i < size; i++)
-		dst[i + 1] = fill;
+		data[i] = fill;
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.u.vector = dst,
+		.u.vector = vector,
 	};
 }
 

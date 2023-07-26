@@ -588,17 +588,6 @@ define(Simp ctx, Simp expr, Simp env)
 }
 
 static Simp
-wrap(Simp ctx, Simp expr, Simp env)
-{
-	(void)env;
-	if (simp_getsize(ctx, expr) != 2)       /* (wrap COMBINER) */
-		return simp_makeexception(ctx, ERROR_ARGS);
-	if (!simp_isoperative(ctx, expr))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_wrap(ctx, simp_getvectormemb(ctx, expr, 1));
-}
-
-static Simp
 varargs(Simp ctx, Simp expr, Simp env, enum Varargs varg)
 {
 	Simp (*fun[NVARARGS])(Simp, Simp, Simp) = {
@@ -702,8 +691,6 @@ loop:
 		return lambda(ctx, expr, env);
 	case OP_SET:
 		return set(ctx, expr, env);
-	case OP_WRAP:
-		return wrap(ctx, expr, env);
 	default:
 		return simp_makeexception(ctx, -1);
 	}

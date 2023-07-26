@@ -1,6 +1,6 @@
 PROG = simp
-OBJS = simp.o data.o port.o eval.o io.o stdlib.o
-SRCS = simp.c data.c port.c eval.c io.c
+SRCS = simp.c data.c port.c eval.c gc.c io.c
+OBJS = ${SRCS:.c=.o} stdlib.o
 MANS = simp.1 simp.7
 
 DEFS = -D_POSIX_C_SOURCE=200809L

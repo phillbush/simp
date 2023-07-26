@@ -71,6 +71,8 @@
 	X(F_SUBTRACT, "-",                   f_subtract )\
 	X(F_VECTOR  , "vector",              f_vector )
 
+typedef struct GC               GC;
+typedef struct Vector           Vector;
 typedef struct Simp             Simp;
 typedef unsigned long long      SimpSiz;
 typedef long long               SimpInt;
@@ -107,7 +109,7 @@ struct Simp {
 	union {
 		SimpInt         num;
 		double          real;
-		Simp           *vector;
+		Vector         *vector;
 		void           *string;
 		unsigned char  *errmsg;
 		unsigned char   byte;
@@ -248,5 +250,7 @@ Simp    simp_write(Simp ctx, Simp port, Simp obj);
 Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
 
-Simp    simp_wrap(Simp ctx, Simp obj);
-Simp    simp_unwrap(Simp ctx, Simp obj);
+/* gc */
+Vector *simp_gcnewvector(GC *gc, SimpSiz size);
+Simp   *simp_gcgetvector(Vector *vector);
+SimpSiz simp_gcgetlength(Vector *vector);
