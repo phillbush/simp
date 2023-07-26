@@ -71,27 +71,27 @@
 	X(F_SUBTRACT, "-",                   f_subtract )\
 	X(F_VECTOR  , "vector",              f_vector )
 
-#define TYPES                                            \
-	/* Object type          Is a vector            */\
-	X(TYPE_APPLICATIVE,     true                    )\
-	X(TYPE_BUILTIN,         false                   )\
-	X(TYPE_VARARGS,         false                   )\
-	X(TYPE_BYTE,            false                   )\
-	X(TYPE_ENVIRONMENT,     true                    )\
-	X(TYPE_EOF,             false                   )\
-	X(TYPE_EXCEPTION,       false                   )\
-	X(TYPE_FALSE,           false                   )\
-	X(TYPE_OPERATIVE,       true                    )\
-	X(TYPE_BINDING,         true                    )\
-	X(TYPE_FORM,            false                   )\
-	X(TYPE_PORT,            false                   )\
-	X(TYPE_REAL,            false                   )\
-	X(TYPE_SIGNUM,          false                   )\
-	X(TYPE_STRING,          false                   )\
-	X(TYPE_SYMBOL,          false                   )\
-	X(TYPE_TRUE,            false                   )\
-	X(TYPE_VECTOR,          true                    )\
-	X(TYPE_VOID,            false                   )
+#define TYPES                                              \
+	/* Object type        Is vector   Is allocated   */\
+	X(TYPE_APPLICATIVE,   true,       true            )\
+	X(TYPE_BUILTIN,       false,      false           )\
+	X(TYPE_VARARGS,       false,      false           )\
+	X(TYPE_BYTE,          false,      false           )\
+	X(TYPE_ENVIRONMENT,   true,       true            )\
+	X(TYPE_EOF,           false,      false           )\
+	X(TYPE_EXCEPTION,     false,      false           )\
+	X(TYPE_FALSE,         false,      false           )\
+	X(TYPE_OPERATIVE,     true,       true            )\
+	X(TYPE_BINDING,       true,       true            )\
+	X(TYPE_FORM,          false,      false           )\
+	X(TYPE_PORT,          false,      false           )\
+	X(TYPE_REAL,          false,      false           )\
+	X(TYPE_SIGNUM,        false,      false           )\
+	X(TYPE_STRING,        false,      true            )\
+	X(TYPE_SYMBOL,        false,      true            )\
+	X(TYPE_TRUE,          false,      false           )\
+	X(TYPE_VECTOR,        true,       true            )\
+	X(TYPE_VOID,          false,      false           )
 
 typedef struct GC               GC;
 typedef struct Vector           Vector;
@@ -141,7 +141,7 @@ struct Simp {
 		enum Varargs    varargs;
 	} u;
 	enum Type {
-#define X(n, v) n,
+#define X(n, v, h) n,
 	TYPES
 #undef  X
 	} type;
@@ -259,8 +259,8 @@ Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
 
 /* gc */
-Vector *simp_gcnewvector(Simp ctx, SimpSiz size);
-Simp   *simp_gcgetvector(Vector *vector);
+Vector *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);
+void   *simp_gcgetdata(Vector *vector);
 SimpSiz simp_gcgetlength(Vector *vector);
 void    simp_gc(Simp ctx);
 void    simp_gcfree(Simp ctx);

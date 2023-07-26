@@ -45,11 +45,6 @@ enum {
 	CLOSURE_SIZE
 };
 
-struct String {
-	SimpSiz size;
-	unsigned char *arr;
-};
-
 static unsigned char *errortab[NEXCEPTIONS] = {
 #define X(n, s) [n] = (unsigned char *)s,
 	EXCEPTIONS
@@ -116,7 +111,7 @@ Simp *
 simp_getvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gcgetvector(obj.u.vector);
+	return simp_gcgetdata(obj.u.vector);
 }
 
 static Simp *
@@ -481,7 +476,7 @@ simp_getsize(Simp ctx, Simp obj)
 	case TYPE_EXCEPTION:
 		if (obj.u.string == NULL)
 			return 0;
-		return ((struct String *)obj.u.string)->size;
+		return simp_gcgetlength(obj.u.string);
 	default:
 		return 0;
 	}
@@ -493,14 +488,14 @@ simp_getstring(Simp ctx, Simp obj)
 	(void)ctx;
 	if (simp_isempty(ctx, obj))
 		return NULL;
-	return ((struct String *)obj.u.string)->arr;
+	return simp_gcgetdata(obj.u.string);
 }
 
 unsigned char *
 simp_getsymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return ((struct String *)obj.u.string)->arr;
+	return simp_gcgetdata(obj.u.string);
 }
 
 Simp
@@ -889,31 +884,23 @@ simp_makereal(Simp ctx, double x)
 Simp
 simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 {
-	struct String *p = NULL;
+	Vector *vector;
 	unsigned char *dst = NULL;
 
 	if (size < 0)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_empty();
-	if ((p = malloc(sizeof(*p))) == NULL)
-		goto error;
-	if ((dst = calloc(size, 1)) == NULL)
-		goto error;
-	*p = (struct String){
-		.size = size,
-		.arr = dst,
-	};
+	vector = simp_gcnewarray(ctx, size, 1);
+	if (vector == NULL)
+		return simp_makeexception(ctx, ERROR_MEMORY);
+	dst = simp_gcgetdata(vector);
 	if (src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
-		.u.string = p,
+		.u.string = vector,
 	};
-error:
-	free(p);
-	free(dst);
-	return simp_makeexception(ctx, ERROR_MEMORY);
 }
 
 Simp
@@ -966,10 +953,10 @@ simp_makevector(Simp ctx, SimpSiz size, Simp fill)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
-	vector = simp_gcnewvector(ctx, size);
+	vector = simp_gcnewarray(ctx, size, sizeof(Simp));
 	if (vector == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	data = simp_gcgetvector(vector);
+	data = simp_gcgetdata(vector);
 	for (i = 0; i < size; i++)
 		data[i] = fill;
 	return (Simp){

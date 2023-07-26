@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -27,7 +26,7 @@ enum {
 struct Vector {
 	struct Vector *prev;
 	struct Vector *next;
-	Simp          *data;
+	void          *data;
 	SimpSiz        size;
 	int            mark;
 };
@@ -36,22 +35,22 @@ struct GC {
 	/* same structure, just to rename the members */
 	struct Vector *free;
 	struct Vector *curr;
-	Simp          *data;
+	void          *data;
 	SimpSiz        size;
 	int            mark;
 };
 
-static bool
-isvector(Simp ctx, Simp obj)
-{
-	bool vectortab[] = {
-#define X(n, b) [n] = b,
-		TYPES
+static bool isvector[] = {
+#define X(n, v, h) [n] = v,
+	TYPES
 #undef  X
-	};
+};
 
-	return vectortab[simp_gettype(ctx, obj)];
-}
+static bool isheap[] = {
+#define X(n, v, h) [n] = h,
+	TYPES
+#undef  X
+};
 
 static void
 mark(Simp ctx, Simp obj)
@@ -59,8 +58,10 @@ mark(Simp ctx, Simp obj)
 	Vector *vector;
 	SimpSiz i;
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	enum Type type;
 
-	if (!isvector(ctx, obj))
+	type = simp_gettype(ctx, obj);
+	if (!isheap[type])
 		return;
 	vector = simp_getgcmemory(ctx, obj);
 	if (vector == NULL)
@@ -79,8 +80,10 @@ mark(Simp ctx, Simp obj)
 	if (gc->curr != NULL)
 		gc->curr->prev = vector;
 	gc->curr = vector;
+	if (!isvector[type])
+		return;
 	for (i = 0; i < vector->size; i++) {
-		mark(ctx, vector->data[i]);
+		mark(ctx, ((Simp *)vector->data)[i]);
 	}
 }
 
@@ -128,27 +131,26 @@ simp_gcfree(Simp ctx)
 }
 
 Vector *
-simp_gcnewvector(Simp ctx, SimpSiz size)
+simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
 {
 	Vector *vector = NULL;
-	Simp *data = NULL;
+	void *data = NULL;
 	GC *gc;
 
 	if (simp_isnil(ctx, ctx))
 		gc = NULL;
 	else
 		gc = (GC *)simp_getgcmemory(ctx, ctx);
-	assert(size > 0);
 	if ((vector = malloc(sizeof(*vector))) == NULL)
 		goto error;
-	if ((data = calloc(size, sizeof(*data))) == NULL)
+	if ((data = calloc(nmembs, membsiz)) == NULL)
 		goto error;
 	*vector = (struct Vector){
 		.mark = MARK_ZERO,
 		.prev = NULL,
 		.next = NULL,
 		.data = data,
-		.size = size,
+		.size = nmembs,
 	};
 	if (gc == NULL) {
 		/* there's no garbage context (we're creating it right now) */
@@ -161,11 +163,13 @@ simp_gcnewvector(Simp ctx, SimpSiz size)
 	gc->curr = vector;
 	return vector;
 error:
+	free(data);
+	free(vector);
 	return NULL;
 }
 
-Simp *
-simp_gcgetvector(Vector *vector)
+void *
+simp_gcgetdata(Vector *vector)
 {
 	return vector->data;
 }
