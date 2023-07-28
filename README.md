@@ -36,7 +36,7 @@ Example:
 ```
 
 The first expression defines the ackermann function; the second
-expression computes the ackermann function applied to 1 and 8.
+expression computes the ackermann function applied to 1 and 6.
 
 The following can be observed:
 
