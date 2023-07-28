@@ -29,7 +29,7 @@ Example:
           (apply = y 1) 2
           (apply ackermann
             (apply - x 1)
-            (apply ackermann x (apply - y 1))))))
+            (apply ackermann x (apply - y 1)))))))
 
 (apply ackermann
   (apply vector-ref (vector 0 1 2 3 4) 1)
