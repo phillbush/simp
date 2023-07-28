@@ -154,36 +154,37 @@ simp_peekbyte(Simp ctx, Simp obj)
 Simp
 simp_openstream(Simp ctx, void *p, char *mode)
 {
-	FILE *stream = (FILE *)p;
+	FILE *stream;
 	Port *port;
+	Vector *v;
 
-	if ((port = malloc(sizeof(*port))) == NULL)
+	stream = (FILE *)p;
+	if ((v = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	*port = (Port){
-		.type = PORT_STREAM,
-		.mode = openmode(mode),
-		.u.fp = stream,
-		.nlines = 0,
-	};
-	return simp_makeport(ctx, port);
+	port = simp_gcgetdata(v);
+	port->type = PORT_STREAM;
+	port->mode = openmode(mode);
+	port->u.fp = stream;
+	port->nlines = 0;
+	return simp_makeport(ctx, v);
 }
 
 Simp
 simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
+	Vector *v;
 
-	if ((port = malloc(sizeof(*port))) == NULL)
+	if ((v = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	*port = (Port){
-		.type = PORT_STRING,
-		.mode = openmode(mode),
-		.u.str.arr = p,
-		.u.str.size = len,
-		.u.str.curr = 0,
-		.nlines = 0,
-	};
-	return simp_makeport(ctx, port);
+	port = simp_gcgetdata(v);
+	port->type = PORT_STRING;
+	port->mode = openmode(mode);
+	port->u.str.arr = p;
+	port->u.str.size = len;
+	port->u.str.curr = 0;
+	port->nlines = 0;
+	return simp_makeport(ctx, v);
 }
 
 int
@@ -227,7 +228,7 @@ simp_initports(Simp ctx)
 		port = simp_openstream(ctx, portinit[i].fp, portinit[i].mode);
 		if (simp_isexception(ctx, port))
 			return port;
-		simp_getvector(ctx, ports)[i] = port;
+		simp_setvector(ctx, ports, i, port);
 	}
 	return ports;
 }

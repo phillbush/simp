@@ -23,7 +23,7 @@ rel(Simp ctx, Simp iport)
 	env = simp_contextenvironment(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
-		simp_gc(ctx);
+		simp_gc(ctx, &iport, 1);
 		if (simp_porterr(ctx, iport))
 			break;
 		obj = simp_read(ctx, iport);
@@ -53,7 +53,7 @@ repl(Simp ctx, Simp iport, int prompt)
 	oport = simp_contextoport(ctx);
 	eport = simp_contexteport(ctx);
 	for (;;) {
-		simp_gc(ctx);
+		simp_gc(ctx, &iport, 1);
 		if (simp_porterr(ctx, iport))
 			return EXIT_FAILURE;
 		if (prompt)

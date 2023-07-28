@@ -103,13 +103,15 @@ sweep(Simp ctx)
 }
 
 void
-simp_gc(Simp ctx)
+simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 {
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
 	SimpSiz i;
 
 	gc->free = gc->curr;
 	gc->curr = NULL;
+	for (i = 0; i < nobjs; i++)
+		mark(ctx, objs[i]);
 	for (i = 0; i < gc->size; i++)
 		mark(ctx, ((Simp *)gc->data)[i]);
 	sweep(ctx);

@@ -39,101 +39,127 @@ of data combination.
 .Nm
 has no notion of
 .Ic cons , car , cdr
-or other functions common in regular LISP dialects.
+or other procedures common in other LISP dialects.
 In
-.Nm
+.Nm ,
 lists can be implemented as a chain of vectors,
 in which the last element of each vector is a pointer to the next vector.
 .Pp
+Symbols in
+.Nm
+are case-sensitive.
+.Sh EXPRESSIONS
 A
 .Nm
 program is a sequence of expressions, possibly alternated with comments and whitespace.
-Expressions are parenthesized S-expressions.
-See the section
-.Sx FORMAL SYNTAX
-for explanation on the composition of a
-.Nm
-program.
+.Pp
+An expression to
+.Em return
+a certain value means that the result of the evaluation of the expression is that value.
+.Pp
+An expression has one of the following forms.
+.Bl -tag -width Ds -compact
+.It Ic ( and Ar EXPRESSION ... )
+Evaluate each expression in turn and return false when one evaluate to false;
+return a true value otherwise.
+.It Ic ( apply Ar PROCEDURE ARGUMENT ... Ic )
+Return the result of the application of the given
+procedure to all the given arguments.
+.Ar PROCEDURE
+must be an expression that evaluates to a procedure;
+otherwise an error is signaled.
+Each
+.Ar ARGUMENT
+must be an expression that evaluates to a single value;
+otherwise an error is signaled.
+As a syntax-sugar, the syntactical symbol
+.Cm apply
+can be replaced with the exclamation point.
+.Cm "\)!" .
+.It Ic ( define Ar SYMBOL EXPRESSION Ic )
+Bind the given symbol to the given expression in the current environment.
+.Ar SYMBOL
+must be a symbol;
+otherwise an error is signaled.
+.It Ic ( do Ar EXPRESSION ... Ic )
+Evaluate each given expression and return the result of the last evaluation.
+.It Ic ( env )
+Return the current environment.
+.It Ic ( eval Ar EXPRESSION ENVIRONMENT )
+Evaluate the give expression in the given environment and return the result of the evaluation.
+.Ar ENVIRONMENT
+must be evaluate to an environment;
+otherwise an error is signaled.
+.It Ic ( false )
+Return the false boolean constant.
+.It Ic ( if Ar CONDITION ... THEN ... Op Ar ELSE )
+Evaluate each
+.Ar CONDITION
+expression in turn and, if it returns a true value, return the immediatelly following
+.Ar THEN
+expression.
+If all condition-then pairs have been tested, return the optional
+.Ar ELSE
+condition, if it exists.
+.It Ic ( lambda Ar SYMBOL ... Ar BODY )
+Return the closure in which the given symbols are bound to the given body.
+.It Ic ( or Ar EXPRESSION ... )
+Evaluate each expression in turn and return true when one evaluate to true;
+return a false value otherwise.
+.It Ic ( quote Ar EXPRESSION )
+Return the given expression itself, without evaluating it.
+.It Ic ( set Ar SYMBOL ArEXPRESSION )
+Rebind the given symbol to the given expression on the current environment.
+.Ar SYMBOL
+must be a symbol already bound in the current environment;
+otherwise an error is signaled.
+.It Ic ( true )
+Return the true boolean constant.
+.It Ic ( vector Op Ar EXPRESSION ... )
+Return an vector containing exactly the result of the given expressions.
+.It Ar SYMBOL
+Return the value that the given symbol is bound to in the current environment.
+.Ar SYMBOL
+must be a symbol already bound in the current environment;
+otherwise an error is signaled.
+.It Ar LITERAL
+Return the given literal expression.
+.Ar LITERAL
+can be any expression, except a symbol or a vector.
+.El
+.Pp
+Different from other LISP dialects, in
+.Nm ,
+procedure applications must be initated by the
+.Ic apply
+syntactic symbol.
+That is, the expression
+.Ic "(+ 1 2)"
+does not evaluate to anything and signals an error.
+The expression
+.Ic "(apply + 1 2)"
+however, does evaluate to 3.
 .Sh EVALUATION
 .Em Evaluation
-is the process of computing objects from other objects.
-An object can evaluate to zero or more objects.
-An object can even evaluate to itself (a so called
+is the process of computing values from expressions.
+An expression can evaluate to zero or more values
+(TODO: THAT'S A LIE, EACH EXPRESSION EVALUATES TO A SINGLE OBJECT FOR NOW.
+IN THE FUTURE SIMP WILL SUPPORT RETURNING MULTIPLE VALUES).
+An expression can even evaluate to itself (a so called
 .Em self-evaluating
-object).
-An evaluation can do more than just compute objects,
-such as mutate an object or perform input/output;
+expression).
+An evaluation can do more than just compute things,
+such as mutate an object, or perform input/output;
 such additional processes are called
 .Em side effects .
-.Pp
-Given an object
-.Ar obj
-and an environment
-.Ar env ,
-the algorithm for evaluating
-.Ar obj
-in
-.Ar env
-is as follows:
-.Bl -enum
-.It
-If
-.Ar obj
-is a symbol, look for a binding to it in
-.Ar env .
-.Bl -bullet
-.It
-If a binding is found,
-.Ar obj
-evaluates to the value it is bound to.
-.It
-If a binding is not found, an error is signaled.
-.El
-.It
-If
-.Ar obj
-is not a vector,
-.Ar obj
-evaluates to itself (it is a self-evaluating object).
-.It
-If
-.Ar obj
-is the empty vector, an error is signalled.
-.It
-If
-.Ar obj
-is a non-empty vector,
-recursivelly evaluate its first element into
-.Ar env
-following this algorithm.
-This first element is called the
-.Em operator
-and the remaining elements, if any, are called
-.Em operands .
-.Bl -bullet
-.It
-If the operator evaluates to an applicative operation,
-recursivelly evaluate the operands into
-.Ar env .
-Then
-.Ar obj
-evaluates to the result of the application of the evaluated operands into the operation.
-.It
-If the operator evaluates to an non-applicative operation, then
-.Ar obj
-evaluates to the result of the application of the operands into the operation.
-.It
-If the operator does not evaluates to an operation at all,
-an error is signalled.
-.El
-.El
-.Pp
-Signalling an error interrupts the algorithm, even when at a deep level of recursion.
+An expression can also signal an error,
+in which case, the evaluation algorithm is interrupted,
+even when at a deep level of recursion.
 .Pp
 Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
 Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
 For example, the sequence of characters
-.Qq Ic "(+ 2 6)"
+.Qq Ic "(apply + 2 6)"
 is an external representation of an object that evaluates to the integer 8;
 it is not however an external representation of the integer 8.
 The syntax of
@@ -147,9 +173,9 @@ This manual uses the rightwards double arrow symbol
 .Pq "U+21D2"
 to separate the external representation of an object from the external representation of the objects it evaluates to.
 For example
-.Qq Ic "(+ 2 6) ⇒ 8"
+.Qq Ic "(apply + 2 6) ⇒ 8"
 means that the object represented by
-.Qq Ic "(+ 2 6)"
+.Qq Ic "(apply + 2 6)"
 evaluates to the object represented by
 .Qq Ic "8" .
 .Pp
@@ -158,11 +184,11 @@ This manual also uses the triple bar symbol
 .Pq U+2261
 to separate the external representations of two objects that evaluate to the same objects.
 For example
-.Qq Ic "(+ 2 6) ≡ (+ 4 4)"
+.Qq Ic "(apply + 2 6) ≡ (apply + 4 4)"
 means that the object represented by
-.Qq Ic "(+ 2 6)"
+.Qq Ic "(apply + 2 6)"
 and the object represented by
-.Qq Ic "(+ 4 4)"
+.Qq Ic "(apply + 4 4)"
 evaluate to the same thing.
 .Pp
 There are two means of comparing objects.
@@ -211,7 +237,7 @@ because it determines the context in which an expression should be evaluated.
 Indeed, one could say that expressions do not, in themselves, have any meaning.
 Rather, an expression aquires a meaning only with respect to some environment in which it is evaluated.
 Even the interpretation of an expression as straightforward as
-.Ic "(+ 1 1)"
+.Ic "(apply + 1 1)"
 depends on an understanding that one is operating in a context in which
 .Ic "\)+"
 is the symbol of addition.
@@ -409,18 +435,6 @@ followed by an annotation of its operands and resulting evaluated value in paren
 .Pp
 Each annotation contains types of operands and the types of evaluation,
 separated by a right-pointing arrow.
-An interrocation point
-.Pq Ic "\)?\)"
-after a type indicates zero or one object of that type.
-An asterisk
-.Pq Ic "\)*"
-after a type indicates zero or more objects of that type.
-A plus sign
-.Pq Ic "\)+"
-after a type indicates one or more objects of that type.
-A exclamation point
-.Pq Ic "\)!"
-before a type indicates that the operand is not evaluated.
 The empty symbol
 .Pq Ic "\)∅"
 means that the operation consumes no operand or evaluates to nothing.
@@ -429,20 +443,20 @@ For each type there is a corresponding predicate operation
 (with the same name but ending with parenthesis)
 that expects an object and determines whether the given object is of such type.
 For example, for the type
-.Ic number
+.Ic number ,
 there is the predicate
 .Ic "number?\)" .
 The type
 .Ic any
 means any type.
 .Bl -tag -width Ds -compact
-.It Ic + Em "(number* → number)"
+.It Ic + Em "(number → number)"
 Addition.
-.It Ic * Em "(number* → number)"
+.It Ic * Em "(number → number)"
 Multiplication.
-.It Ic - Em "(number+ → number)"
+.It Ic - Em "(number → number)"
 Subtraction.
-.It Ic / Em "(number+ → number)"
+.It Ic / Em "(number → number)"
 Division.
 .It Ic = Em "(number × number → boolean)"
 Number equivalency.
@@ -462,42 +476,24 @@ The standard error port.
 The standard output port.
 .It Ic "define" Em "(symbol × any → ∅)"
 Binds symbol to object in current environment.
-.It Ic display Em "(any × output-port? → ∅)"
-Print user-readable form of object into port (default to current output port).
+.It Ic display Em "(any → ∅)"
+Print user-readable form of object into the current output port.
 .It Ic "false" Em "(∅ → false)"
 False.
 .It Ic "false?\)" Em "(any → boolean)"
 Predicate for false.
-.It Ic "lambda" Em "(vector × any → closure)"
-Creates applicative procedure closure.
-The given vector must contain zero or more symbols,
-which are used as formal parameters for the procedure.
-.It Ic "macro" Em "(vector × any → closure)"
-Creates non-applicative procedure closure.
-The given vector must contain one or more symbols,
-which are used as formal parameters for the procedure.
-.It Ic "make-environment" Em "(environment? → environment)"
-Creates a new environment.
-If an environment is provided, uses it as parent environment,
-other wise the created environment is orphan.
-.It Ic "make-string" Em "(n:size × c:byte? → string)"
+.It Ic "make-environment" Em "(environment → environment)"
+Creates a new environment using the given environment as parent environment.
+.It Ic "make-string" Em "(n:size → string)"
 Return newly allocated string of size
-.Ar n
-filled with either
-.Ar c
-or the zero byte.
-.It Ic "make-vector" Em "(n:size × o:any? → string)"
+.Ar n .
+.It Ic "make-vector" Em "(n:size → string)"
 Return newly allocated vector of size
-.Ar n
-filled with either
-.Ar o
-or the null element.
+.Ar n .
 .It Ic newline Em "(output-port? → ∅)"
 Print newline into port (default to current output port).
 .It Ic "null?\)" Em "(any → boolean)"
 Predicate for the empty vector.
-.It Ic "not\)" Em "(any → boolean)"
-Negation.
 .It Ic "port?\)" Em "(any → boolean)"
 Predicate for port.
 .It Ic "quote" Em "(any → any)"
@@ -557,7 +553,7 @@ True.
 Predicate for true.
 .It Ic "void" Em "(∅ → ∅)"
 Nothing.
-.It Ic "vector" Em "(any* → vector)"
+.It Ic "vector" Em "(any → vector)"
 Create vector with given elements.
 .It Ic "vector-copy" Em "(string → string)"
 Return newly allocated vector with elements from given vector.
@@ -585,8 +581,6 @@ It is an error if
 has no
 .Ar i
 element.
-.It Ic "wrap" Em "(operative → applicative)"
-Converts operative to applicative.
 .It Ic "write" Em "(any × output-port? → ∅)"
 Print printed external representation of object into port (default to current output port).
 .El

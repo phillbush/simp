@@ -20,6 +20,7 @@ struct Token {
 	enum Toktype {
 		TOK_ERROR,
 		TOK_EOF,
+		TOK_EXCLAM,
 		TOK_LPAREN,
 		TOK_RPAREN,
 		TOK_CHAR,
@@ -422,6 +423,9 @@ loop:
 		return tok;
 	}
 	switch (c) {
+	case '!':
+		tok.type = TOK_EXCLAM;
+		return tok;
 	case '(':
 		tok.type = TOK_LPAREN;
 		return tok;
@@ -490,7 +494,7 @@ fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 	while (list != NULL) {
 		tmp = list;
 		list = list->next;
-		simp_getvector(ctx, vect)[i++] = tmp->obj;
+		simp_setvector(ctx, vect, i++, tmp->obj);
 		free(tmp);
 	}
 	return vect;
@@ -606,6 +610,8 @@ toktoobj(Simp ctx, Simp port, Token tok)
 	Simp obj;
 
 	switch (tok.type) {
+	case TOK_EXCLAM:
+		return simp_makesymbol(ctx, (unsigned char *)"!", 1);
 	case TOK_LPAREN:
 		return readvector(ctx, port);
 	case TOK_IDENTIFIER:
@@ -674,7 +680,6 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
 		break;
 	case TYPE_BUILTIN:
-	case TYPE_VARARGS:
 	case TYPE_CLOSURE:
 		simp_printf(ctx, port, "#<procedure>");
 		break;
