@@ -31,9 +31,8 @@ Example:
             (apply - x 1)
             (apply ackermann x (apply - y 1)))))))
 
-(apply ackermann
-  (apply vector-ref (vector 0 1 2 3 4) 1)
-  (apply vector-ref (vector 5 6 7 8 9) 3))
+(apply display
+  (apply ackermann 1 6))
 ```
 
 The first expression defines the ackermann function; the second
@@ -58,3 +57,6 @@ The following can be observed:
   all applications are performed with the `apply` syntactic form.
   You can replace `apply` with `!` as a syntactic-sugar `(apply + 1 2)`
   is the same as `(!+ 1 2)`.
+
+* There are no pairs.  S-expressions are not implemented as singly
+  linked lists of cons cells, but as tuples/vectors.
