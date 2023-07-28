@@ -482,7 +482,7 @@ fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 	Simp vect;
 	SimpSiz i = 0;
 
-	vect = simp_makevector(ctx, nitems, simp_nil());
+	vect = simp_makevector(ctx, nitems);
 	if (simp_isexception(ctx, vect)) {
 		cleanvector(list);
 		return simp_makeexception(ctx, ERROR_MEMORY);
@@ -624,8 +624,7 @@ toktoobj(Simp ctx, Simp port, Token tok)
 		return simp_makebyte(ctx, (unsigned char)tok.u.fixnum);
 	case TOK_EOF:
 		return simp_eof();
-	case TOK_RPAREN:
-	case TOK_ERROR:
+	default:
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
 	}
 }
@@ -646,8 +645,6 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 	SimpSiz len, i;
 
 	switch (simp_gettype(ctx, obj)) {
-	case TYPE_VOID:
-		break;
 	case TYPE_BINDING:
 		simp_printf(ctx, port, "#<variable binding>");
 		break;
@@ -676,12 +673,10 @@ dowrite(Simp ctx, Simp port, Simp obj, bool display)
 	case TYPE_REAL:
 		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
 		break;
-	case TYPE_FORM:
 	case TYPE_BUILTIN:
 	case TYPE_VARARGS:
-	case TYPE_APPLICATIVE:
-	case TYPE_OPERATIVE:
-		simp_printf(ctx, port, "#<operation>");
+	case TYPE_CLOSURE:
+		simp_printf(ctx, port, "#<procedure>");
 		break;
 	case TYPE_PORT:
 		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));

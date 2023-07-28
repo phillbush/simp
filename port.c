@@ -5,6 +5,17 @@
 
 #include "simp.h"
 
+#define PORTS                           \
+	X(PORT_STDIN,   stdin,  "r"    )\
+	X(PORT_STDOUT,  stdout, "w"    )\
+	X(PORT_STDERR,  stderr, "w"    )
+
+enum Ports {
+#define X(n, f, m) n,
+	PORTS
+#undef  X
+};
+
 typedef struct Port {
 	enum PortType {
 		PORT_STREAM,
@@ -193,4 +204,57 @@ simp_porterr(Simp ctx, Simp obj)
 	(void)ctx;
 	port = simp_getport(ctx, obj);
 	return port->mode & PORT_ERR;
+}
+
+Simp
+simp_initports(Simp ctx)
+{
+	Simp ports, port;
+	SimpSiz i;
+	struct {
+		FILE *fp;
+		char *mode;
+	} portinit[] = {
+#define X(n, f, m) [n] = { .fp = f, .mode = m, },
+		PORTS
+#undef  X
+	};
+
+	ports = simp_makevector(ctx, 3);
+	if (simp_isexception(ctx, ports))
+		return ports;
+	for (i = 0; i < LEN(portinit); i++) {
+		port = simp_openstream(ctx, portinit[i].fp, portinit[i].mode);
+		if (simp_isexception(ctx, port))
+			return port;
+		simp_getvector(ctx, ports)[i] = port;
+	}
+	return ports;
+}
+
+Simp
+simp_contextiport(Simp ctx)
+{
+	Simp ports;
+
+	ports = simp_contextports(ctx);
+	return simp_getvectormemb(ctx, ports, PORT_STDIN);
+}
+
+Simp
+simp_contextoport(Simp ctx)
+{
+	Simp ports;
+
+	ports = simp_contextports(ctx);
+	return simp_getvectormemb(ctx, ports, PORT_STDOUT);
+}
+
+Simp
+simp_contexteport(Simp ctx)
+{
+	Simp ports;
+
+	ports = simp_contextports(ctx);
+	return simp_getvectormemb(ctx, ports, PORT_STDERR);
 }

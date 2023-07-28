@@ -15,20 +15,14 @@
 	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
 	X(ERROR_OUTOFRANGE,     "out of range"                          )\
 	X(ERROR_ILLEXPR,        "ill expression"                        )\
+	X(ERROR_ILLFORM,        "ill-formed syntactical form"           )\
+	X(ERROR_ILLSYNTAX,      "ill syntax form"                       )\
+	X(ERROR_UNKSYNTAX,      "unknown syntax form"                   )\
 	X(ERROR_ILLTYPE,        "improper type"                         )\
 	X(ERROR_NOTSYM,         "not a symbol"                          )\
 	X(ERROR_STREAM,         "stream error"                          )\
 	X(ERROR_RANGE,          "out of range"                          )\
 	X(ERROR_MEMORY,         "allocation error"                      )
-
-#define OPERATIONS                                       \
-	X(OP_DEFINE,            "define"                )\
-	X(OP_EVAL,              "eval"                  )\
-	X(OP_IF,                "if"                    )\
-	X(OP_MACRO,             "macro"                 )\
-	X(OP_LAMBDA,            "lambda"                )\
-	X(OP_SET,               "set!"                  )\
-	X(OP_WRAP,              "wrap"                  )
 
 #define BUILTINS                                                          \
 	X(F_BOOLEANP,     "boolean?",            f_booleanp,        1, 1 )\
@@ -61,7 +55,6 @@
 	X(F_VECTORREF,    "vector-ref",          f_vectorref,       2, 2 )\
 	X(F_VECTORLEN,    "vector-length",       f_vectorlen,       1, 1 )\
 	X(F_VECTORSET,    "vector-set!",         f_vectorset,       3, 3 )\
-	X(F_VOID,         "void",                f_void,            0, 0 )\
 	X(F_WRITE,        "write",               f_write,           1, 2 )
 
 #define VARARGS                                          \
@@ -73,7 +66,7 @@
 
 #define TYPES                                              \
 	/* Object type        Is vector   Is allocated   */\
-	X(TYPE_APPLICATIVE,   true,       true            )\
+	X(TYPE_CLOSURE,       true,       true            )\
 	X(TYPE_BUILTIN,       false,      false           )\
 	X(TYPE_VARARGS,       false,      false           )\
 	X(TYPE_BYTE,          false,      false           )\
@@ -81,17 +74,14 @@
 	X(TYPE_EOF,           false,      false           )\
 	X(TYPE_EXCEPTION,     false,      false           )\
 	X(TYPE_FALSE,         false,      false           )\
-	X(TYPE_OPERATIVE,     true,       true            )\
 	X(TYPE_BINDING,       true,       true            )\
-	X(TYPE_FORM,          false,      false           )\
 	X(TYPE_PORT,          false,      false           )\
 	X(TYPE_REAL,          false,      false           )\
 	X(TYPE_SIGNUM,        false,      false           )\
 	X(TYPE_STRING,        false,      true            )\
 	X(TYPE_SYMBOL,        false,      true            )\
 	X(TYPE_TRUE,          false,      false           )\
-	X(TYPE_VECTOR,        true,       true            )\
-	X(TYPE_VOID,          false,      false           )
+	X(TYPE_VECTOR,        true,       true            )
 
 typedef struct GC               GC;
 typedef struct Vector           Vector;
@@ -103,13 +93,6 @@ enum Exceptions {
 #define X(n, s) n,
 	EXCEPTIONS
 	NEXCEPTIONS
-#undef  X
-};
-
-enum Operations {
-#define X(n, s) n,
-	OPERATIONS
-	NOPERATIONS
 #undef  X
 };
 
@@ -136,7 +119,6 @@ struct Simp {
 		unsigned char  *errmsg;
 		unsigned char   byte;
 		void           *port;
-		enum Operations form;
 		enum Builtins   builtin;
 		enum Varargs    varargs;
 	} u;
@@ -159,7 +141,6 @@ Simp    simp_true(void);
 Simp    simp_void(void);
 
 /* data type accessors */
-enum Operations simp_getform(Simp ctx, Simp obj);
 enum Builtins simp_getbuiltin(Simp ctx, Simp obj);
 enum Varargs simp_getvarargs(Simp ctx, Simp obj);
 unsigned char simp_getbyte(Simp ctx, Simp obj);
@@ -173,16 +154,13 @@ unsigned char *simp_getexception(Simp ctx, Simp obj);
 Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
 enum Type simp_gettype(Simp ctx, Simp obj);
 Simp   *simp_getvector(Simp ctx, Simp obj);
-Simp    simp_getapplicativeenv(Simp ctx, Simp obj);
-Simp    simp_getapplicativeparam(Simp ctx, Simp obj);
-Simp    simp_getapplicativebody(Simp ctx, Simp obj);
-Simp    simp_getoperativeenv(Simp ctx, Simp obj);
-Simp    simp_getoperativeparam(Simp ctx, Simp obj);
-Simp    simp_getoperativebody(Simp ctx, Simp obj);
+Simp    simp_getclosureenv(Simp ctx, Simp obj);
+Simp    simp_getclosureparam(Simp ctx, Simp obj);
+Simp    simp_getclosurebody(Simp ctx, Simp obj);
 Vector *simp_getgcmemory(Simp ctx, Simp obj);
 
 /* data type predicates */
-bool    simp_isapplicative(Simp ctx, Simp obj);
+bool    simp_isclosure(Simp ctx, Simp obj);
 bool    simp_isbool(Simp ctx, Simp obj);
 bool    simp_isbuiltin(Simp ctx, Simp obj);
 bool    simp_isvarargs(Simp ctx, Simp obj);
@@ -195,7 +173,6 @@ bool    simp_isfalse(Simp ctx, Simp obj);
 bool    simp_isform(Simp ctx, Simp obj);
 bool    simp_isnum(Simp ctx, Simp obj);
 bool    simp_isnil(Simp ctx, Simp obj);
-bool    simp_isoperative(Simp ctx, Simp obj);
 bool    simp_ispair(Simp ctx, Simp obj);
 bool    simp_ispair(Simp ctx, Simp obj);
 bool    simp_isport(Simp ctx, Simp obj);
@@ -218,23 +195,24 @@ Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makeform(Simp ctx, int);
 Simp    simp_makebuiltin(Simp ctx, int);
 Simp    simp_makevarargs(Simp ctx, int);
-Simp    simp_makeapplicative(Simp ctx, Simp env, Simp param, Simp body);
+Simp    simp_makeclosure(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
-Simp    simp_makeoperative(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
-Simp    simp_makevector(Simp ctx, SimpSiz size, Simp fill);
+Simp    simp_makevector(Simp ctx, SimpSiz size);
 
 /* context operations */
 Simp    simp_contextenvironment(Simp ctx);
 Simp    simp_contextsymtab(Simp ctx);
+Simp    simp_contextports(Simp ctx);
 Simp    simp_contextiport(Simp ctx);
 Simp    simp_contextoport(Simp ctx);
 Simp    simp_contexteport(Simp ctx);
+Simp    simp_contextforms(Simp ctx);
 Simp    simp_contextnew(void);
 
 /* environment operations */
@@ -257,6 +235,8 @@ Simp    simp_read(Simp ctx, Simp port);
 Simp    simp_write(Simp ctx, Simp port, Simp obj);
 Simp    simp_display(Simp ctx, Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
+Simp    simp_initforms(Simp ctx);
+Simp    simp_initports(Simp ctx);
 
 /* gc */
 Vector *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);
