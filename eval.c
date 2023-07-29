@@ -703,7 +703,7 @@ loop:
 		expr = simp_getvectormemb(ctx, expr, 1);
 		goto loop;
 	} else if (simp_issame(ctx, form, forms[FORM_LAMBDA])) {
-		if (nobjects < 3)               /* (lambda args ... body) */
+		if (nobjects < 2)               /* (lambda args ... body) */
 			return simp_makeexception(ctx, ERROR_ARGS);
 		params = simp_makevector(ctx, nobjects - 2);
 		if (simp_isexception(ctx, params))
