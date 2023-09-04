@@ -1,9 +1,9 @@
-.Dd May 13, 2023
+.Dd September 4, 2023
 .Dt SIMP 1
 .Os
 .Sh NAME
 .Nm simp
-.Nd simp lisp interpreter
+.Nd simplistic programming language
 .Sh SYNOPSIS
 .Nm simp
 .Nm simp
@@ -22,8 +22,14 @@
 The
 .Nm
 utility is an interpreter for
-.Xr simp 7 ,
-a simplistic programming language.
+.Em Simp ,
+a minimalist (yet expressive),
+statically scoped,
+dynamically typed,
+properly tail-recursive,
+general-purpose LISP-1 programming language
+in which imperative, funcional and message-passing programming styles
+(to name a few) may be conveniently expressed.
 It reads expressions from a file, string, or standard input, and evaluates them
 (possibly writing to standard output the result of the evaluation, if in the REPL mode).
 .Pp
@@ -78,9 +84,857 @@ read expressions from the standard input instead.
 Unless the flag
 .Fl i
 is given, no interactive REPL occurs after evaluating the file.
+.Pp
+.Nm
+(like most dialects of Lisp)
+employs a fully parenthesized prefix notation for programs and other data known as
+.Em S-expression
+(or
+.Dq sexp
+for short).
+However,
+.Nm
+implements S-expressions as
+.Sy vectors
+rather than cons cells (aka pairs).
+In fact, it is the vector, not the pair, the primary mean
+of data combination.
+.Nm
+has no notion of
+.Ic cons , car , cdr
+or other procedures common in other LISP dialects.
+In
+.Nm ,
+lists can be implemented as a chain of vectors,
+in which the last element of each vector is a pointer to the next vector.
+.Sh EXPRESSIONS
+A
+.Nm
+program is a sequence of expressions, possibly alternated with comments and whitespace.
+.Pp
+An expression to
+.Em return
+a certain value means that the result of the evaluation of the expression is that value.
+.Pp
+An expression has one of the following forms.
+.Bl -tag -width Ds -compact
+.It Ic ( and Ar EXPRESSION ... )
+Evaluate each expression in turn and return false when one evaluate to false;
+return a true value otherwise.
+.It Ic ( apply Ar PROCEDURE ARGUMENT ... Ic )
+Return the result of the application of the given
+procedure to all the given arguments.
+.Ar PROCEDURE
+must be an expression that evaluates to a procedure;
+otherwise an error is signaled.
+Each
+.Ar ARGUMENT
+must be an expression that evaluates to a single value;
+otherwise an error is signaled.
+As a syntax-sugar, the syntactical symbol
+.Cm apply
+can be replaced with the exclamation point.
+.Cm "\)!" .
+.It Ic ( define Ar SYMBOL EXPRESSION Ic )
+Bind the given symbol to the given expression in the current environment.
+.Ar SYMBOL
+must be a symbol;
+otherwise an error is signaled.
+.It Ic ( do Ar EXPRESSION ... Ic )
+Evaluate each given expression and return the result of the last evaluation.
+.It Ic ( env )
+Return the current environment.
+.It Ic ( eval Ar EXPRESSION ENVIRONMENT )
+Evaluate the give expression in the given environment and return the result of the evaluation.
+.Ar ENVIRONMENT
+must be evaluate to an environment;
+otherwise an error is signaled.
+.It Ic ( false )
+Return the false boolean constant.
+.It Ic ( if Ar CONDITION ... THEN ... Op Ar ELSE )
+Evaluate each
+.Ar CONDITION
+expression in turn and, if it returns a true value, return the immediatelly following
+.Ar THEN
+expression.
+If all condition-then pairs have been tested, return the optional
+.Ar ELSE
+condition, if it exists.
+.It Ic ( lambda Ar SYMBOL ... Ar BODY )
+Return the closure in which the given symbols are bound to the given body.
+.It Ic ( or Ar EXPRESSION ... )
+Evaluate each expression in turn and return true when one evaluate to true;
+return a false value otherwise.
+.It Ic ( quote Ar EXPRESSION )
+Return the given expression itself, without evaluating it.
+.It Ic ( set Ar SYMBOL ArEXPRESSION )
+Rebind the given symbol to the given expression on the current environment.
+.Ar SYMBOL
+must be a symbol already bound in the current environment;
+otherwise an error is signaled.
+.It Ic ( true )
+Return the true boolean constant.
+.It Ic ( vector Op Ar EXPRESSION ... )
+Return an vector containing exactly the result of the given expressions.
+.It Ar SYMBOL
+Return the value that the given symbol is bound to in the current environment.
+.Ar SYMBOL
+must be a symbol already bound in the current environment;
+otherwise an error is signaled.
+.It Ar LITERAL
+Return the given literal expression.
+.Ar LITERAL
+can be any expression, except a symbol or a vector.
+.El
+.Pp
+Different from other LISP dialects, in
+.Nm ,
+procedure applications must be initated by the
+.Ic apply
+syntactic symbol.
+That is, the expression
+.Ic "(+ 1 2)"
+does not evaluate to anything and signals an error.
+The expression
+.Ic "(apply + 1 2)"
+however, does evaluate to 3.
+.Sh EVALUATION
+.Em Evaluation
+is the process of computing values from expressions.
+An expression can evaluate to zero or more values
+(TODO: THAT'S A LIE, EACH EXPRESSION EVALUATES TO A SINGLE OBJECT FOR NOW.
+IN THE FUTURE SIMP WILL SUPPORT RETURNING MULTIPLE VALUES).
+An expression can even evaluate to itself (a so called
+.Em self-evaluating
+expression).
+An evaluation can do more than just compute things,
+such as mutate an object, or perform input/output;
+such additional processes are called
+.Em side effects .
+An expression can also signal an error,
+in which case, the evaluation algorithm is interrupted,
+even when at a deep level of recursion.
+.Pp
+Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
+Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
+For example, the sequence of characters
+.Qq Ic "(apply + 2 6)"
+is an external representation of an object that evaluates to the integer 8;
+it is not however an external representation of the integer 8.
+The syntax of
+.Nm
+has the property that any sequence of characters that is an expression is also the external representation of some object.
+That can lead to confusion, since it may not be obvious out of context whether a given sequence of characters is intended to denote data or program,
+but it is also a source of power, since it facilitates writing programs such as interpreters and compilers that treat programs as data (or vice versa).
+.Pp
+This manual uses the rightwards double arrow symbol
+.Dq Ic "⇒"
+.Pq "U+21D2"
+to separate the external representation of an object from the external representation of the objects it evaluates to.
+For example
+.Qq Ic "(apply + 2 6) ⇒ 8"
+means that the object represented by
+.Qq Ic "(apply + 2 6)"
+evaluates to the object represented by
+.Qq Ic "8" .
+.Pp
+This manual also uses the triple bar symbol
+.Dq Ic "≡"
+.Pq U+2261
+to separate the external representations of two objects that evaluate to the same objects.
+For example
+.Qq Ic "(apply + 2 6) ≡ (apply + 4 4)"
+means that the object represented by
+.Qq Ic "(apply + 2 6)"
+and the object represented by
+.Qq Ic "(apply + 4 4)"
+evaluate to the same thing.
+.Pp
+There are two means of comparing objects.
+Two objects are the
+.Em same
+if they denote they are bound to the same thing or location.
+Two objects are
+.Em equivalent
+if the values stored in their locations are the same.
+.Pp
+Evaluation is subject to the current environment (see below).
+.Ss Environment
+An identifier may name a location in memory where a value can be stored.
+Such identifier is called a
+.Em variable
+and is said to be
+.Em bound
+to that location.
+The set of all visible bindings in effect at some point in a program is known as the
+.Em environment
+in effect at that point.
+The value stored in the location to which a variable is bound is called the variable's
+.Em value .
+By abuse of terminology, the variable is sometimes said to name the value or to be bound to the value.
+This is not quite accurate, but confusion rarely results from this practice.
+.Pp
+An environment is a sequence of
+.Em frames .
+Each frame is a table (possible empty) of
+.Em bindings ,
+which associate variable names with their corresponding location in memory.
+Frames are structured as a tree:
+each frame can point to either nothing or to a parent tree.
+The
+.Em value of a variable
+with respect to an environment
+is the value on the location given by the binding of the variable
+in the first frame in the environment that contains a binding for that variable.
+If no frame in the sequence specifies a binding for the variable,
+then the variable is said to be
+.Em unbound
+in the environment.
+.Pp
+The environment is crucial for the evaluation process,
+because it determines the context in which an expression should be evaluated.
+Indeed, one could say that expressions do not, in themselves, have any meaning.
+Rather, an expression aquires a meaning only with respect to some environment in which it is evaluated.
+Even the interpretation of an expression as straightforward as
+.Ic "(apply + 1 1)"
+depends on an understanding that one is operating in a context in which
+.Ic "\)+"
+is the symbol of addition.
+.Pp
+.Nm
+is a statically scoped language with block structure.
+To each place where an identifier is bound in a program there corresponds a
+.Em region
+of the program text within which the binding is visible.
+Every mention of an identifier refers to the binding of the identifier that established the innermost of the regions containing the use.
+If there is no binding of the identifier whose region contains the use, then the use refers to the binding for the variable in the top level environment, if any.
+If there is no binding for the identifier, it is said to be
+.Em unbound .
+.Ss External representations
+An important concept in
+.Nm
+(and Lisp)
+is that of the
+.Em external representation
+of an object as a sequence of characters.
+There are two forms of external representation:
+the printed and the read forms.
+.Pp
+The
+.Em printed external representation
+of an object is unique;
+and all objects have a printed external representation.
+For example, the printed external representation of the integer 28 is the sequence of characters
+.Qq Ic "28" ,
+and the printed external representation of a vector consisting of the integers 8 and 13 is the sequence of characters
+.Qq Ic "(8 13)" .
+The printed external representation of an object is generated by the
+.Ic write
+procedure.
+.Pp
+The
+.Em read external representation
+of an object is not necessarily unique;
+and certain objects may have no read external representation at all.
+The integer 28 has the read external representations
+.Qq Ic "28" ,
+.Qq Ic "28e",
+and
+.Qq Ic "0x1C" ,
+among others.
+Closures and port objects, for example, have no read external representation.
+The read external representation of an object is parsed by the
+.Ic read
+procedure.
+.Pp
+In most cases, an object's printed external representation is also a valid read external representation for the object.
+Objects that have no read external representations have their printed external representation surrounded by
+.Qq Ic "#<"
+and
+.Qq Ic ">" .
+For example, the printed external representation of the an output port is something like
+.Qq Ic "#<output-port 0x0123456789ABCDEF>".
+.Sh DATA TYPES
+A
+.Em data type
+can be interpreted as a set of possible objects.
+Each object belong to at least one type.
+Data types can overlap, and objects can belong to two or more types.
+A
+.Em primitive data type
+is a basic data type that is built into
+.Nm
+and from which all other data types are constructed.
+Primitive data types are
+.Em disjoint
+and do not overlap
+(that is, each object belongs to one and only one primitive data type).
+.Pp
+.Nm
+(like in most Lisps)
+is a dynamically typed programming language.
+Types are associated with objects
+rather than with variables.
+(Statically typed languages, by contrast, associate types with variables and expressions as well as with values).
+Object are self-typing;
+the primitive type of each object is implicit in the object itself.
+.Pp
+For each primitive data type (and a few other non-primitve ones),
+the standard library defines a set of variables bound to objects
+(constants, predicates, constructors, mutators, and accessors)
+used to manipulate objects of that data type (see
+.Sx STANDARD LIBRARY ) .
+.Ss Numbers
+[TODO: fixnums, bignums, numerical tower, etc]
+.Ss Booleans
+The boolean data type contains only two distinct unique objects: the true and false objects.
+These objects have no read external representation, therefore they cannot be created by the
+.Ic read
+procedure.
+They have, however, the printed external representations "#<true>" and "#<false>".
+.Pp
+Boolean objects (or "booleans" for short) can be used to control the evaluation of conditional procedures.
+The procedures in the
+.Sx STANDARD LIBRARY
+interpret the false boolean object as a logical false, and any other object (including the true boolean object) as a logical true.
+.Pp
+A boolean is immutable and self-evaluating.
+.Ss Symbols
+The symbol data type contains objects holding an interned string of characters.
+Symbol objects have identifiers as external representations.
+Two symbol objects with the same external representation (either read or printed) are the same object
+(they denote the same location in memory).
+.Pp
+Symbol objects (or "symbols" for short) are used to represent identifiers in programs.
+The printed external representation of a symbol is called the
+.Em name
+of the symbol.
+.Pp
+A symbol is immutable and evaluates to the value bound to the variable with the same name as the symbol in the current environment.
+.Ss End-of-file
+The end-of-file data type contains a single object, called the end-of-file.
+The end-of-file object has no read external representation.
+It has, however, the printed external representation "#<eof>".
+.Pp
+The end-of-file object (or "eof" for short) is used to represent the end of a read file or program.
+.Pp
+The eof is immutable and self-evaluating.
+.Ss Port
+The port data type contains objects representing input and output devices.
+A port object has no read external representation.
+The printed external representation of a port is unique for a port object, but unpredictable.
+.Pp
+Port objects (or "ports", for short) can be input ports, used to read bytes from files or bytevectors;
+or output ports, used to write bytes into files or bytevectors.
+Ports can be closed.
+When a port is closed, no further input/output operation is permited on that port.
+Input/output operation can be buffered, and closing a port flushes the buffer.
+.Pp
+A port is immutable and self-evaluating.
+.Ss Byte
+The byte data type (also known as "character" data type)
+contains a value from 0 to 255 inclusive.
+The external representation of a byte is a character literal.
+.Ss Bytevectors
+The bytevector data type (also known as "string" data type)
+contains objects denoting a sequence of zero or more locations in memory,
+each one holding exactly a byte.
+Where a
+.Em byte
+is an exact integer in the range from 0 to 255 inclusive.
+A bytevector is typically more space-efficient than a vector containing the same values.
+The external representation of bytevectors is a string literal.
+.Pp
+Bytevector objects are homogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
+The
+.Em length
+of a bytevector is the number of elements that it contains.
+This number is a non-negative integer that is fixed when the bytevector is created.
+The
+.Em valid indexes
+of a bytevector are the exact non-negative integers less than the length of the bytevector,
+starting at index zero.
+.Pp
+Bytevectors are usually used to hold string of characters encoded in UTF-8.
+For example, "Hello World" and "Eĥoŝanĝo Ĉiuĵaŭde" are two strings of characters encoded in UTF-8 in a bytevector.
+"\ex00\ex0A\ex05" is a bytevector of length 3 containing, in order, the bytes 0, 10 and 5 (or 0, A, and 5, in their hexadecimal form).
+.Pp
+A bytevector can be mutable or immutable, and is self-evaluating.
+.Ss Vectors
+The vector data type contains objects denoting a sequence of zero or more locations in memory,
+each one holding an object of arbitrary type.
+A vector object can have several different external representations (see below).
+.Pp
+Vector objects (or "vectors" for short) are heterogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
+The
+.Em length
+of a vector is the number of elements that it contains.
+This number is a non-negative integer that is fixed when the vector is created.
+The
+.Em valid indexes
+of a vector are the exact non-negative integers less than the length of the vector.
+The first element in a vector is indexed by zero, and the last element is indexed by one less than the length of the vector.
+A vector can contain any object as its elements, even other vectors.
+.Pp
+A vector with zero element is called a
+.Em nil .
+A vector with one element is called a
+.Em box .
+A vector with two elements is called a
+.Em pair .
+A vector with a number n of elements is called a
+.Em n-tuple .
+.Pp
+More complex data structures,
+such as linked lists, hash tables, trees, and records (to name a few),
+can be implemented in terms of vectors.
+.Sh STANDARD LIBRARY
+The standard library only contains operations, which are listed below,
+followed by an annotation of its operands and resulting evaluated value in parentheses.
+.Pp
+Each annotation contains types of operands and the types of evaluation,
+separated by a right-pointing arrow.
+The empty symbol
+.Pq Ic "\)∅"
+means that the operation consumes no operand or evaluates to nothing.
+.Pp
+For each type there is a corresponding predicate operation
+(with the same name but ending with parenthesis)
+that expects an object and determines whether the given object is of such type.
+For example, for the type
+.Ic number ,
+there is the predicate
+.Ic "number?\)" .
+The type
+.Ic any
+means any type.
+.Bl -tag -width Ds -compact
+.It Ic + Em "(number → number)"
+Addition.
+.It Ic * Em "(number → number)"
+Multiplication.
+.It Ic - Em "(number → number)"
+Subtraction.
+.It Ic / Em "(number → number)"
+Division.
+.It Ic = Em "(number × number → boolean)"
+Number equivalency.
+.It Ic < Em "(number × number → boolean)"
+Lesser than.
+.It Ic > Em "(number × number → boolean)"
+Greater than.
+.It Ic "boolean?\)" Em "any → boolean)"
+Predicate for the boolean type.
+.It Ic "byte?\)" Em "any → boolean)"
+Predicate for the byte type.
+.It Ic "current-input-port" Em "(∅ → port)"
+The standard input port.
+.It Ic "current-error-port" Em "(∅ → port)"
+The standard error port.
+.It Ic "current-output-port" Em "(∅ → port)"
+The standard output port.
+.It Ic "define" Em "(symbol × any → ∅)"
+Binds symbol to object in current environment.
+.It Ic display Em "(any → ∅)"
+Print user-readable form of object into the current output port.
+.It Ic "false" Em "(∅ → false)"
+False.
+.It Ic "false?\)" Em "(any → boolean)"
+Predicate for false.
+.It Ic "make-environment" Em "(environment → environment)"
+Creates a new environment using the given environment as parent environment.
+.It Ic "make-string" Em "(n:size → string)"
+Return newly allocated string of size
+.Ar n .
+.It Ic "make-vector" Em "(n:size → string)"
+Return newly allocated vector of size
+.Ar n .
+.It Ic newline Em "(output-port? → ∅)"
+Print newline into port (default to current output port).
+.It Ic "null?\)" Em "(any → boolean)"
+Predicate for the empty vector.
+.It Ic "port?\)" Em "(any → boolean)"
+Predicate for port.
+.It Ic "quote" Em "(any → any)"
+Quote object.
+.It Ic "same?\)" Em "(any any → boolean)"
+Whether two objects are the same.
+.It Ic "set!\)" Em "(symbol × any → ∅)"
+If the symbol is bound in the current environment,
+rebound it to the given object;
+signals an error otherwise
+.It Ic "string-compare" Em "(s0:string × s1:string → number)"
+Returns an integer less than, equal to, or greater than 0, according as
+.Ar s0
+is lexicographically less than, equal to, or greater than
+.Ar s1 .
+.It Ic "string?\)" Em "(any → boolean)"
+Predicate for string.
+.It Ic "string-equiv?\)" Em "(s0:string × s1:string → boolean)"
+Return whether
+.Ar s0
+and
+.Ar s1
+are equivalent.
+.It Ic "stirng-ref" Em "(s:string × i:number → byte)"
+Return the
+.Ar i Ns -th
+element of
+.Ar s .
+It is an error if 
+.Ar s
+has no
+.Ar i
+element.
+.It Ic "string-set!\)" Em "(s:string × i:number × b:byte → ∅)"
+Set the
+.Ar i Ns -th
+element of
+.Ar s
+to
+.Ar b .
+It is an error if
+.Ar s
+has no
+.Ar i
+element.
+.It Ic "string-copy" Em "(string → string)"
+Return newly allocated string with elements from given string.
+.It Ic "string-length" Em "(string → number)"
+Return number of bytes in the given string.
+.It Ic "string->vector" Em "(string → vector)"
+Return newly allocated vector of bytes from given string.
+.It Ic "symbol?\)" Em "(any → boolean)"
+Predicate for symbol.
+.It Ic "true" Em "(∅ → false)"
+True.
+.It Ic "true?\)" Em "(any → boolean)"
+Predicate for true.
+.It Ic "void" Em "(∅ → ∅)"
+Nothing.
+.It Ic "vector" Em "(any → vector)"
+Create vector with given elements.
+.It Ic "vector-copy" Em "(string → string)"
+Return newly allocated vector with elements from given vector.
+.It Ic "vector-length" Em "(vector → number)"
+Returns the number of bytes in the given vector.
+.It Ic "vector-ref\)" Em "(v:vector × i:number → any)"
+Returns the
+.Ar i Ns "-nth"
+element of
+.Ar v .
+It is an error if
+.Ar v
+has no
+.Ar i
+element.
+.It Ic "vector-set!\)" Em "(v:vector × i:number × o:any → ∅)"
+Set the
+.Ar i Ns "-nth"
+element of
+.Ar v
+to
+.Ar o .
+It is an error if
+.Ar v
+has no
+.Ar i
+element.
+.It Ic "write" Em "(any × output-port? → ∅)"
+Print printed external representation of object into port (default to current output port).
+.El
+.Sh FORMAL SYNTAX
+This section provides a formal syntax for
+.Nm
+written in an extended Backus-Naur form (BNF).
+Nonterminals are written between angle braces
+.Pq Ic "<...>" .
+A terminal symbol is written between double quotation marks
+.Pq Ic "\(dq...\(dq" .
+.Pp
+The following extensions to BNF are used to make the description more consise:
+.Bl -bullet
+.It
+.Ic "<thing>*"
+means zero or more occurrences of
+.Ic "<thing>" .
+.It
+.Ic "<thing>+"
+means one or more occurrences of
+.Ic "<thing>" .
+.It
+.Ic "<thing>?\)"
+means zero or one occurrence of
+.Ic "<thing>" .
+.El
+.Pp
+The BNF is augmented with the concepts of character classes and character ranges.
+A
+.Em character class
+is expressed between square braces and colons
+.Pq Ic "[:...:]"
+and denotes a named set of characters.
+A
+.Em character range
+is a set of characters and/or character classes between square braces
+.Pq Ic "[...]"
+and denotes any character in the set or in the classes.
+For example,
+.Pq Ic "[abc[:delimiter:]]"
+means an
+.Ic "a" ,
+or
+.Ic "b" ,
+or
+.Ic "c"
+character, or a character in the
+.Ic "[:delimiter:]"
+class.
+The notion of character range is augmented as follows.
+.Bl -bullet
+.It
+The
+.Ic "-"
+character has the same special meaning in a character range it has in ERE.
+For example,
+.Ic "[0-9]"
+is the same as
+.Ic "[0123456789]"
+(which is the same as
+.Ic "[:decimal:]" ) .
+.It
+The
+.Ic "^"
+character has the same special meaning in a character range it has in ERE.
+For example,
+.Ic "[^abc]"
+means any character but
+.Ic "a" ,
+.Ic "b" ,
+or
+.Ic "c" .
+.It
+The opening bracket
+.Ic "\)["
+may occur anywhere in a character range.
+.It
+The closing bracket
+.Ic "\)]"
+may occur only as the first character in a character range
+.El
+.Pp
+Unprintable and hard-to-type characters are represented in the same escape notation used in string literals.
+For example,
+.Ic "\en"
+is the newline.
+.Ss Alphabet
+The alphabet for this grammar is all the 256 bytes that can be read from a file augmented with the end-of-file indicator.
+.Pp
+The character classes are defined as follows.
+.Bd -literal -offset indent
+[:space:]         ← [ \ef\en\er\et\ev]
+[:binary:]        ← [0-1]
+[:octal:]         ← [0-7]
+[:decimal:]       ← [0-9]
+[:hexadecimal:]   ← [0-9A-Fa-f]
+[:delimiter:]     ← [][()#[:eof:][:space:]]
+.Ed
+.Pp
+The end-of-file indicator, in special, is represented by the special class
+.Ic "[:eof:]" .
+.Pp
+The backslash character
+.Pq Ic "\e" ,
+the double-quote character
+.Pq Ic "\(dq" ,
+and the single-quote character
+.Pq Ic "'" ,
+which have special meanings and thus would need to be escaped,
+are represented by the special classes
+.Ic "[:slash:]" ,
+.Ic "[:double-quote:]" ,
+and
+.Ic "[:single-quote:]" ,
+respectively.
+.Pp
+The special character class
+.Ic "[:anything:]"
+represents any character in the alphabet.
+.Ss Tokens
+A
+.Sy token
+is the lexical element used to compose well formed expressions.
+Some characters, known as
+.Sy delimiters ,
+have special meaning during the program parsing,
+because certain tokens require a delimiter to occur after them.
+A token is defined as follows:
+.Bd -literal -offset indent
+<token>           ← <end-of-file>
+                  | <left-paren>
+                  | <right-paren>
+                  | <identifier>
+                  | <char-literal>
+                  | <string-literal>
+                  | <number-literal>
+.Ed
+.Pp
+The end-of-file is the token that terminates a program.
+It is actually not a character, but is interpreted as if it were.
+.Bd -literal -offset indent
+<end-of-file>     ← [:eof:]
+.Ed
+.Pp
+Single-character tokens are the following:
+.Bd -literal -offset indent
+<left-paren>      ← "("
+<right-paren>     ← ")"
+.Ed
+A character literal is composed by one character element between single quotes.
+A string literal is composed by zero or more character elements between double quotes.
+A character element is any character other than a double quote or a backslash
+or an escaped character.
+Chracter literals and string literals are used to represent
+characters and strings (alsow known as bytevectors) respectively.
+The single and the double quotation mark characters that terminates a
+character and a string are themselves delimiters.
+.Bd -literal -offset indent
+<char-literal>    ← [:single-quote:] <string-element> [:single-quote:]
+<string-literal>  ← [:double-quote:] <string-element>* [:double-quote:]
+<string-element>  ← [^[:double-quote:][:slash:]]
+                  | [:slash:][:anything:]
+.Ed
+.Pp
+A number literal begins with an optional signal and is followed by the number body.
+A delimiter must occur after a numer literal.
+.Bd -literal -offset indent
+<number-literal>  ← <signal> <number-body>
+<signal>          ← [+-]?
+<number-body>     ← <binary-literal>
+                  | <octal-literal>
+                  | <decimal-literal>
+                  | <hex-literal>
+                  | <real-literal>
+<binary-literal>  ← 0 [bB] [[:binary:]]*
+<octal-literal>   ← 0 [oO] [[:octal:]]*
+<decimal-literal> ← 0 [dD] [[:decimal:]]*
+<hex-literal>     ← 0 [dD] [[:hexadecimal:]]*
+<real-literal>    ← [[:decimal:]]+ <fraction>? <exponent>?
+<fraction>        ← "." [[:decimal:]]*
+<exponent>        ← <signal> [[:decimal:]]*
+.Ed
+.Pp
+An identifier is any sequence of non-delimiter characters
+that does not form another type of token.
+A delimiter character must occur after an identifier.
+.Bd -literal -offset indent
+<identifier>      ← <initial> [^[:delimiter:]]*
+<initial>         ← "+" [^[:decimal:][:delimiter:]]
+                  | "-" [^[:decimal:][:delimiter:]]
+                  | [^+-.[:decimal:][:delimiter:]]
+.Ed
+.Ss Escape sequences
+Within a string literal, sequences of characters beginning with a backslash
+.Pq Ic "\e"
+are called
+.Sy "escape sequences"
+and represent bytes other than the characters themselves.
+Most escape sequences represent a single byte,
+but some forms may represent more than one byte.
+An invalid escape sequence is equivalent to the character after the backslash;
+for example, the string literal
+.Dq Ic "\ej"
+does not contain a valid escape sequence, so it is equivalent to
+.Dq Ic "j" .
+The valid escape sequences are as follows:
+.Bl -tag -width Ds -compact
+.It Ic \ea
+Alarm (U+0007).
+.It Ic \eb
+Backspace (U+0008).
+.It Ic \et
+Horizontal tab (U+0009).
+.It Ic \en
+Line feed (U+000A).
+.It Ic \ev
+Vertical tab (U+000B).
+.It Ic \ef
+Form feed (U+000C).
+.It Ic \er
+Carriage return (U+000D).
+.It Ic \ee
+Escape character (U+001B).
+.It Ic \e"
+Double quote (U+0022).
+.It Ic \e\e
+Backslash (U+005C).
+.It Ic "\e" Ns Ar num
+Byte whose value is the 1-, 2-, or 3-digit octal number
+.Ar num .
+.It Ic "\ex" Ns Ar num
+Byte whose value is the 1- or 2-digit hexadecimal number
+.Ar num .
+.It Ic "\eu" Ns Ar num
+Bytes encoding, in UTF-8, the 4-digit hexadecimal number
+.Ar num .
+.It Ic "\eU" Ns Ar num
+Bytes encoding, in UTF-8, the 8-digit hexadecimal number
+.Ar num .
+.El
+.Ss Intertoken space
+Tokens are separated by intertoken space, which includes both whitespace and comments.
+Intertoken space is used for improved readability,
+and as necessary to separate tokens from each other.
+.Bd -literal -offset indent
+<whitespace>      ← [[:space:]]
+<comment>         ← "#" [^\en]* "\en"
+<atmosphere>      ← <whitespace> | <comment>
+<intertoken>      ← <atmosphere>*
+.Ed
+Whitespace can occur between any two tokens, but not within a token.
+Whitespace occurring inside a string literal is significant.
+.Pp
+Comments are annotations in the source code and are treated exactly like whitespace.
+A hash character
+.Pq Ic "#"
+outside a string literal indicates the start of a comment.
+The comment continues to the end of the line on which the hash character appears.
+.Ss Read external representation
+The following is a simplification of the syntax of a read external representation.
+This syntax is not complete, because intertoken-space may occur on either side of any token
+(but not within a token).
+.Bd -literal -offset indent
+<representation>  ← <number>
+                  | <string>
+                  | <symbol>
+                  | <vector>
+<number>          ← <number-literal>
+<byte>            ← <char-literal>
+<string>          ← <string-literal>
+<symbol>          ← <identifier>
+<vector>          ← <left-paren> <representation>* <right-paren>
+.Ed
+.Ss Program
+A
+.Nm
+program is a sequence of characters forming whitespace, comments, and tokens.
+The tokens in a program must form syntactically well formed expressions.
+.Bd -literal -offset indent
+<program>         ← <expression>*
+<expression>      ← <variable>
+                  | <literal>
+                  | <application>
+<variable>        ← <symbol>
+<literal>         ← <number> | <string>
+<application>     ← <vector>
+.Ed
+.Sh FORMAL SEMANTICS
+I have no idea what a formal semantics is or does.
+.Sh EXAMPLES
+[TODO]
 .Sh SEE ALSO
-.Xr simp 3 ,
-.Xr simp 7
+.Xr simp 1 ,
+.Xr simp 3
 .Rs
 .%A Harold Abelson
 .%A Gerald Jay Sussman
@@ -89,3 +943,62 @@ is given, no interactive REPL occurs after evaluating the file.
 .%I The MIT Press
 .%D 1996
 .Re
+.Sh STANDARDS
+The
+.Nm
+programming language is compliant with nothing, as it has not been standardised.
+It was influenced by the Scheme and Kernel LISP dialects.
+.Pp
+The syntax for comments and number literals breaks the usual LISP tradition,
+and are influenced by shell script comments and C constants, respectively.
+.Pp
+Parts of this manual (especially at the
+.Sx DESCRIPTION
+section) were blatantly stolen from
+.Rs
+.%B Revised⁵ Report on the Algorithmic Language Scheme
+.Re
+.Sh HISTORY
+The
+.Nm
+programming language was developed as a personal playground for
+programming language theory, motivated by the reading of the Wizard Book
+(Abelson & Sussman).  It first appeared as a C library in 2022.
+.Sh AUTHORS
+The
+.Nm
+programming language was designed by
+.An Lucas de Sena Aq Mt "lucas AT seninha DOT org" .
+.Sh BUGS
+The
+.Nm
+programming language implemented in
+.Xr simp 1
+and
+.Xr simp 3
+is not complete, and may not conform to this manpage.
+.Pp
+This manual page is also not complete, as the language is only
+informally specified, and may change significantly from one release to
+the other.
+.Pp
+This manual uses the terms "string" and "bytevector" interchangeably,
+as both refer to the same
+.Nm
+data structure.
+Note that "string" and "string literal" refer to different concepts;
+the former is a data type, while the latter is a token type.
+.Pp
+This manual avoids to use the word "character" to refer to the elements of a string.
+This manual uses the word "character" to refer solely to the units that compose tokens read by the parser.
+Strings in
+.Nm
+can possibly contain no valid character
+(in the sense of a UTF-8 encoded codepoint).
+This manual uses the term "byte" instead to refer to the elements of a string.
+.Pp
+There's no "character" data type,
+either in the C sense of a "byte",
+or in the sense of a UTF-8 encoded codepoint.
+A single byte can be represented as a one-element string.
+A UTF-8 encoded codepoint can be represented as a string containing the encoding bytes.

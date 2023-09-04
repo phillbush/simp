@@ -100,7 +100,8 @@ struct Simp {
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
-	SimpSiz size;
+	SimpSiz capacity;
+	SimpSiz nmembers;
 	enum Type {
 #define X(n, v, h) n,
 	TYPES
@@ -125,7 +126,8 @@ unsigned char simp_getbyte(Simp ctx, Simp obj);
 SimpInt simp_getnum(Simp ctx, Simp obj);
 void   *simp_getport(Simp ctx, Simp obj);
 double  simp_getreal(Simp ctx, Simp obj);
-SimpSiz   simp_getsize(Simp ctx, Simp obj);
+SimpSiz simp_getsize(Simp ctx, Simp obj);
+SimpSiz simp_getcapacity(Simp ctx, Simp obj);
 unsigned char *simp_getstring(Simp ctx, Simp obj);
 unsigned char *simp_getsymbol(Simp ctx, Simp obj);
 unsigned char *simp_getexception(Simp ctx, Simp obj);
@@ -183,6 +185,8 @@ Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makevector(Simp ctx, SimpSiz size);
+Simp    simp_slicevector(Simp ctx, Simp obj, SimpSiz from, SimpSiz size);
+Simp    simp_slicestring(Simp ctx, Simp obj, SimpSiz from, SimpSiz size);
 
 /* context operations */
 Simp    simp_contextenvironment(Simp ctx);

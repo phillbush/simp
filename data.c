@@ -310,7 +310,8 @@ simp_empty(void)
 	return (Simp){
 		.type = TYPE_STRING,
 		.u.vector = NULL,
-		.size = 0,
+		.nmembers = 0,
+		.capacity = 0,
 	};
 }
 
@@ -399,10 +400,17 @@ simp_getreal(Simp ctx, Simp obj)
 }
 
 SimpSiz
+simp_getcapacity(Simp ctx, Simp obj)
+{
+	(void)ctx;
+	return obj.capacity;
+}
+
+SimpSiz
 simp_getsize(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return obj.size;
+	return obj.nmembers;
 }
 
 unsigned char *
@@ -610,6 +618,30 @@ simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
 }
 
 Simp
+simp_slicevector(Simp ctx, Simp obj, SimpSiz from, SimpSiz size)
+{
+	(void)ctx;
+	return (Simp){
+		.type = TYPE_VECTOR,
+		.u.vector = obj.u.vector + from,
+		.capacity = obj.capacity - from,
+		.nmembers = size
+	};
+}
+
+Simp
+simp_slicestring(Simp ctx, Simp obj, SimpSiz from, SimpSiz size)
+{
+	(void)ctx;
+	return (Simp){
+		.type = TYPE_STRING,
+		.u.string = obj.u.string + from,
+		.capacity = obj.capacity - from,
+		.nmembers = size
+	};
+}
+
+Simp
 simp_true(void)
 {
 	return (Simp){ .type = TYPE_TRUE };
@@ -701,7 +733,8 @@ simp_makeport(Simp ctx, void *p)
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_PORT,
-		.size = 0,
+		.nmembers = 1,
+		.capacity = 1,
 		.u.port = p,
 	};
 }
@@ -732,7 +765,8 @@ simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
-		.size = size,
+		.capacity = size,
+		.nmembers = size,
 		.u.string = dst,
 	};
 }
@@ -794,7 +828,8 @@ simp_makevector(Simp ctx, SimpSiz size)
 	return (Simp){
 		.type = TYPE_VECTOR,
 		.u.vector = data,
-		.size = size,
+		.capacity = size,
+		.nmembers = size,
 	};
 }
 
@@ -803,7 +838,8 @@ simp_nil(void)
 {
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.size = 0,
+		.capacity = 0,
+		.nmembers = 0,
 		.u.vector = NULL,
 	};
 }
@@ -829,14 +865,14 @@ simp_getgcmemory(Simp ctx, Simp obj)
 	if (isvector[type]) {
 		if (obj.u.vector == NULL)
 			return NULL;
-		return &obj.u.vector[obj.size];
+		return &obj.u.vector[obj.capacity];
 	}
 	switch (simp_gettype(ctx, obj)) {
 	case TYPE_STRING:
 	case TYPE_SYMBOL:
 		if (obj.u.string == NULL)
 			return NULL;
-		return &obj.u.string[obj.size];
+		return &obj.u.string[obj.capacity];
 	case TYPE_PORT:
 		if (obj.u.port == NULL)
 			return NULL;

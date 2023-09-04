@@ -37,6 +37,8 @@
 	X(F_NULLP,        "null?",               f_nullp,           1 )\
 	X(F_PORTP,        "port?",               f_portp,           1 )\
 	X(F_SAMEP,        "same?",               f_samep,           2 )\
+	X(F_SLICESTRING,  "slice-string",        f_slicestring,     3 )\
+	X(F_SLICEVECTOR,  "slice-vector",        f_slicevector,     3 )\
 	X(F_STRINGCMP,    "string-compare",      f_stringcmp,       2 )\
 	X(F_STRINGLEN,    "string-length",       f_stringlen,       1 )\
 	X(F_STRINGREF,    "string-ref",          f_stringref,       2 )\
@@ -286,6 +288,56 @@ f_samep(Simp ctx, Simp args)
 }
 
 static Simp
+f_slicevector(Simp ctx, Simp args)
+{
+	Simp v, a, b;
+	SimpSiz from, size, capacity;
+
+	v = simp_getvectormemb(ctx, args, 0);
+	a = simp_getvectormemb(ctx, args, 1);
+	b = simp_getvectormemb(ctx, args, 2);
+	if (!simp_isvector(ctx, v))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, a))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, b))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	from = simp_getnum(ctx, a);
+	size = simp_getnum(ctx, b);
+	capacity = simp_getcapacity(ctx, v);
+	if (from < 0 || from > capacity)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size < 0 || from + size > capacity)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	return simp_slicevector(ctx, v, from, size);
+}
+
+static Simp
+f_slicestring(Simp ctx, Simp args)
+{
+	Simp v, a, b;
+	SimpSiz from, size, capacity;
+
+	v = simp_getvectormemb(ctx, args, 0);
+	a = simp_getvectormemb(ctx, args, 1);
+	b = simp_getvectormemb(ctx, args, 2);
+	if (!simp_isstring(ctx, v))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, a))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_isnum(ctx, b))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	from = simp_getnum(ctx, a);
+	size = simp_getnum(ctx, b);
+	capacity = simp_getcapacity(ctx, v);
+	if (from < 0 || from > capacity)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size < 0 || from + size > capacity)
+		return simp_makeexception(ctx, ERROR_RANGE);
+	return simp_slicestring(ctx, v, from, size);
+}
+
+static Simp
 f_subtract(Simp ctx, Simp args)
 {
 	SimpInt n;
@@ -433,7 +485,7 @@ f_vectorset(Simp ctx, Simp args)
 	str = simp_getvectormemb(ctx, args, 0);
 	pos = simp_getvectormemb(ctx, args, 1);
 	val = simp_getvectormemb(ctx, args, 2);
-	if (!simp_isvector(ctx, str) || !simp_isnum(ctx, pos) || !simp_isbyte(ctx, val))
+	if (!simp_isvector(ctx, str) || !simp_isnum(ctx, pos))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	size = simp_getsize(ctx, str);
 	n = simp_getnum(ctx, pos);
