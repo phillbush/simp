@@ -43,9 +43,13 @@
 	X(TYPE_SYMBOL,        false,      true            )\
 	X(TYPE_TRUE,          false,      false           )
 
-typedef struct GC               GC;
-typedef struct Vector           Vector;
+#define PORTS                           \
+	X(PORT_STDIN,   stdin,  "r"    )\
+	X(PORT_STDOUT,  stdout, "w"    )\
+	X(PORT_STDERR,  stderr, "w"    )
+
 typedef struct Simp             Simp;
+typedef struct Port             Port;
 typedef unsigned long long      SimpSiz;
 typedef long long               SimpInt;
 typedef struct Builtin          Builtin;
@@ -57,17 +61,46 @@ enum Exceptions {
 #undef  X
 };
 
+enum Ports {
+#define X(n, f, m) n,
+	PORTS
+#undef  X
+};
+
+struct Port {
+	enum PortType {
+		PORT_STREAM,
+		PORT_STRING,
+	} type;
+	enum PortMode {
+		PORT_OPEN     = 0x01,
+		PORT_WRITE    = 0x02,
+		PORT_READ     = 0x04,
+		PORT_ERR      = 0x08,
+		PORT_EOF      = 0x10,
+	} mode;
+	union {
+		void   *fp;
+		struct {
+			unsigned char *arr;
+			SimpSiz curr, size;
+		} str;
+	} u;
+	SimpInt nlines;
+};
+
 struct Simp {
 	union {
 		SimpInt         num;
 		double          real;
-		Vector         *vector;
-		Vector         *port;
-		void           *string;
+		Simp           *vector;
+		struct Port    *port;
+		unsigned char  *string;
 		unsigned char  *errmsg;
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
+	SimpSiz size;
 	enum Type {
 #define X(n, v, h) n,
 	TYPES
@@ -103,7 +136,7 @@ Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getclosureenv(Simp ctx, Simp obj);
 Simp    simp_getclosureparam(Simp ctx, Simp obj);
 Simp    simp_getclosurebody(Simp ctx, Simp obj);
-Vector *simp_getgcmemory(Simp ctx, Simp obj);
+void   *simp_getgcmemory(Simp ctx, Simp obj);
 
 /* data type predicates */
 bool    simp_isclosure(Simp ctx, Simp obj);
@@ -145,7 +178,7 @@ Simp    simp_makeclosure(Simp ctx, Simp env, Simp param, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
-Simp    simp_makeport(Simp ctx, Vector *p);
+Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
@@ -186,8 +219,6 @@ Simp    simp_initports(Simp ctx);
 Simp    simp_initbuiltins(Simp ctx);
 
 /* gc */
-Vector *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);
-void   *simp_gcgetdata(Vector *vector);
-SimpSiz simp_gcgetlength(Vector *vector);
+void   *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);

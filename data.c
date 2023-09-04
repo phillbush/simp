@@ -116,7 +116,7 @@ Simp *
 simp_getvector(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gcgetdata(obj.u.vector);
+	return obj.u.vector;
 }
 
 static Simp *
@@ -310,6 +310,7 @@ simp_empty(void)
 	return (Simp){
 		.type = TYPE_STRING,
 		.u.vector = NULL,
+		.size = 0,
 	};
 }
 
@@ -387,7 +388,7 @@ void *
 simp_getport(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gcgetdata(obj.u.port);
+	return obj.u.port;
 }
 
 double
@@ -401,20 +402,7 @@ SimpSiz
 simp_getsize(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	switch (simp_gettype(ctx, obj)) {
-	case TYPE_VECTOR:
-		if (obj.u.vector == NULL)
-			return 0;
-		return simp_gcgetlength(obj.u.vector);
-	case TYPE_STRING:
-	case TYPE_SYMBOL:
-	case TYPE_EXCEPTION:
-		if (obj.u.string == NULL)
-			return 0;
-		return simp_gcgetlength(obj.u.string);
-	default:
-		return 0;
-	}
+	return obj.size;
 }
 
 unsigned char *
@@ -423,14 +411,14 @@ simp_getstring(Simp ctx, Simp obj)
 	(void)ctx;
 	if (simp_isempty(ctx, obj))
 		return NULL;
-	return simp_gcgetdata(obj.u.string);
+	return obj.u.string;
 }
 
 unsigned char *
 simp_getsymbol(Simp ctx, Simp obj)
 {
 	(void)ctx;
-	return simp_gcgetdata(obj.u.string);
+	return obj.u.string;
 }
 
 Simp
@@ -708,11 +696,12 @@ simp_makeclosure(Simp ctx, Simp env, Simp params, Simp body)
 }
 
 Simp
-simp_makeport(Simp ctx, Vector *p)
+simp_makeport(Simp ctx, void *p)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_PORT,
+		.size = 0,
 		.u.port = p,
 	};
 }
@@ -730,22 +719,21 @@ simp_makereal(Simp ctx, double x)
 Simp
 simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 {
-	Vector *vector;
 	unsigned char *dst = NULL;
 
 	if (size < 0)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_empty();
-	vector = simp_gcnewarray(ctx, size, 1);
-	if (vector == NULL)
+	dst = simp_gcnewarray(ctx, size, 1);
+	if (dst == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	dst = simp_gcgetdata(vector);
 	if (src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
-		.u.string = vector,
+		.size = size,
+		.u.string = dst,
 	};
 }
 
@@ -791,7 +779,6 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 Simp
 simp_makevector(Simp ctx, SimpSiz size)
 {
-	Vector *vector;
 	SimpSiz i;
 	Simp *data;
 
@@ -799,15 +786,15 @@ simp_makevector(Simp ctx, SimpSiz size)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
-	vector = simp_gcnewarray(ctx, size, sizeof(Simp));
-	if (vector == NULL)
+	data = simp_gcnewarray(ctx, size, sizeof(Simp));
+	if (data == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	data = simp_gcgetdata(vector);
 	for (i = 0; i < size; i++)
 		data[i] = simp_nil();
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.u.vector = vector,
+		.u.vector = data,
+		.size = size,
 	};
 }
 
@@ -816,6 +803,7 @@ simp_nil(void)
 {
 	return (Simp){
 		.type = TYPE_VECTOR,
+		.size = 0,
 		.u.vector = NULL,
 	};
 }
@@ -826,9 +814,34 @@ simp_void(void)
 	return simp_nil();
 }
 
-Vector *
+void *
 simp_getgcmemory(Simp ctx, Simp obj)
 {
+	enum Type type;
+	static bool isvector[] = {
+#define X(n, v, h) [n] = v,
+		TYPES
+#undef  X
+	};
+
 	(void)ctx;
-	return obj.u.vector;
+	type = simp_gettype(ctx, obj);
+	if (isvector[type]) {
+		if (obj.u.vector == NULL)
+			return NULL;
+		return &obj.u.vector[obj.size];
+	}
+	switch (simp_gettype(ctx, obj)) {
+	case TYPE_STRING:
+	case TYPE_SYMBOL:
+		if (obj.u.string == NULL)
+			return NULL;
+		return &obj.u.string[obj.size];
+	case TYPE_PORT:
+		if (obj.u.port == NULL)
+			return NULL;
+		return &obj.u.port[1];
+	default:
+		return 0;
+	}
 }

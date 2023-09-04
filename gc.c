@@ -3,9 +3,11 @@
 
 #include "simp.h"
 
+#define ALIGN (sizeof(SimpSiz) > sizeof(void *) ? sizeof(SimpSiz) : sizeof(void *))
+
 enum {
 	/*
-	 * Vectors begin marked with 0; the current garbage mark begins
+	 * Footers begin marked with 0; the current garbage mark begins
 	 * with 1.
 	 *
 	 * At each garbage collection run, the garbage mark switches
@@ -20,25 +22,22 @@ enum {
 	MARK_ZERO = 0,
 	MARK_ONE  = 1,
 	MARK_MUL  = -1,
-	MARK_ALL  = 100,
 };
 
-struct Vector {
-	struct Vector *prev;
-	struct Vector *next;
-	void          *data;
-	SimpSiz        size;
-	int            mark;
-};
+typedef struct Footer {
+	struct Footer  *prev;
+	struct Footer  *next;
+	void           *data;
+	int             mark;
+} Footer;
 
-struct GC {
+typedef struct GC {
 	/* same structure, just to rename the members */
-	struct Vector *free;
-	struct Vector *curr;
-	void          *data;
-	SimpSiz        size;
-	int            mark;
-};
+	struct Footer  *free;
+	struct Footer  *curr;
+	void           *data;
+	int             mark;
+} GC;
 
 static bool isvector[] = {
 #define X(n, v, h) [n] = v,
@@ -55,35 +54,36 @@ static bool isheap[] = {
 static void
 mark(Simp ctx, Simp obj)
 {
-	Vector *vector;
-	SimpSiz i;
+	Footer *footer;
+	SimpSiz size, i;
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
 	enum Type type;
 
 	type = simp_gettype(ctx, obj);
 	if (!isheap[type])
 		return;
-	vector = simp_getgcmemory(ctx, obj);
-	if (vector == NULL)
+	footer = simp_getgcmemory(ctx, obj);
+	if (footer == NULL)
 		return;
-	if (vector->mark == gc->mark)
+	if (footer->mark == gc->mark)
 		return;
-	vector->mark = gc->mark;
-	if (vector->next != NULL)
-		vector->next->prev = vector->prev;
-	if (vector->prev != NULL)
-		vector->prev->next = vector->next;
+	footer->mark = gc->mark;
+	if (footer->next != NULL)
+		footer->next->prev = footer->prev;
+	if (footer->prev != NULL)
+		footer->prev->next = footer->next;
 	else
-		gc->free = vector->next;
-	vector->next = gc->curr;
-	vector->prev = NULL;
+		gc->free = footer->next;
+	footer->next = gc->curr;
+	footer->prev = NULL;
 	if (gc->curr != NULL)
-		gc->curr->prev = vector;
-	gc->curr = vector;
+		gc->curr->prev = footer;
+	gc->curr = footer;
 	if (!isvector[type])
 		return;
-	for (i = 0; i < vector->size; i++) {
-		mark(ctx, ((Simp *)vector->data)[i]);
+	size = simp_getsize(ctx, obj);
+	for (i = 0; i < size; i++) {
+		mark(ctx, ((Simp *)footer->data)[i]);
 	}
 }
 
@@ -91,14 +91,13 @@ static void
 sweep(Simp ctx)
 {
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
-	Vector *vector, *tmp;
+	Footer *footer, *tmp;
 
-	vector = gc->free;
-	while (vector != NULL) {
-		tmp = vector;
-		vector = vector->next;
+	footer = gc->free;
+	while (footer != NULL) {
+		tmp = footer;
+		footer = footer->next;
 		free(tmp->data);
-		free(tmp);
 	}
 }
 
@@ -106,13 +105,14 @@ void
 simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 {
 	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
-	SimpSiz i;
+	SimpSiz size, i;
 
 	gc->free = gc->curr;
 	gc->curr = NULL;
 	for (i = 0; i < nobjs; i++)
 		mark(ctx, objs[i]);
-	for (i = 0; i < gc->size; i++)
+	size = simp_getsize(ctx, ctx);
+	for (i = 0; i < size; i++)
 		mark(ctx, ((Simp *)gc->data)[i]);
 	sweep(ctx);
 	gc->mark *= MARK_MUL;
@@ -129,10 +129,10 @@ simp_gcfree(Simp ctx)
 	free(gc->data);
 }
 
-Vector *
+void *
 simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
 {
-	Vector *vector = NULL;
+	Footer *footer = NULL;
 	void *data = NULL;
 	GC *gc;
 
@@ -140,41 +140,26 @@ simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
 		gc = NULL;
 	else
 		gc = (GC *)simp_getgcmemory(ctx, ctx);
-	if ((vector = malloc(sizeof(*vector))) == NULL)
+	if (posix_memalign(&data, ALIGN, nmembs * membsiz + sizeof(*footer)) != 0)
 		goto error;
-	if ((data = calloc(nmembs, membsiz)) == NULL)
-		goto error;
-	*vector = (struct Vector){
+	footer = (Footer *)((char *)data + nmembs * membsiz);
+	*footer = (struct Footer){
 		.mark = MARK_ZERO,
 		.prev = NULL,
 		.next = NULL,
 		.data = data,
-		.size = nmembs,
 	};
 	if (gc == NULL) {
 		/* there's no garbage context (we're creating it right now) */
-		vector->mark = MARK_ONE;
-		return vector;
+		footer->mark = MARK_ONE;
+		return data;
 	}
-	vector->next = gc->curr;
+	footer->next = gc->curr;
 	if (gc->curr != NULL)
-		gc->curr->prev = vector;
-	gc->curr = vector;
-	return vector;
+		gc->curr->prev = footer;
+	gc->curr = footer;
+	return data;
 error:
 	free(data);
-	free(vector);
 	return NULL;
-}
-
-void *
-simp_gcgetdata(Vector *vector)
-{
-	return vector->data;
-}
-
-SimpSiz
-simp_gcgetlength(Vector *vector)
-{
-	return vector->size;
 }

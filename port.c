@@ -5,39 +5,6 @@
 
 #include "simp.h"
 
-#define PORTS                           \
-	X(PORT_STDIN,   stdin,  "r"    )\
-	X(PORT_STDOUT,  stdout, "w"    )\
-	X(PORT_STDERR,  stderr, "w"    )
-
-enum Ports {
-#define X(n, f, m) n,
-	PORTS
-#undef  X
-};
-
-typedef struct Port {
-	enum PortType {
-		PORT_STREAM,
-		PORT_STRING,
-	} type;
-	enum PortMode {
-		PORT_OPEN     = 0x01,
-		PORT_WRITE    = 0x02,
-		PORT_READ     = 0x04,
-		PORT_ERR      = 0x08,
-		PORT_EOF      = 0x10,
-	} mode;
-	union {
-		FILE   *fp;
-		struct {
-			unsigned char *arr;
-			SimpSiz curr, size;
-		} str;
-	} u;
-	SimpInt nlines;
-} Port;
-
 static enum PortMode
 openmode(char *s)
 {
@@ -79,7 +46,7 @@ simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 		);
 		break;
 	case PORT_STREAM:
-		vfprintf(port->u.fp, fmt, ap);
+		vfprintf((FILE *)port->u.fp, fmt, ap);
 		break;
 	}
 	va_end(ap);
@@ -104,9 +71,9 @@ simp_readbyte(Simp ctx, Simp obj)
 		byte = port->u.str.arr[port->u.str.curr++];
 		break;
 	case PORT_STREAM:
-		c = fgetc(port->u.fp);
+		c = fgetc((FILE *)port->u.fp);
 		if (c == EOF) {
-			if (ferror(port->u.fp))
+			if (ferror((FILE *)port->u.fp))
 				port->mode |= PORT_ERR;
 			else
 				port->mode |= PORT_EOF;
@@ -136,7 +103,7 @@ simp_unreadbyte(Simp ctx, Simp obj, int c)
 			port->u.str.arr[--port->u.str.curr] = (unsigned char)c;
 		break;
 	case PORT_STREAM:
-		(void)ungetc(c, port->u.fp);
+		(void)ungetc(c, (FILE *)port->u.fp);
 		break;
 	}
 }
@@ -156,35 +123,31 @@ simp_openstream(Simp ctx, void *p, char *mode)
 {
 	FILE *stream;
 	Port *port;
-	Vector *v;
 
 	stream = (FILE *)p;
-	if ((v = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
+	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	port = simp_gcgetdata(v);
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
 	port->nlines = 0;
-	return simp_makeport(ctx, v);
+	return simp_makeport(ctx, port);
 }
 
 Simp
 simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
-	Vector *v;
 
-	if ((v = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
+	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
 		return simp_makeexception(ctx, ERROR_MEMORY);
-	port = simp_gcgetdata(v);
 	port->type = PORT_STRING;
 	port->mode = openmode(mode);
 	port->u.str.arr = p;
 	port->u.str.size = len;
 	port->u.str.curr = 0;
 	port->nlines = 0;
-	return simp_makeport(ctx, v);
+	return simp_makeport(ctx, port);
 }
 
 int

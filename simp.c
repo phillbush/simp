@@ -109,7 +109,7 @@ main(int argc, char *argv[])
 		mode = MODE_SCRIPT;
 	ctx = simp_contextnew();
 	if (simp_isexception(simp_nil(), ctx))
-		errx(EXIT_FAILURE, "could not create context");
+		errx(EXIT_FAILURE, "%s", simp_getexception(simp_nil(), ctx));
 	port = simp_openstring(
 		ctx,
 		_binary_stdlib_lisp_start,
