@@ -22,6 +22,8 @@
 #define BUILTINS                                                       \
 	X(F_BOOLEANP,     "boolean?",            f_booleanp,        1 )\
 	X(F_BYTEP,        "byte?",               f_bytep,           1 )\
+	X(F_CAR,          "car",                 f_car,             1 )\
+	X(F_CDR,          "cdr",                 f_cdr,             1 )\
 	X(F_CURIPORT,     "current-input-port",  f_curiport,        0 )\
 	X(F_CUROPORT,     "current-output-port", f_curoport,        0 )\
 	X(F_CUREPORT,     "current-error-port",  f_cureport,        0 )\
@@ -102,6 +104,36 @@ static Simp
 f_bytep(Simp ctx, Simp args)
 {
 	return typepred(ctx, args, simp_isbyte);
+}
+
+static Simp
+f_car(Simp ctx, Simp args)
+{
+	SimpSiz size;
+	Simp obj;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (!simp_isvector(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, obj);
+	if (size < 1)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	return simp_getvectormemb(ctx, obj, 0);
+}
+
+static Simp
+f_cdr(Simp ctx, Simp args)
+{
+	SimpSiz size;
+	Simp obj;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (!simp_isvector(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	size = simp_getsize(ctx, obj);
+	if (size < 1)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	return simp_slicevector(ctx, obj, 1, size - 1);
 }
 
 static Simp
