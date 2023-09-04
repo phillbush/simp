@@ -13,6 +13,9 @@ Documentation:
 * The C API is documented in `./simp.3`.
 
 TODO:
+* Drop the need to apply every procedure?
+* Add quasi-quote and unquote.
+* Display the line number and file of error.
 * Multiple values.
 * Arbitrary precision arithmetic.
 
