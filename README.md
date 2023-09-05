@@ -42,10 +42,9 @@ The following can be observed:
   Defining a procedure must be done with both `define` and `lambda`
   forms.
 
-* The `lambda` form does not get a list of symbols and then one or more
-  expressions as body.  It gets zero or more symbols and a single
-  expression as body.  To evaluate to a sequence, use the `do` form
-  as body.
+* The `lambda` form does not get a sequence of expressions as body.  It
+  gets a single expression as body.  To evaluate to a sequence, use the
+  `do` form as body.
 
 * There is no `cond` form. The `if` form is the same as scheme's `cond`
   but with less parentheses.
