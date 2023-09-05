@@ -7,12 +7,12 @@ Garbage collection and tail-call optimization are implemented.
 See `./simp.1` for documentation.
 
 TODO:
-* Drop the need to apply every procedure?
 * Add quasi-quote and unquote.
 * Display the line number and file of error.
 * Multiple values?
 * Arbitrary precision arithmetic.
 * Move exception system into `eval.c`.
+* Move repl loop into `eval.c`.
 
 Example:
 

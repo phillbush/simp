@@ -229,15 +229,15 @@ Return the product of the given numbers.
 Return the difference of the given numbers.
 .It Ic ( "/" Ar NUMBER NUMBER ... ) "⇒" NUMBER
 Return the ratio of the given numbers.
-.It Ic ( "=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+.It Ic ( "=" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are equal.
-.It Ic ( "<" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+.It Ic ( "<" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are monotonically increasing.
-.It Ic ( ">" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+.It Ic ( ">" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are monotonically decreasing.
-.It Ic ( "<=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+.It Ic ( "<=" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are monotonically nondecreasing.
-.It Ic ( ">=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+.It Ic ( ">=" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are monotonically nonincreasing.
 .El
 .Ss String Procedures
@@ -246,7 +246,7 @@ Return whether the given numbers are monotonically nonincreasing.
 Return a newly allocated string containing the given bytes.
 .It Ic ( string-append Ar STRING ... ) "⇒" STRING
 Return a newly allocated string whose elements form the concatenation of the given strings.
-.It Ic ( string-copy Ar VECTOR ) "⇒" STRING
+.It Ic ( string-dup Ar STRING ) "⇒" STRING
 Return a newly allocated string with size and elements the same as the given string.
 .It Ic ( string-equiv?\) Ar STRING STRING ) "⇒" BOOLEAN
 Return whether the given strings have the same length and the same elements.
@@ -277,7 +277,7 @@ Return a newly allocated vector filled with the bytes of the given string.
 Return a newly allocated vector containing the given objects.
 .It Ic ( vector-append Ar VECTOR ... ) "⇒" VECTOR
 Return a newly allocated vector whose elements form the concatenation of the given vectors.
-.It Ic ( vector-copy Ar VECTOR ) "⇒" VECTOR
+.It Ic ( vector-dup Ar VECTOR ) "⇒" VECTOR
 Return a newly allocated vector with size and elements the same as the given vector.
 .It Ic ( vector-equiv?\) Ar VECTOR STRING ) "⇒" BOOLEAN
 Return whether the given vectors have the same length and the same elements.
@@ -317,7 +317,7 @@ in its external representation.
 .El
 .Ss Environment Procedures
 .Bl -tag -width Ds -compact
-.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
+.It Ic ( environment-new Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
 Return a newly allocated environment using the given environment
 (default the current environment) as parent environment.
 .It Ic ( environment-empty ) Ar "⇒" ENVIRONMENT
