@@ -16,51 +16,46 @@
 	X(FORM_SET,             "set!"                  )\
 	X(FORM_TRUE,            "true"                  )
 
-#define BUILTINS                                                       \
-	X(F_BOOLEANP,     "boolean?",            f_booleanp,        1 )\
-	X(F_BYTEP,        "byte?",               f_bytep,           1 )\
-	X(F_CAR,          "car",                 f_car,             1 )\
-	X(F_CDR,          "cdr",                 f_cdr,             1 )\
-	X(F_CURIPORT,     "current-input-port",  f_curiport,        0 )\
-	X(F_CUROPORT,     "current-output-port", f_curoport,        0 )\
-	X(F_CUREPORT,     "current-error-port",  f_cureport,        0 )\
-	X(F_DISPLAY,      "display",             f_display,         1 )\
-	X(F_EQUAL,        "=",                   f_equal,           2 )\
-	X(F_FALSEP,       "falsep",              f_falsep,          1 )\
-	X(F_GT,           ">",                   f_gt,              2 )\
-	X(F_LT,           "<",                   f_lt,              2 )\
-	X(F_MAKESTRING,   "make-string",         f_makestring,      1 )\
-	X(F_MAKEVECTOR,   "make-vector",         f_makevector,      1 )\
-	X(F_MAKEENV,      "make-environment",    f_makeenvironment, 1 )\
-	X(F_NEWLINE,      "newline",             f_newline,         0 )\
-	X(F_NULLP,        "null?",               f_nullp,           1 )\
-	X(F_PORTP,        "port?",               f_portp,           1 )\
-	X(F_SAMEP,        "same?",               f_samep,           2 )\
-	X(F_SLICESTRING,  "slice-string",        f_slicestring,     3 )\
-	X(F_SLICEVECTOR,  "slice-vector",        f_slicevector,     3 )\
-	X(F_STRINGCMP,    "string-compare",      f_stringcmp,       2 )\
-	X(F_STRINGLEN,    "string-length",       f_stringlen,       1 )\
-	X(F_STRINGREF,    "string-ref",          f_stringref,       2 )\
-	X(F_STRINGP,      "string?",             f_stringp,         1 )\
-	X(F_STRINGSET,    "string-set!",         f_stringset,       3 )\
-	X(F_STRINGVECTOR, "string->vector",      f_stringvector,    1 )\
-	X(F_SYMBOLP,      "symbol?",             f_symbolp,         1 )\
-	X(F_TRUEP,        "true?",               f_truep,           1 )\
-	X(F_VECTORREF,    "vector-ref",          f_vectorref,       2 )\
-	X(F_VECTORLEN,    "vector-length",       f_vectorlen,       1 )\
-	X(F_VECTORSET,    "vector-set!",         f_vectorset,       3 )\
-	X(F_WRITE,        "write",               f_write,           2 )\
-	X(F_ADD,          "+",                   f_add,             2 )\
-	X(F_DIVIDE,       "/",                   f_divide,          2 )\
-	X(F_MULTIPLY,     "*",                   f_multiply,        2 )\
-	X(F_SUBTRACT,     "-",                   f_subtract,        2 )
-
-enum Builtins {
-#define X(n, s, p, a) n,
-	BUILTINS
-	NBUILTINS
-#undef  X
-};
+#define BUILTINS                                                 \
+	/* SYMBOL            FUNCTION        NARGS   VARIADIC */ \
+	X("boolean?",        f_booleanp,     1,      false      )\
+	X("byte?",           f_bytep,        1,      false      )\
+	X("car",             f_car,          1,      false      )\
+	X("cdr",             f_cdr,          1,      false      )\
+	X("stdin",           f_stdin,        0,      false      )\
+	X("stdout",          f_stdout,       0,      false      )\
+	X("stderr",          f_stderr,       0,      false      )\
+	X("display",         f_display,      1,      true       )\
+	X("=",               f_equal,        2,      true       )\
+	X("falsep",          f_falsep,       1,      false      )\
+	X(">",               f_gt,           2,      true       )\
+	X("<",               f_lt,           2,      true       )\
+	X("string-new",      f_makestring,   1,      false      )\
+	X("vector-new",      f_makevector,   1,      false      )\
+	X("environment",     f_envnew,       1,      false      )\
+	X("newline",         f_newline,      0,      true       )\
+	X("null?",           f_nullp,        1,      false      )\
+	X("port?",           f_portp,        1,      false      )\
+	X("same?",           f_samep,        2,      false      )\
+	X("slice-string",    f_slicestring,  3,      false      )\
+	X("slice-vector",    f_slicevector,  3,      false      )\
+	X("string-compare",  f_stringcmp,    2,      false      )\
+	X("string-length",   f_stringlen,    1,      false      )\
+	X("string-ref",      f_stringref,    2,      false      )\
+	X("string?",         f_stringp,      1,      false      )\
+	X("string-set!",     f_stringset,    3,      false      )\
+	X("string->vector",  f_stringvector, 1,      false      )\
+	X("symbol?",         f_symbolp,      1,      false      )\
+	X("true?",           f_truep,        1,      false      )\
+	X("vector",          f_vectorref,    2,      false      )\
+	X("vector-ref",      f_vectorref,    2,      false      )\
+	X("vector-length",   f_vectorlen,    1,      false      )\
+	X("vector-set!",     f_vectorset,    3,      false      )\
+	X("write",           f_write,        2,      false      )\
+	X("+",               f_add,          2,      false      )\
+	X("/",               f_divide,       2,      false      )\
+	X("*",               f_multiply,     2,      false      )\
+	X("-",               f_subtract,     2,      false      )
 
 enum Forms {
 #define X(n, s) n,
@@ -140,21 +135,21 @@ f_booleanp(Simp ctx, Simp args)
 }
 
 static Simp
-f_curiport(Simp ctx, Simp args)
+f_stdin(Simp ctx, Simp args)
 {
 	(void)args;
 	return simp_contextiport(ctx);
 }
 
 static Simp
-f_curoport(Simp ctx, Simp args)
+f_stdout(Simp ctx, Simp args)
 {
 	(void)args;
 	return simp_contextoport(ctx);
 }
 
 static Simp
-f_cureport(Simp ctx, Simp args)
+f_stderr(Simp ctx, Simp args)
 {
 	(void)args;
 	return simp_contexteport(ctx);
@@ -235,7 +230,7 @@ f_lt(Simp ctx, Simp args)
 }
 
 static Simp
-f_makeenvironment(Simp ctx, Simp args)
+f_envnew(Simp ctx, Simp args)
 {
 	Simp env;
 
@@ -632,7 +627,7 @@ simp_initbuiltins(Simp ctx)
 	Simp env, sym, ret, val;
 	SimpSiz i, len;
 	static Builtin builtins[] = {
-#define X(n, s, p, a) [n] = { .name = s, .fun = &p, .nargs = a, },
+#define X(s, p, a, v) { .name = s, .fun = &p, .nargs = a, },
 		BUILTINS
 #undef  X
 	};

@@ -711,12 +711,16 @@ simp_makeclosure(Simp ctx, Simp env, Simp params, Simp body)
 
 	if (!simp_isenvironment(ctx, env))
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (!simp_isvector(ctx, params))
+	if (simp_isvector(ctx, params)) {
+		nparams = simp_getsize(ctx, params);
+		for (i = 0; i < nparams; i++) {
+			if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i))) {
+				return simp_makeexception(ctx, ERROR_ILLEXPR);
+			}
+		}
+	} else if (!simp_issymbol(ctx, params)) {
 		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	nparams = simp_getsize(ctx, params);
-	for (i = 0; i < nparams; i++)
-		if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i)))
-			return simp_makeexception(ctx, ERROR_ILLEXPR);
+	}
 	lambda = simp_makevector(ctx, CLOSURE_SIZE);
 	if (simp_isexception(ctx, lambda))
 		return lambda;
