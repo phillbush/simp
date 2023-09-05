@@ -111,17 +111,28 @@ in which the last element of each vector is a pointer to the next vector.
 A
 .Nm
 program is a sequence of expressions, possibly alternated with comments and whitespace.
-.Pp
-An expression to
-.Em return
-a certain value means that the result of the evaluation of the expression is that value.
-.Pp
-An expression has one of the following forms.
+The kind of value that an expression returns is specified below after the
+.Em "⇒" symbol.
+An expression can be a special form, a symbol, a literal or a procedure combination.
+Builtin procedures are listed below, after the special forms.
+.Ss Non-vector Forms
 .Bl -tag -width Ds -compact
-.It Ic ( and Ar EXPRESSION ... )
+.It Ar SYMBOL "⇒" OBJECT
+Return the value that the given symbol is bound to in the current environment.
+.Ar SYMBOL
+must be a symbol already bound in the current environment;
+otherwise an error is signaled.
+.It Ar LITERAL "⇒" OBJECT
+Return the given literal expression.
+.Ar LITERAL
+can be any expression, except a symbol or a vector.
+.El
+.Ss Special Forms
+.Bl -tag -width Ds -compact
+.It Ic ( and Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return false when one evaluate to false;
 return a true value otherwise.
-.It Ic ( apply Ar PROCEDURE ARGUMENT ... Ic )
+.It Ic ( apply Ar PROCEDURE OBJECT ... ) "⇒" OBJECT
 Return the result of the application of the given
 procedure to all the given arguments.
 .Ar PROCEDURE
@@ -135,23 +146,21 @@ As a syntax-sugar, the syntactical symbol
 .Cm apply
 can be replaced with the exclamation point.
 .Cm "\)!" .
-.It Ic ( define Ar SYMBOL EXPRESSION Ic )
+.It Ic ( define Ar SYMBOL EXPRESSION Ic ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
 .Ar SYMBOL
 must be a symbol;
 otherwise an error is signaled.
-.It Ic ( do Ar EXPRESSION ... Ic )
+.It Ic ( do Ar EXPRESSION ... Ic ) "⇒" OBJECT
 Evaluate each given expression and return the result of the last evaluation.
-.It Ic ( env )
-Return the current environment.
-.It Ic ( eval Ar EXPRESSION ENVIRONMENT )
+.It Ic ( eval Ar EXPRESSION ENVIRONMENT ) "⇒" OBJECT
 Evaluate the give expression in the given environment and return the result of the evaluation.
 .Ar ENVIRONMENT
 must be evaluate to an environment;
 otherwise an error is signaled.
 .It Ic ( false )
 Return the false boolean constant.
-.It Ic ( if Ar CONDITION ... THEN ... Op Ar ELSE )
+.It Ic ( if Ar CONDITION ... THEN ... Op Ar ELSE ) "⇒" OBJECT
 Evaluate each
 .Ar CONDITION
 expression in turn and, if it returns a true value, return the immediatelly following
@@ -160,22 +169,21 @@ expression.
 If all condition-then pairs have been tested, return the optional
 .Ar ELSE
 condition, if it exists.
-.It Ic ( lambda Ar SYMBOL ... Ar BODY )
-Return the closure in which the given symbols are bound to the given body.
-.It Ic ( or Ar EXPRESSION ... )
+.It Ic ( lambda Ar VECTOR EXPRESSION ) "⇒" VOID
+Return the closure in which the symbols in the given vector are bound to the actual arguments in the given body expression.
+.It Ic ( lambda Ar SYMBOL EXPRESSION ) "⇒" VOID
+Return the closure in which the given symbol is bound to the vector of actual arguments in the given body expression.
+This special form is used for variadic procedures.
+.It Ic ( or Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
-.It Ic ( quote Ar EXPRESSION )
+.It Ic ( quote Ar EXPRESSION ) "⇒" OBJECT
 Return the given expression itself, without evaluating it.
-.It Ic ( set Ar SYMBOL ArEXPRESSION )
-Rebind the given symbol to the given expression on the current environment.
-.Ar SYMBOL
-must be a symbol already bound in the current environment;
-otherwise an error is signaled.
-.It Ic ( true )
+.It Ic ( set!\) Ar SYMBOL OBJECT ) "⇒" VOID
+Rebound the given symbol to the given object in the current environment.
+It is an error if the symbol is not already bound in the current environment.
+.It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
-.It Ic ( vector Op Ar EXPRESSION ... )
-Return an vector containing exactly the result of the given expressions.
 .It Ar SYMBOL
 Return the value that the given symbol is bound to in the current environment.
 .Ar SYMBOL
@@ -186,18 +194,146 @@ Return the given literal expression.
 .Ar LITERAL
 can be any expression, except a symbol or a vector.
 .El
-.Pp
-Different from other LISP dialects, in
-.Nm ,
-procedure applications must be initated by the
-.Ic apply
-syntactic symbol.
-That is, the expression
-.Ic "(+ 1 2)"
-does not evaluate to anything and signals an error.
-The expression
-.Ic "(apply + 1 2)"
-however, does evaluate to 3.
+.Ss Type Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( same?\) Ar OBJECT ... ) "⇒" BOOLEAN
+Return whether the given objects are the same.
+.It Ic ( boolean?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a boolean object.
+.It Ic ( byte?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a byte object.
+.It Ic ( empty?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the string object with zero elements.
+.It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is an environment object.
+.It Ic ( false?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the false object.
+.It Ic ( null?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the vector object with zero elements.
+.It Ic ( port?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a port object.
+.It Ic ( string?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a string object.
+.It Ic ( true?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is not the false object.
+.It Ic ( vector?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a vector object.
+.El
+.Ss Arithmetic Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( "+" Ar NUMBER ... ) "⇒" NUMBER
+Return the sum of the given numbers.
+.It Ic ( "*" Ar NUMBER ... ) "⇒" NUMBER
+Return the product of the given numbers.
+.It Ic ( "-" Ar NUMBER NUMBER ... ) "⇒" NUMBER
+Return the difference of the given numbers.
+.It Ic ( "/" Ar NUMBER NUMBER ... ) "⇒" NUMBER
+Return the ratio of the given numbers.
+.It Ic ( "=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+Return whether the given numbers are equal.
+.It Ic ( "<" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+Return whether the given numbers are monotonically increasing.
+.It Ic ( ">" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+Return whether the given numbers are monotonically decreasing.
+.It Ic ( "<=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+Return whether the given numbers are monotonically nondecreasing.
+.It Ic ( ">=" Ar NUMBER NUMBER ... ) "⇒" BOOLEAN
+Return whether the given numbers are monotonically nonincreasing.
+.El
+.Ss String Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( string Ar BYTE ... ) "⇒" STRING
+Return a newly allocated string containing the given bytes.
+.It Ic ( string-append Ar STRING ... ) "⇒" STRING
+Return a newly allocated string whose elements form the concatenation of the given strings.
+.It Ic ( string-copy Ar VECTOR ) "⇒" STRING
+Return a newly allocated string with size and elements the same as the given string.
+.It Ic ( string-equiv?\) Ar STRING STRING ) "⇒" BOOLEAN
+Return whether the given strings have the same length and the same elements.
+.It Ic ( string-length Ar STRING ) "⇒" NUMBER
+Return the number of elements of the given string.
+.It Ic ( string-new Ar NUMBER ) "⇒" STRING
+Return a newly allocated string of the given size filled with the zero byte.
+.It Ic ( string-ref Ar STRING NUMBER ) "⇒" BYTE
+Return the i-th element of the given string.
+.It Ic ( string-set!\) Ar STRING NUMBER BYTE ) "⇒" STRING
+Set the i-th element of the given string to the given byte.
+.It Ic ( string-slice Ar STRING [ NUMBER [ NUMBER ] ] ) "⇒" STRING
+Return the given string indexed from the first given number (default 0)
+with the second given number (default maximum possible) elements.
+For example,
+.Cm "(string-slice "abcde" 1 3)"
+returns the string
+.Cm "bcd" .
+Both strings point to the same memory,
+so changing an element in the resulting string
+also changes the corresponding element in the original string.
+.El
+.Ss Vector Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( string->vector Ar STRING ) "⇒" VECTOR
+Return a newly allocated vector filled with the bytes of the given string.
+.It Ic ( vector Ar OBJECT ... ) "⇒" VECTOR
+Return a newly allocated vector containing the given objects.
+.It Ic ( vector-append Ar VECTOR ... ) "⇒" VECTOR
+Return a newly allocated vector whose elements form the concatenation of the given vectors.
+.It Ic ( vector-copy Ar VECTOR ) "⇒" VECTOR
+Return a newly allocated vector with size and elements the same as the given vector.
+.It Ic ( vector-equiv?\) Ar VECTOR STRING ) "⇒" BOOLEAN
+Return whether the given vectors have the same length and the same elements.
+.It Ic ( vector-length Ar VECTOR ) "⇒" NUMBER
+Return the number of elements of the given vector.
+.It Ic ( vector-new Ar NUMBER ) "⇒" VECTOR
+Return a newly allocated vector of the given size filled with the null object.
+.It Ic ( vector-ref Ar VECTOR NUMBER ) "⇒" OBJECT
+Return the i-th element of the given vector.
+.It Ic ( vector-set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
+Set the i-th element of the given vector to the given object.
+.It Ic ( vector-slice Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
+Return the given vector indexed from the first given number (default 0)
+with the second given number (default maximum possible) elements.
+For example,
+.Cm "(vector-slice (vector 'a' 'b' 'c' 'd' 'e') 1 3)"
+returns the vector
+.Cm "('b' 'c' 'd')" .
+Both vectors point to the same memory,
+so changing an element in the resulting vector
+also changes the corresponding element in the original vector.
+.El
+.Ss Input/Output Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( stderr ) Ar "⇒" PORT
+Return the standard error port.
+.It Ic ( stdin ) Ar "⇒" PORT
+Return the standard input port.
+.It Ic ( stdout ) Ar "⇒" PORT
+Return the standard output port.
+.It Ic ( display Ar OBJECT [ PORT ] ) "⇒" PORT
+Write into the given object to the given port (standard output, by default)
+in user-readable form.
+.It Ic ( write Ar OBJECT [ PORT ] ) "⇒" PORT
+Write into the given object to the given port (standard output, by default)
+in its external representation.
+.El
+.Ss Environment Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
+Return a newly allocated environment using the given environment
+(default the current environment) as parent environment.
+.It Ic ( environment-empty ) Ar "⇒" ENVIRONMENT
+Return the empty environment.
+.El
+.Ss Lexicographical Comparison Procedures
+.Bl -tag -width Ds -compact
+.It Ic ( string-<?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in increasing order.
+.It Ic ( string->?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in decreasing order.
+.It Ic ( string-<=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in nondecreasing order.
+.It Ic ( string->=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in nonincreasing order.
+.El
 .Sh EVALUATION
 .Em Evaluation
 is the process of computing values from expressions.
@@ -488,161 +624,6 @@ A vector with a number n of elements is called a
 More complex data structures,
 such as linked lists, hash tables, trees, and records (to name a few),
 can be implemented in terms of vectors.
-.Sh STANDARD LIBRARY
-The standard library only contains operations, which are listed below,
-followed by an annotation of its operands and resulting evaluated value in parentheses.
-.Pp
-Each annotation contains types of operands and the types of evaluation,
-separated by a right-pointing arrow.
-The empty symbol
-.Pq Ic "\)∅"
-means that the operation consumes no operand or evaluates to nothing.
-.Pp
-For each type there is a corresponding predicate operation
-(with the same name but ending with parenthesis)
-that expects an object and determines whether the given object is of such type.
-For example, for the type
-.Ic number ,
-there is the predicate
-.Ic "number?\)" .
-The type
-.Ic any
-means any type.
-.Bl -tag -width Ds -compact
-.It Ic + Em "(number → number)"
-Addition.
-.It Ic * Em "(number → number)"
-Multiplication.
-.It Ic - Em "(number → number)"
-Subtraction.
-.It Ic / Em "(number → number)"
-Division.
-.It Ic = Em "(number × number → boolean)"
-Number equivalency.
-.It Ic < Em "(number × number → boolean)"
-Lesser than.
-.It Ic > Em "(number × number → boolean)"
-Greater than.
-.It Ic "boolean?\)" Em "any → boolean)"
-Predicate for the boolean type.
-.It Ic "byte?\)" Em "any → boolean)"
-Predicate for the byte type.
-.It Ic "current-input-port" Em "(∅ → port)"
-The standard input port.
-.It Ic "current-error-port" Em "(∅ → port)"
-The standard error port.
-.It Ic "current-output-port" Em "(∅ → port)"
-The standard output port.
-.It Ic "define" Em "(symbol × any → ∅)"
-Binds symbol to object in current environment.
-.It Ic display Em "(any → ∅)"
-Print user-readable form of object into the current output port.
-.It Ic "false" Em "(∅ → false)"
-False.
-.It Ic "false?\)" Em "(any → boolean)"
-Predicate for false.
-.It Ic "make-environment" Em "(environment → environment)"
-Creates a new environment using the given environment as parent environment.
-.It Ic "make-string" Em "(n:size → string)"
-Return newly allocated string of size
-.Ar n .
-.It Ic "make-vector" Em "(n:size → string)"
-Return newly allocated vector of size
-.Ar n .
-.It Ic newline Em "(output-port? → ∅)"
-Print newline into port (default to current output port).
-.It Ic "null?\)" Em "(any → boolean)"
-Predicate for the empty vector.
-.It Ic "port?\)" Em "(any → boolean)"
-Predicate for port.
-.It Ic "quote" Em "(any → any)"
-Quote object.
-.It Ic "same?\)" Em "(any any → boolean)"
-Whether two objects are the same.
-.It Ic "set!\)" Em "(symbol × any → ∅)"
-If the symbol is bound in the current environment,
-rebound it to the given object;
-signals an error otherwise
-.It Ic "string-compare" Em "(s0:string × s1:string → number)"
-Returns an integer less than, equal to, or greater than 0, according as
-.Ar s0
-is lexicographically less than, equal to, or greater than
-.Ar s1 .
-.It Ic "string?\)" Em "(any → boolean)"
-Predicate for string.
-.It Ic "string-equiv?\)" Em "(s0:string × s1:string → boolean)"
-Return whether
-.Ar s0
-and
-.Ar s1
-are equivalent.
-.It Ic "stirng-ref" Em "(s:string × i:number → byte)"
-Return the
-.Ar i Ns -th
-element of
-.Ar s .
-It is an error if 
-.Ar s
-has no
-.Ar i
-element.
-.It Ic "string-set!\)" Em "(s:string × i:number × b:byte → ∅)"
-Set the
-.Ar i Ns -th
-element of
-.Ar s
-to
-.Ar b .
-It is an error if
-.Ar s
-has no
-.Ar i
-element.
-.It Ic "string-copy" Em "(string → string)"
-Return newly allocated string with elements from given string.
-.It Ic "string-length" Em "(string → number)"
-Return number of bytes in the given string.
-.It Ic "string->vector" Em "(string → vector)"
-Return newly allocated vector of bytes from given string.
-.It Ic "symbol?\)" Em "(any → boolean)"
-Predicate for symbol.
-.It Ic "true" Em "(∅ → false)"
-True.
-.It Ic "true?\)" Em "(any → boolean)"
-Predicate for true.
-.It Ic "void" Em "(∅ → ∅)"
-Nothing.
-.It Ic "vector" Em "(any → vector)"
-Create vector with given elements.
-.It Ic "vector-copy" Em "(string → string)"
-Return newly allocated vector with elements from given vector.
-.It Ic "vector-length" Em "(vector → number)"
-Returns the number of bytes in the given vector.
-.It Ic "vector-ref\)" Em "(v:vector × i:number → any)"
-Returns the
-.Ar i Ns "-nth"
-element of
-.Ar v .
-It is an error if
-.Ar v
-has no
-.Ar i
-element.
-.It Ic "vector-set!\)" Em "(v:vector × i:number × o:any → ∅)"
-Set the
-.Ar i Ns "-nth"
-element of
-.Ar v
-to
-.Ar o .
-It is an error if
-.Ar v
-has no
-.Ar i
-element.
-.It Ic "write" Em "(any × output-port? → ∅)"
-Print printed external representation of object into port (default to current output port).
-.El
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for
 .Nm

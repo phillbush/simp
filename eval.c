@@ -5,19 +5,16 @@
 #define FORMS                                            \
 	X(FORM_AND,             "and"                   )\
 	X(FORM_APPLY,           "apply"                 )\
-	X(FORM_APPLY2,          "!"                     )\
 	X(FORM_DEFINE,          "define"                )\
 	X(FORM_DO,              "do"                    )\
 	X(FORM_EVAL,            "eval"                  )\
-	X(FORM_ENV,             "env"                   )\
 	X(FORM_FALSE,           "false"                 )\
 	X(FORM_IF,              "if"                    )\
 	X(FORM_LAMBDA,          "lambda"                )\
 	X(FORM_OR,              "or"                    )\
 	X(FORM_QUOTE,           "quote"                 )\
 	X(FORM_SET,             "set!"                  )\
-	X(FORM_TRUE,            "true"                  )\
-	X(FORM_VECTOR,          "vector"                )
+	X(FORM_TRUE,            "true"                  )
 
 #define BUILTINS                                                       \
 	X(F_BOOLEANP,     "boolean?",            f_booleanp,        1 )\
@@ -605,6 +602,51 @@ define(Simp ctx, Simp expr, Simp env)
 	return defineorset(ctx, expr, env, true);
 }
 
+static Simp
+apply(Simp ctx, Simp proc, Simp args, Simp env)
+{
+	SimpSiz nargs;
+	Builtin *bltin;
+
+	nargs = simp_getsize(ctx, args);
+	if (simp_isbuiltin(ctx, proc)) {
+		bltin = simp_getbuiltin(ctx, proc);
+		if (nargs != bltin->nargs)
+			return simp_makeexception(ctx, ERROR_ARGS);
+		return (*bltin->fun)(ctx, args);
+	}
+	return simp_void();
+	// if (simp_isbuiltin(ctx, operator)) {
+	// 	bltin = simp_getbuiltin(ctx, operator);
+	// 	if (nargs != bltin->nargs)
+	// 		return simp_makeexception(ctx, ERROR_ARGS);
+	// 	return (*bltin->fun)(ctx, args);
+	// }
+	// if (!simp_isclosure(ctx, operator))
+	// 	return simp_makeexception(ctx, ERROR_OPERATOR);
+	// body = simp_getclosurebody(ctx, operator);
+	// params = simp_getclosureparam(ctx, operator);
+	// cloenv = simp_getclosureenv(ctx, operator);
+	// nparams = simp_getsize(ctx, params);
+	// if (nargs != nparams)
+	// 	return simp_makeexception(ctx, ERROR_ARGS);
+	// cloenv = simp_makeenvironment(ctx, cloenv);
+	// if (simp_isexception(ctx, cloenv))
+	// 	return cloenv;
+	// for (i = 0; i < nparams; i++) {
+	// 	/* fill environment */
+	// 	var = simp_getvectormemb(ctx, params, i);
+	// 	val = simp_getvectormemb(ctx, args, i);
+	// 	var = simp_envdef(ctx, cloenv, var, val);
+	// 	if (simp_isexception(ctx, var)) {
+	// 		return var;
+	// 	}
+	// }
+	// expr = body;
+	// env = cloenv;
+	// goto loop;
+}
+
 Simp
 simp_initforms(Simp ctx)
 {
@@ -659,10 +701,11 @@ simp_initbuiltins(Simp ctx)
 Simp
 simp_eval(Simp ctx, Simp expr, Simp env)
 {
-	Builtin *bltin;
 	Simp *forms;
-	Simp vect, form, operator, args, body, params, cloenv, var, val;
-	SimpSiz nobjects, nargs, nparams, i;
+	Simp operator, operands, arguments;
+	Simp vect, args, body, params, cloenv;
+	Simp var, val;
+	SimpSiz noperands, nargs, nparams, i;
 
 	forms = simp_getvector(ctx, simp_contextforms(ctx));
 loop:
@@ -670,66 +713,66 @@ loop:
 		return simp_envget(ctx, env, expr);
 	if (!simp_isvector(ctx, expr))  /* expression is self-evaluating */
 		return expr;
-	if ((nobjects = simp_getsize(ctx, expr)) == 0)
+	if ((noperands = simp_getsize(ctx, expr)) == 0)
 		return simp_makeexception(ctx, ERROR_EMPTY);
-	form = simp_getvectormemb(ctx, expr, 0);
-	if (!simp_issymbol(ctx, form))
-		return simp_makeexception(ctx, ERROR_ILLSYNTAX);
-	if (simp_issame(ctx, form, forms[FORM_APPLY]) ||
-	    simp_issame(ctx, form, forms[FORM_APPLY2])) {
-		if (nobjects < 2)               /* (apply OP ...) */
-			return simp_makeexception(ctx, ERROR_ILLFORM);
-		nargs = nobjects - 2;
-		operator = simp_getvectormemb(ctx, expr, 1);
-		operator = simp_eval(ctx, operator, env);
-		if (simp_isexception(ctx, operator))
-			return operator;
-		args = simp_makevector(ctx, nargs);
-		if (simp_isexception(ctx, args))
-			return args;
-		for (i = 0; i < nargs; i++) {
-			/* evaluate arguments */
-			val = simp_getvectormemb(ctx, expr, i + 2);
-			if (simp_isexception(ctx, val))
-				return val;
-			val = simp_eval(ctx, val, env);
-			if (simp_isexception(ctx, val))
-				return val;
-			simp_setvector(ctx, args, i, val);
-		}
-		if (simp_isbuiltin(ctx, operator)) {
-			bltin = simp_getbuiltin(ctx, operator);
-			if (nargs != bltin->nargs)
-				return simp_makeexception(ctx, ERROR_ARGS);
-			return (*bltin->fun)(ctx, args);
-		}
-		if (!simp_isclosure(ctx, operator))
-			return simp_makeexception(ctx, ERROR_OPERATOR);
-		body = simp_getclosurebody(ctx, operator);
-		params = simp_getclosureparam(ctx, operator);
-		cloenv = simp_getclosureenv(ctx, operator);
-		nparams = simp_getsize(ctx, params);
-		if (nargs != nparams)
-			return simp_makeexception(ctx, ERROR_ARGS);
-		cloenv = simp_makeenvironment(ctx, cloenv);
-		if (simp_isexception(ctx, cloenv))
-			return cloenv;
-		for (i = 0; i < nparams; i++) {
-			/* fill environment */
-			var = simp_getvectormemb(ctx, params, i);
-			val = simp_getvectormemb(ctx, args, i);
-			var = simp_envdef(ctx, cloenv, var, val);
-			if (simp_isexception(ctx, var)) {
-				return var;
-			}
-		}
-		expr = body;
-		env = cloenv;
-		goto loop;
-	} else if (simp_issame(ctx, form, forms[FORM_AND])) {
+	noperands--;
+	operator = simp_getvectormemb(ctx, expr, 0);
+	operands = simp_slicevector(ctx, expr, 1, noperands);
+	if (simp_issame(ctx, operator, forms[FORM_APPLY])) {
+		// if (nobjects < 2)               /* (apply OP ...) */
+		// 	return simp_makeexception(ctx, ERROR_ILLFORM);
+		// nargs = nobjects - 2;
+		// operator = simp_getvectormemb(ctx, expr, 1);
+		// operator = simp_eval(ctx, operator, env);
+		// if (simp_isexception(ctx, operator))
+		// 	return operator;
+		// args = simp_makevector(ctx, nargs);
+		// if (simp_isexception(ctx, args))
+		// 	return args;
+		// for (i = 0; i < nargs; i++) {
+		// 	/* evaluate arguments */
+		// 	val = simp_getvectormemb(ctx, expr, i + 2);
+		// 	if (simp_isexception(ctx, val))
+		// 		return val;
+		// 	val = simp_eval(ctx, val, env);
+		// 	if (simp_isexception(ctx, val))
+		// 		return val;
+		// 	simp_setvector(ctx, args, i, val);
+		// }
+		// if (simp_isbuiltin(ctx, operator)) {
+		// 	bltin = simp_getbuiltin(ctx, operator);
+		// 	if (nargs != bltin->nargs)
+		// 		return simp_makeexception(ctx, ERROR_ARGS);
+		// 	return (*bltin->fun)(ctx, args);
+		// }
+		// if (!simp_isclosure(ctx, operator))
+		// 	return simp_makeexception(ctx, ERROR_OPERATOR);
+		// body = simp_getclosurebody(ctx, operator);
+		// params = simp_getclosureparam(ctx, operator);
+		// cloenv = simp_getclosureenv(ctx, operator);
+		// nparams = simp_getsize(ctx, params);
+		// if (nargs != nparams)
+		// 	return simp_makeexception(ctx, ERROR_ARGS);
+		// cloenv = simp_makeenvironment(ctx, cloenv);
+		// if (simp_isexception(ctx, cloenv))
+		// 	return cloenv;
+		// for (i = 0; i < nparams; i++) {
+		// 	/* fill environment */
+		// 	var = simp_getvectormemb(ctx, params, i);
+		// 	val = simp_getvectormemb(ctx, args, i);
+		// 	var = simp_envdef(ctx, cloenv, var, val);
+		// 	if (simp_isexception(ctx, var)) {
+		// 		return var;
+		// 	}
+		// }
+		// expr = body;
+		// env = cloenv;
+		// goto loop;
+	} else if (simp_issame(ctx, operator, forms[FORM_AND])) {
+		/* (and EXPRESSION ...) */
 		val = simp_true();
-		for (i = 1; i < nobjects; i++) {
-			val = simp_getvectormemb(ctx, expr, i);
+		for (i = 0; i < noperands; i++) {
+			val = simp_getvectormemb(ctx, operands, i);
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(ctx, val))
 				return val;
@@ -737,10 +780,11 @@ loop:
 				return val;
 		}
 		return val;
-	} else if (simp_issame(ctx, form, forms[FORM_OR])) {
+	} else if (simp_issame(ctx, operator, forms[FORM_OR])) {
+		/* (or EXPRESSION ...) */
 		val = simp_false();
-		for (i = 1; i < nobjects; i++) {
-			val = simp_getvectormemb(ctx, expr, i);
+		for (i = 0; i < noperands; i++) {
+			val = simp_getvectormemb(ctx, operands, i);
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(ctx, val))
 				return val;
@@ -748,87 +792,103 @@ loop:
 				return val;
 		}
 		return val;
-	} else if (simp_issame(ctx, form, forms[FORM_DEFINE])) {
+	} else if (simp_issame(ctx, operator, forms[FORM_DEFINE])) {
 		return define(ctx, expr, env);
-	} else if (simp_issame(ctx, form, forms[FORM_DO])) {
-		if (nobjects < 2)               /* (do ...) */
+	} else if (simp_issame(ctx, operator, forms[FORM_DO])) {
+		/* (do EXPRESSION ...) */
+		if (noperands == 0)
 			return simp_void();
-		for (i = 1; i + 1 < nobjects; i++) {
-			val = simp_getvectormemb(ctx, expr, i);
-			(void)simp_eval(ctx, val, env);
+		for (i = 0; i + 1 < noperands; i++) {
+			val = simp_getvectormemb(ctx, operands, i);
+			val = simp_eval(ctx, val, env);
+			if (simp_isexception(ctx, val))
+				return val;
 		}
-		expr = simp_getvectormemb(ctx, expr, i);
+		expr = simp_getvectormemb(ctx, operands, i);
 		goto loop;
-	} else if (simp_issame(ctx, form, forms[FORM_IF])) {
-		if (nobjects < 3)               /* (if COND THEN ELSE ...) */
+	} else if (simp_issame(ctx, operator, forms[FORM_IF])) {
+		/* (if [COND THEN]... [ELSE]) */
+		if (noperands < 2)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
-		for (i = 1; i < nobjects; i++) {
-			if (i + 1 == nobjects) {
-				expr = simp_getvectormemb(ctx, expr, i);
-				goto loop;
-			}
-			val = simp_getvectormemb(ctx, expr, i);
+		for (i = 0; i + 1 < noperands; i++) {
+			val = simp_getvectormemb(ctx, operands, i);
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(ctx, val))
 				return val;
 			i++;
 			if (simp_istrue(ctx, val)) {
-				expr = simp_getvectormemb(ctx, expr, i);
-				goto loop;
+				break;
 			}
 		}
-		return simp_void();
-	} else if (simp_issame(ctx, form, forms[FORM_ENV])) {
-		return env;
-	} else if (simp_issame(ctx, form, forms[FORM_EVAL])) {
-		if (nobjects != 3)              /* (eval EXPR ENV) */
-			return simp_makeexception(ctx, ERROR_ILLFORM);
-		env = simp_getvectormemb(ctx, expr, 2);
-		expr = simp_getvectormemb(ctx, expr, 1);
-		goto loop;
-	} else if (simp_issame(ctx, form, forms[FORM_LAMBDA])) {
-		if (nobjects < 2)               /* (lambda args ... body) */
-			return simp_makeexception(ctx, ERROR_ARGS);
-		params = simp_makevector(ctx, nobjects - 2);
-		if (simp_isexception(ctx, params))
-			return params;
-		for (i = 0; i + 2 < nobjects; i++) {
-			var = simp_getvectormemb(ctx, expr, i + 1);
-			if (!simp_issymbol(ctx, var))
-				return simp_makeexception(ctx, ERROR_ILLFORM);
-			simp_setvector(ctx, params, i, var);
+		if (i < noperands) {
+			expr = simp_getvectormemb(ctx, operands, i);
+			goto loop;
 		}
-		body = simp_getvectormemb(ctx, expr, nobjects - 1);
-		return simp_makeclosure(ctx, env, params, body);
-	} else if (simp_issame(ctx, form, forms[FORM_QUOTE])) {
-		if (nobjects != 2)              /* (quote OBJ) */
+		return simp_void();
+	} else if (simp_issame(ctx, operator, forms[FORM_EVAL])) {
+		//if (nobjects != 3)              /* (eval EXPR ENV) */
+		//	return simp_makeexception(ctx, ERROR_ILLFORM);
+		//env = simp_getvectormemb(ctx, expr, 2);
+		//expr = simp_getvectormemb(ctx, expr, 1);
+		//goto loop;
+	} else if (simp_issame(ctx, operator, forms[FORM_LAMBDA])) {
+		/* (lambda PARAMETER BODY) */
+		if (noperands != 2)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
-		return simp_getvectormemb(ctx, expr, 1);
-	} else if (simp_issame(ctx, form, forms[FORM_SET])) {
+		body = simp_getvectormemb(ctx, operands, 1);
+		params = simp_getvectormemb(ctx, operands, 0);
+		if (!simp_issymbol(ctx, params) &&
+		    !simp_isvector(ctx, params))
+			return simp_makeexception(ctx, ERROR_ILLFORM);
+		return simp_makeclosure(ctx, env, params, body);
+	} else if (simp_issame(ctx, operator, forms[FORM_QUOTE])) {
+		/* (quote OBJ) */
+		if (noperands != 1)
+			return simp_makeexception(ctx, ERROR_ILLFORM);
+		return simp_getvectormemb(ctx, operands, 0);
+	} else if (simp_issame(ctx, operator, forms[FORM_SET])) {
 		return set(ctx, expr, env);
-	} else if (simp_issame(ctx, form, forms[FORM_FALSE])) {
-		if (nobjects != 1)              /* (false) */
+	} else if (simp_issame(ctx, operator, forms[FORM_FALSE])) {
+		/* (false) */
+		if (noperands != 0)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
 		return simp_false();
-	} else if (simp_issame(ctx, form, forms[FORM_TRUE])) {
-		if (nobjects != 1)              /* (true) */
+	} else if (simp_issame(ctx, operator, forms[FORM_TRUE])) {
+		/* (true) */
+		if (noperands != 0)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
 		return simp_true();
-	} else if (simp_issame(ctx, form, forms[FORM_VECTOR])) {
-		vect = simp_makevector(ctx, nobjects - 1);
-		if (simp_isexception(ctx, vect))
-			return vect;
-		for (i = 0; i + 1 < nobjects; i++) {
+	} else {
+		operator = simp_eval(ctx, operator, env);
+		if (simp_isexception(ctx, operator))
+			return operator;
+		arguments = simp_makevector(ctx, noperands);
+		if (simp_isexception(ctx, arguments))
+			return arguments;
+		for (i = 0; i < noperands; i++) {
 			/* evaluate arguments */
-			val = simp_getvectormemb(ctx, expr, i + 1);
-			if (simp_isexception(ctx, val))
-				return val;
+			val = simp_getvectormemb(ctx, operands, i);
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(ctx, val))
 				return val;
-			simp_setvector(ctx, vect, i, val);
+			simp_setvector(ctx, arguments, i, val);
 		}
-		return vect;
+		return apply(ctx, operator, arguments, env);
+	//} else if (simp_issame(ctx, operator, forms[FORM_VECTOR])) {
+	//	vect = simp_makevector(ctx, nobjects - 1);
+	//	if (simp_isexception(ctx, vect))
+	//		return vect;
+	//	for (i = 0; i + 1 < nobjects; i++) {
+	//		/* evaluate arguments */
+	//		val = simp_getvectormemb(ctx, expr, i + 1);
+	//		if (simp_isexception(ctx, val))
+	//			return val;
+	//		val = simp_eval(ctx, val, env);
+	//		if (simp_isexception(ctx, val))
+	//			return val;
+	//		simp_setvector(ctx, vect, i, val);
+	//	}
+	//	return vect;
 	}
 	return simp_makeexception(ctx, ERROR_UNKSYNTAX);
 }
