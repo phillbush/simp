@@ -43,6 +43,7 @@
 	X("newline",            f_newline,      0,      true       )\
 	X("null?",              f_nullp,        1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
+	X("procedure?",         f_procedurep,   1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
 	X("string",             f_string,       0,      true       )\
 	X("string-slice",       f_slicestring,  3,      false      )\
@@ -398,6 +399,19 @@ static Simp
 f_portp(Simp ctx, Simp args)
 {
 	return typepred(ctx, args, simp_isport);
+}
+
+static Simp
+f_procedurep(Simp ctx, Simp args)
+{
+	Simp obj;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (simp_isbuiltin(ctx, obj))
+		return simp_true();
+	if (simp_isclosure(ctx, obj))
+		return simp_true();
+	return simp_false();
 }
 
 static Simp

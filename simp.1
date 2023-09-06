@@ -115,6 +115,16 @@ The kind of value that an expression returns is specified below after the
 .Em "⇒" symbol.
 An expression can be a special form, a symbol, a literal or a procedure combination.
 Builtin procedures are listed below, after the special forms.
+.Ss Syntax Sugars
+.Bl -tag -width Ds -compact
+.It Ar "\eOBJECT" "⇒" OBJECT
+Any object prefixed with a backslash is equivalent to quoting the object.
+For example,
+.Ic "\e()"
+is expanded to the special form
+.Ic "(quote ())"
+while parsing.
+.El
 .Ss Non-vector Forms
 .Bl -tag -width Ds -compact
 .It Ar SYMBOL "⇒" OBJECT
@@ -212,6 +222,8 @@ Return whether the given object is the false object.
 Return whether the given object is the vector object with zero elements.
 .It Ic ( port?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is a port object.
+.It Ic ( procedure?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a procedure object.
 .It Ic ( string?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is a string object.
 .It Ic ( true?\) Ar OBJECT ) "⇒" BOOLEAN
@@ -317,9 +329,8 @@ in its external representation.
 .El
 .Ss Environment Procedures
 .Bl -tag -width Ds -compact
-.It Ic ( environment-new Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
-Return a newly allocated environment using the given environment
-(default the current environment) as parent environment.
+.It Ic ( environment-new Ar ENVIRONMENT ) "⇒" ENVIRONMENT
+Return a newly allocated environment using the given environment as parent environment.
 .It Ic ( environment-empty ) Ar "⇒" ENVIRONMENT
 Return the empty environment.
 .El

@@ -20,7 +20,7 @@ Example:
 (define ackermann
   (lambda x y
     (do
-      (display "compute")
+      (display (apply string \('a' 'b' 'c')))
       (newline)
       (if (= y 0) 0
           (= x 0) (* 2 y)
@@ -37,6 +37,10 @@ The first expression defines the ackermann function; the second
 expression computes the ackermann function applied to 1 and 6.
 
 The following can be observed:
+
+* The quotins syntactic sugar is expressed with a backslash rather than
+  with a apostrophe, like in scheme.  Apostrophes are used to represent
+  bytes and literal characters, like in C.
 
 * There is no `defun` form or a `define` form with embedded lambda.
   Defining a procedure must be done with both `define` and `lambda`

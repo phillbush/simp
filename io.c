@@ -18,16 +18,16 @@ enum Numtype {
 
 struct Token {
 	enum Toktype {
-		TOK_ERROR,
-		TOK_EOF,
-		TOK_EXCLAM,
-		TOK_LPAREN,
-		TOK_RPAREN,
 		TOK_CHAR,
-		TOK_STRING,
+		TOK_EOF,
+		TOK_ERROR,
 		TOK_FIXNUM,
-		TOK_REAL,
 		TOK_IDENTIFIER,
+		TOK_LPAREN,
+		TOK_QUOTE,
+		TOK_REAL,
+		TOK_RPAREN,
+		TOK_STRING,
 	}       type;
 	union {
 		SimpInt          fixnum;
@@ -423,8 +423,8 @@ loop:
 		return tok;
 	}
 	switch (c) {
-	case '!':
-		tok.type = TOK_EXCLAM;
+	case '\\':
+		tok.type = TOK_QUOTE;
 		return tok;
 	case '(':
 		tok.type = TOK_LPAREN;
@@ -607,16 +607,28 @@ simp_printstr(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
 static Simp
 toktoobj(Simp ctx, Simp port, Token tok)
 {
-	Simp obj;
+	Simp obj, quote, literal;
 
 	switch (tok.type) {
-	case TOK_EXCLAM:
-		return simp_makesymbol(ctx, (unsigned char *)"!", 1);
 	case TOK_LPAREN:
 		return readvector(ctx, port);
 	case TOK_IDENTIFIER:
 		obj = simp_makesymbol(ctx, tok.u.str.str, tok.u.str.len);
 		free(tok.u.str.str);
+		return obj;
+	case TOK_QUOTE:
+		obj = simp_makevector(ctx, 2);
+		if (simp_isexception(ctx, obj))
+			return obj;
+		tok = readtok(ctx, port);
+		quote = simp_makesymbol(ctx, (unsigned char *)"quote", 5);
+		if (simp_isexception(ctx, quote))
+			return quote;
+		literal = toktoobj(ctx, port, tok);
+		if (simp_isexception(ctx, literal))
+			return literal;
+		simp_setvector(ctx, obj, 0, quote);
+		simp_setvector(ctx, obj, 1, literal);
 		return obj;
 	case TOK_STRING:
 		obj = simp_makestring(ctx, tok.u.str.str, tok.u.str.len);
