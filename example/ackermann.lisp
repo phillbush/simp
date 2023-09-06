@@ -1,7 +1,7 @@
 (define ackermann
   (lambda (x y)
     (do
-      (display "compute")
+      (display (apply string \('a' 'b' 'c')))
       (newline)
       (if (= y 0) 0
           (= x 0) (* 2 y)

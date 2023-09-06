@@ -18,7 +18,7 @@ Example:
 
 ```
 (define ackermann
-  (lambda x y
+  (lambda (x y)
     (do
       (display (apply string \('a' 'b' 'c')))
       (newline)
