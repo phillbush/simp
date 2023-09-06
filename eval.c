@@ -17,47 +17,52 @@
 	X(FORM_SET,             "set!"                  )\
 	X(FORM_TRUE,            "true"                  )
 
-#define BUILTINS                                                 \
+#define BUILTINS                                                    \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
-	X("+",                  f_add,          0,      true       )\
 	X("*",                  f_multiply,     0,      true       )\
+	X("+",                  f_add,          0,      true       )\
 	X("-",                  f_subtract,     1,      true       )\
 	X("/",                  f_divide,       1,      true       )\
+	X("<",                  f_lt,           0,      true       )\
+	X("<=",                 f_le,           0,      true       )\
+	X("=",                  f_equal,        1,      true       )\
+	X(">",                  f_gt,           0,      true       )\
+	X(">=",                 f_ge,           0,      true       )\
 	X("boolean?",           f_booleanp,     1,      false      )\
 	X("byte?",              f_bytep,        1,      false      )\
 	X("car",                f_car,          1,      false      )\
 	X("cdr",                f_cdr,          1,      false      )\
-	X("stdin",              f_stdin,        0,      false      )\
-	X("stdout",             f_stdout,       0,      false      )\
-	X("stderr",             f_stderr,       0,      false      )\
 	X("display",            f_display,      1,      true       )\
-	X("=",                  f_equal,        1,      true       )\
 	X("environment?",       f_envp,         1,      false      )\
 	X("falsep",             f_falsep,       1,      false      )\
-	X(">=",                 f_ge,           0,      true       )\
-	X(">",                  f_gt,           0,      true       )\
-	X("<=",                 f_le,           0,      true       )\
-	X("<",                  f_lt,           0,      true       )\
-	X("string-new",         f_makestring,   1,      false      )\
-	X("vector-new",         f_makevector,   1,      false      )\
 	X("newline",            f_newline,      0,      true       )\
 	X("null?",              f_nullp,        1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
+	X("stderr",             f_stderr,       0,      false      )\
+	X("stdin",              f_stdin,        0,      false      )\
+	X("stdout",             f_stdout,       0,      false      )\
 	X("string",             f_string,       0,      true       )\
-	X("string-slice",       f_slicestring,  3,      false      )\
+	X("string->vector",     f_stringvector, 1,      false      )\
+	X("string-cat",         f_stringcat,    0,      true       )\
+	X("string-copy!",       f_stringcpy,    2,      false      )\
 	X("string-length",      f_stringlen,    1,      false      )\
+	X("string-new",         f_makestring,   1,      false      )\
 	X("string-ref",         f_stringref,    2,      false      )\
 	X("string-set!",        f_stringset,    3,      false      )\
-	X("string->vector",     f_stringvector, 1,      false      )\
 	X("string?",            f_stringp,      1,      false      )\
+	X("substring",          f_slicestring,  3,      false      )\
+	X("subvector",          f_slicevector,  3,      false      )\
 	X("symbol?",            f_symbolp,      1,      false      )\
 	X("true?",              f_truep,        1,      false      )\
 	X("vector",             f_vector,       0,      true       )\
-	X("vector-ref",         f_vectorref,    2,      false      )\
-	X("vector-slice",       f_slicevector,  3,      false      )\
+	X("vector-cat",         f_vectorcat,    0,      true       )\
+	X("vector-copy!",       f_vectorcpy,    2,      false      )\
+	X("vector-same?" ,      f_vectoreqv,    0,      true       )\
 	X("vector-length",      f_vectorlen,    1,      false      )\
+	X("vector-new",         f_makevector,   1,      false      )\
+	X("vector-ref",         f_vectorref,    2,      false      )\
 	X("vector-set!",        f_vectorset,    3,      false      )\
 	X("write",              f_write,        2,      false      )
 
@@ -521,6 +526,37 @@ f_string(Simp ctx, Simp args)
 }
 
 static Simp
+f_stringcat(Simp ctx, Simp args)
+{
+	Simp obj, string;
+	SimpSiz nargs, size, n, i;
+
+
+	nargs = simp_getsize(ctx, args);
+	size = 0;
+	for (i = 0; i < nargs; i++) {
+		obj = simp_getvectormemb(ctx, args, i);
+		if (!simp_isstring(ctx, obj))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		size += simp_getsize(ctx, obj);
+	}
+	string = simp_makestring(ctx, NULL, size);
+	if (simp_isexception(ctx, string))
+		return string;
+	for (size = i = 0; i < nargs; i++) {
+		obj = simp_getvectormemb(ctx, args, i);
+		n = simp_getsize(ctx, obj);
+		simp_cpystring(
+			ctx,
+			simp_slicestring(ctx, string, size, n),
+			obj
+		);
+		size += n;
+	}
+	return string;
+}
+
+static Simp
 f_stringcmp(Simp ctx, Simp args)
 {
 	SimpSiz size0, size1;
@@ -545,6 +581,24 @@ f_stringcmp(Simp ctx, Simp args)
 	else if (cmp > 0)
 		cmp = +1;
 	return simp_makenum(ctx, cmp);
+}
+
+static Simp
+f_stringcpy(Simp ctx, Simp args)
+{
+	Simp dst, src;
+	SimpSiz dstsiz, srcsiz;
+
+	dst = simp_getvectormemb(ctx, args, 0);
+	src = simp_getvectormemb(ctx, args, 1);
+	if (!simp_isstring(ctx, dst) || !simp_isstring(ctx, src))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	dstsiz = simp_getsize(ctx, dst);
+	srcsiz = simp_getsize(ctx, src);
+	if (srcsiz > dstsiz)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	simp_cpystring(ctx, dst, src);
+	return simp_void();
 }
 
 static Simp
@@ -649,6 +703,83 @@ f_vector(Simp ctx, Simp args)
 {
 	(void)ctx;
 	return args;
+}
+
+static Simp
+f_vectorcat(Simp ctx, Simp args)
+{
+	Simp obj, vector;
+	SimpSiz nargs, size, n, i;
+
+
+	nargs = simp_getsize(ctx, args);
+	size = 0;
+	for (i = 0; i < nargs; i++) {
+		obj = simp_getvectormemb(ctx, args, i);
+		if (!simp_isvector(ctx, obj))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		size += simp_getsize(ctx, obj);
+	}
+	vector = simp_makevector(ctx, size);
+	if (simp_isexception(ctx, vector))
+		return vector;
+	for (size = i = 0; i < nargs; i++) {
+		obj = simp_getvectormemb(ctx, args, i);
+		n = simp_getsize(ctx, obj);
+		simp_cpyvector(
+			ctx,
+			simp_slicevector(ctx, vector, size, n),
+			obj
+		);
+		size += n;
+	}
+	return vector;
+}
+
+static Simp
+f_vectorcpy(Simp ctx, Simp args)
+{
+	Simp dst, src;
+	SimpSiz dstsiz, srcsiz;
+
+	dst = simp_getvectormemb(ctx, args, 0);
+	src = simp_getvectormemb(ctx, args, 1);
+	if (!simp_isvector(ctx, dst) || !simp_isvector(ctx, src))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	dstsiz = simp_getsize(ctx, dst);
+	srcsiz = simp_getsize(ctx, src);
+	if (srcsiz > dstsiz)
+		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
+	simp_cpyvector(ctx, dst, src);
+	return simp_void();
+}
+
+static Simp
+f_vectoreqv(Simp ctx, Simp args)
+{
+	Simp a, b;
+	Simp next, prev;
+	SimpSiz nargs, newsize, oldsize, i, j;
+
+	nargs = simp_getsize(ctx, args);
+	for (i = 0; i < nargs; i++, prev = next, oldsize = newsize) {
+		next = simp_getvectormemb(ctx, args, i);
+		if (!simp_isvector(ctx, next))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		newsize = simp_getsize(ctx, next);
+		if (i == 0)
+			continue;
+		if (oldsize != newsize)
+			return simp_false();
+		for (j = 0; j < newsize; j++) {
+			a = simp_getvectormemb(ctx, prev, j);
+			b = simp_getvectormemb(ctx, next, j);
+			if (!simp_issame(ctx, a, b)) {
+				return simp_false();
+			}
+		}
+	}
+	return simp_true();
 }
 
 static Simp

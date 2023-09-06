@@ -304,6 +304,26 @@ simp_contextports(Simp ctx)
 	return simp_getvectormemb(ctx, ctx, CONTEXT_PORTS);
 }
 
+void
+simp_cpystring(Simp ctx, Simp dst, Simp src)
+{
+	(void)memcpy(
+		simp_getstring(ctx, dst),
+		simp_getstring(ctx, src),
+		simp_getsize(ctx, src) * sizeof(unsigned char)
+	);
+}
+
+void
+simp_cpyvector(Simp ctx, Simp dst, Simp src)
+{
+	(void)memcpy(
+		simp_getvector(ctx, dst),
+		simp_getvector(ctx, src),
+		simp_getsize(ctx, src) * sizeof(Simp)
+	);
+}
+
 Simp
 simp_empty(void)
 {

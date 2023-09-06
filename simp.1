@@ -256,11 +256,14 @@ Return whether the given numbers are monotonically nonincreasing.
 .Bl -tag -width Ds -compact
 .It Ic ( string Ar BYTE ... ) "⇒" STRING
 Return a newly allocated string containing the given bytes.
-.It Ic ( string-append Ar STRING ... ) "⇒" STRING
+.It Ic ( string-concat Ar STRING ... ) "⇒" STRING
 Return a newly allocated string whose elements form the concatenation of the given strings.
+.It Ic ( string-copy!\) Ar STRING STRING ) "⇒" VOID
+Copy all elements of the second string into the first one.
+The length of the second string must be lesser or equal to the first's, or an error will be signaled
 .It Ic ( string-dup Ar STRING ) "⇒" STRING
 Return a newly allocated string with size and elements the same as the given string.
-.It Ic ( string-equiv?\) Ar STRING STRING ) "⇒" BOOLEAN
+.It Ic ( string-equiv?\) Ar STRING ... ) "⇒" BOOLEAN
 Return whether the given strings have the same length and the same elements.
 .It Ic ( string-length Ar STRING ) "⇒" NUMBER
 Return the number of elements of the given string.
@@ -270,11 +273,11 @@ Return a newly allocated string of the given size filled with the zero byte.
 Return the i-th element of the given string.
 .It Ic ( string-set!\) Ar STRING NUMBER BYTE ) "⇒" STRING
 Set the i-th element of the given string to the given byte.
-.It Ic ( string-slice Ar STRING [ NUMBER [ NUMBER ] ] ) "⇒" STRING
+.It Ic ( substring Ar STRING [ NUMBER [ NUMBER ] ] ) "⇒" STRING
 Return the given string indexed from the first given number (default 0)
 with the second given number (default maximum possible) elements.
 For example,
-.Cm "(string-slice "abcde" 1 3)"
+.Cm "(substring "abcde" 1 3)"
 returns the string
 .Cm "bcd" .
 Both strings point to the same memory,
@@ -283,15 +286,28 @@ also changes the corresponding element in the original string.
 .El
 .Ss Vector Procedures
 .Bl -tag -width Ds -compact
+.It Ic ( subvector Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
+Return the given vector indexed from the first given number (default 0)
+with the second given number (default maximum possible) elements.
+For example,
+.Cm "(subvector (vector 'a' 'b' 'c' 'd' 'e') 1 3)"
+returns the vector
+.Cm "('b' 'c' 'd')" .
+Both vectors point to the same memory,
+so changing an element in the resulting vector
+also changes the corresponding element in the original vector.
 .It Ic ( string->vector Ar STRING ) "⇒" VECTOR
 Return a newly allocated vector filled with the bytes of the given string.
 .It Ic ( vector Ar OBJECT ... ) "⇒" VECTOR
 Return a newly allocated vector containing the given objects.
-.It Ic ( vector-append Ar VECTOR ... ) "⇒" VECTOR
+.It Ic ( vector-concat Ar VECTOR ... ) "⇒" VECTOR
 Return a newly allocated vector whose elements form the concatenation of the given vectors.
+.It Ic ( vector-copy!\) Ar VECTOR VECTOR ) "⇒" VOID
+Copy all elements of the second vector into the first one.
+The length of the second vector must be lesser or equal to the first's.
 .It Ic ( vector-dup Ar VECTOR ) "⇒" VECTOR
 Return a newly allocated vector with size and elements the same as the given vector.
-.It Ic ( vector-equiv?\) Ar VECTOR STRING ) "⇒" BOOLEAN
+.It Ic ( vector-equiv?\) Ar VECTOR ... ) "⇒" BOOLEAN
 Return whether the given vectors have the same length and the same elements.
 .It Ic ( vector-length Ar VECTOR ) "⇒" NUMBER
 Return the number of elements of the given vector.
@@ -301,16 +317,6 @@ Return a newly allocated vector of the given size filled with the null object.
 Return the i-th element of the given vector.
 .It Ic ( vector-set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
 Set the i-th element of the given vector to the given object.
-.It Ic ( vector-slice Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
-Return the given vector indexed from the first given number (default 0)
-with the second given number (default maximum possible) elements.
-For example,
-.Cm "(vector-slice (vector 'a' 'b' 'c' 'd' 'e') 1 3)"
-returns the vector
-.Cm "('b' 'c' 'd')" .
-Both vectors point to the same memory,
-so changing an element in the resulting vector
-also changes the corresponding element in the original vector.
 .El
 .Ss Input/Output Procedures
 .Bl -tag -width Ds -compact

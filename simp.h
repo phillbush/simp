@@ -170,6 +170,8 @@ bool    simp_issame(Simp ctx, Simp a, Simp b);
 /* data type mutators */
 void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char u);
 void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
+void    simp_cpyvector(Simp ctx, Simp dst, Simp src);
+void    simp_cpystring(Simp ctx, Simp dst, Simp src);
 
 /* data type constructors */
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
