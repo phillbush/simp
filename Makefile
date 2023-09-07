@@ -1,13 +1,13 @@
 PROG = simp
 SRCS = simp.c data.c port.c eval.c gc.c io.c
 OBJS = ${SRCS:.c=.o} stdlib.o
-MANS = simp.1 simp.7
+MANS = simp.1
 HEDS = simp.h
 
 DEFS = -D_POSIX_C_SOURCE=200809L
 LIBS = -lm
 
-PDFS = simp.7.pdf simp.1.pdf
+PDFS = simp.pdf
 
 LDEMULATION ?= elf_x86_64
 
@@ -22,8 +22,8 @@ ${PROG}: ${OBJS}
 stdlib.o: stdlib.lisp
 	${LD} -r -b binary -o stdlib.o -m ${LDEMULATION} stdlib.lisp
 
-${PDFS}: ${@:.pdf=}
-	{ printf '.fp 5 CW DejaVuSansMono\n' ; cat "${@:.pdf=}" ; } | \
+${PDFS}: ${@:.pdf=.1}
+	{ printf '.fp 5 CW DejaVuSansMono\n' ; cat "${@:.pdf=.1}" ; } | \
 	eqn | tbl | troff -mdoc - | dpost | ps2pdf -sPAPERSIZE=letter - >"$@"
 
 ${OBJS}: ${HEDS}
