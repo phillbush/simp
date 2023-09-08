@@ -46,6 +46,7 @@ enum {
 enum {
 	CLOSURE_ENVIRONMENT,
 	CLOSURE_PARAMETERS,
+	CLOSURE_VARARGS,
 	CLOSURE_EXPRESSIONS,
 	CLOSURE_SIZE
 };
@@ -370,6 +371,16 @@ simp_getclosureparam(Simp ctx, Simp obj)
 	if (type != TYPE_CLOSURE)
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_getclosure(ctx, obj)[CLOSURE_PARAMETERS];
+}
+
+Simp
+simp_getclosurevarargs(Simp ctx, Simp obj)
+{
+	enum Type type = simp_gettype(ctx, obj);
+
+	if (type != TYPE_CLOSURE)
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	return simp_getclosure(ctx, obj)[CLOSURE_VARARGS];
 }
 
 Simp
@@ -715,28 +726,16 @@ simp_makenum(Simp ctx, SimpInt n)
 }
 
 Simp
-simp_makeclosure(Simp ctx, Simp env, Simp params, Simp body)
+simp_makeclosure(Simp ctx, Simp env, Simp params, Simp varargs, Simp body)
 {
 	Simp lambda;
-	SimpSiz nparams, i;
 
-	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	if (simp_isvector(ctx, params)) {
-		nparams = simp_getsize(ctx, params);
-		for (i = 0; i < nparams; i++) {
-			if (!simp_issymbol(ctx, simp_getvectormemb(ctx, params, i))) {
-				return simp_makeexception(ctx, ERROR_ILLEXPR);
-			}
-		}
-	} else if (!simp_issymbol(ctx, params)) {
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
-	}
 	lambda = simp_makevector(ctx, CLOSURE_SIZE);
 	if (simp_isexception(ctx, lambda))
 		return lambda;
 	simp_setvector(ctx, lambda, CLOSURE_ENVIRONMENT, env);
 	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, params);
+	simp_setvector(ctx, lambda, CLOSURE_VARARGS, varargs);
 	simp_setvector(ctx, lambda, CLOSURE_EXPRESSIONS, body);
 	lambda.type = TYPE_CLOSURE;
 	return lambda;

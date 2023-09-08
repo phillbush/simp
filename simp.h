@@ -139,6 +139,7 @@ Simp   *simp_getvector(Simp ctx, Simp obj);
 Simp    simp_getclosureenv(Simp ctx, Simp obj);
 Simp    simp_getclosureparam(Simp ctx, Simp obj);
 Simp    simp_getclosurebody(Simp ctx, Simp obj);
+Simp    simp_getclosurevarargs(Simp ctx, Simp obj);
 void   *simp_getgcmemory(Simp ctx, Simp obj);
 
 /* data type predicates */
@@ -179,7 +180,7 @@ Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makeform(Simp ctx, int);
 Simp    simp_makebuiltin(Simp ctx, Builtin *);
 Simp    simp_makevarargs(Simp ctx, int);
-Simp    simp_makeclosure(Simp ctx, Simp env, Simp param, Simp body);
+Simp    simp_makeclosure(Simp ctx, Simp env, Simp params, Simp extras, Simp body);
 Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);

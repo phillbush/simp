@@ -18,7 +18,7 @@ Example:
 
 ```
 (define ackermann
-  (lambda (x y)
+  (lambda x y
     (do
       (display "compute")
       (newline)
@@ -49,9 +49,15 @@ The following can be observed:
   Defining a procedure must be done with both `define` and `lambda`
   forms.
 
+* The `lambda` form does not get its formal parameters between
+  parentheses in a vector.  It gets a sequence of symbols right
+  after the `lambda` keyword.  Simp's `(lambda x y (+ x y))` is
+  equivalent to Scheme's `(lambda (x y) (+ x y))`.
+
 * The `lambda` form does not get a sequence of expressions as body.  It
   gets a single expression as body.  To evaluate to a sequence, use the
-  `do` form as body.
+  `do` form as body.  Simp's `(lambda x (do (display x) (newline)))` is
+  equivalent to Scheme's `(lambda (x) (display x) (newline))`.
 
 * There is no `cond` form. The `if` form is the same as scheme's `cond`
   but with less parentheses.

@@ -15,7 +15,8 @@
 	X(FORM_OR,              "or"                    )\
 	X(FORM_QUOTE,           "quote"                 )\
 	X(FORM_SET,             "set!"                  )\
-	X(FORM_TRUE,            "true"                  )
+	X(FORM_TRUE,            "true"                  )\
+	X(FORM_VARLAMBDA,       "varlambda"             )
 
 #define BUILTINS                                                    \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
@@ -1105,9 +1106,9 @@ simp_eval(Simp ctx, Simp expr, Simp env)
 {
 	Builtin *bltin;
 	Simp *forms;
-	Simp operator, operands, arguments, extraargs;
+	Simp operator, operands, arguments, extraargs, extraparams;
 	Simp params, var, val;
-	SimpSiz noperands, narguments, nextraargs, i;
+	SimpSiz noperands, nparams, narguments, nextraargs, i;
 
 	forms = simp_getvector(ctx, simp_contextforms(ctx));
 loop:
@@ -1212,15 +1213,32 @@ loop:
 			return env;
 		goto loop;
 	} else if (simp_issame(ctx, operator, forms[FORM_LAMBDA])) {
-		/* (lambda PARAMETER BODY) */
-		if (noperands != 2)
+		/* (lambda PARAMETER ... BODY) */
+		if (noperands < 1)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
-		expr = simp_getvectormemb(ctx, operands, 1);
-		params = simp_getvectormemb(ctx, operands, 0);
-		if (!simp_issymbol(ctx, params) &&
-		    !simp_isvector(ctx, params))
+		expr = simp_getvectormemb(ctx, operands, noperands - 1);
+		params = simp_slicevector(ctx, operands, 0, noperands - 1);
+		for (i = 0; i + 1 < noperands; i++) {
+			var = simp_getvectormemb(ctx, operands, i);
+			if (!simp_issymbol(ctx, var)) {
+				return simp_makeexception(ctx, ERROR_ILLFORM);
+			}
+		}
+		return simp_makeclosure(ctx, env, params, simp_nil(), expr);
+	} else if (simp_issame(ctx, operator, forms[FORM_VARLAMBDA])) {
+		/* (lambda PARAMETER PARAMETER ... BODY) */
+		if (noperands < 2)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
-		return simp_makeclosure(ctx, env, params, expr);
+		expr = simp_getvectormemb(ctx, operands, noperands - 1);
+		extraparams = simp_getvectormemb(ctx, operands, noperands - 2);
+		params = simp_slicevector(ctx, operands, 0, noperands - 2);
+		for (i = 0; i + 1 < noperands; i++) {
+			var = simp_getvectormemb(ctx, operands, i);
+			if (!simp_issymbol(ctx, var)) {
+				return simp_makeexception(ctx, ERROR_ILLFORM);
+			}
+		}
+		return simp_makeclosure(ctx, env, params, extraparams, expr);
 	} else if (simp_issame(ctx, operator, forms[FORM_QUOTE])) {
 		/* (quote OBJ) */
 		if (noperands != 1)
@@ -1282,24 +1300,26 @@ apply:
 	if (simp_isexception(ctx, env))
 		return env;
 	params = simp_getclosureparam(ctx, operator);
-	if (simp_issymbol(ctx, params)) {
-		var = simp_envdef(ctx, env, params, arguments);
+	nparams = simp_getsize(ctx, params);
+	extraparams = simp_getclosurevarargs(ctx, operator);
+	if (narguments < nparams)
+		return simp_makeexception(ctx, ERROR_ARGS);
+	if (narguments > nparams && simp_isnil(ctx, extraparams))
+		return simp_makeexception(ctx, ERROR_ARGS);
+	for (i = 0; i < nparams; i++) {
+		var = simp_getvectormemb(ctx, params, i);
+		val = simp_getvectormemb(ctx, arguments, i);
+		var = simp_envdef(ctx, env, var, val);
 		if (simp_isexception(ctx, var)) {
 			return var;
 		}
-	} else if (simp_isvector(ctx, params)) {
-		if (narguments != simp_getsize(ctx, params))
-			return simp_makeexception(ctx, ERROR_ARGS);
-		for (i = 0; i < narguments; i++) {
-			var = simp_getvectormemb(ctx, params, i);
-			val = simp_getvectormemb(ctx, arguments, i);
-			var = simp_envdef(ctx, env, var, val);
-			if (simp_isexception(ctx, var)) {
-				return var;
-			}
+	}
+	if (simp_issymbol(ctx, extraparams)) {
+		val = simp_slicevector(ctx, arguments, i, narguments - i);
+		var = simp_envdef(ctx, env, extraparams, val);
+		if (simp_isexception(ctx, var)) {
+			return var;
 		}
-	} else {
-		return simp_makeexception(ctx, ERROR_UNKSYNTAX);
 	}
 	goto loop;
 }

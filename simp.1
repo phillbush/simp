@@ -205,11 +205,11 @@ expression.
 If all condition-then pairs have been tested, return the optional
 .Ar ELSE
 condition, if it exists.
-.It Ic ( lambda Ar VECTOR EXPRESSION ) "⇒" VOID
-Return the closure in which the symbols in the given vector are bound to the actual arguments in the given body expression.
-.It Ic ( lambda Ar SYMBOL EXPRESSION ) "⇒" VOID
-Return the closure in which the given symbol is bound to the vector of actual arguments in the given body expression.
-This special form is used for variadic procedures.
+.It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" VOID
+Return a closure in which the given symbols are bound to the actual arguments in the given body expression.
+.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" VOID
+Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
+The last symbol is bound to a vector containing the remaining actual arguments.
 .It Ic ( or Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
