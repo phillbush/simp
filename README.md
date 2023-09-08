@@ -20,7 +20,7 @@ Example:
 (define ackermann
   (lambda (x y)
     (do
-      (display (apply string \('a' 'b' 'c')))
+      (display "compute")
       (newline)
       (if (= y 0) 0
           (= x 0) (* 2 y)
@@ -29,12 +29,15 @@ Example:
             (- x 1)
             (ackermann x (- y 1)))))))
 
-(display
-  (ackermann 1 6))
+(define val
+  (apply ackermann \(1 2)))
+
+(redefine val
+  (apply ackermann \(1 6))
 ```
 
 The first expression defines the ackermann function; the second
-expression computes the ackermann function applied to 1 and 6.
+expression applies the ackermann function to 1 and 6.
 
 The following can be observed:
 
@@ -55,3 +58,6 @@ The following can be observed:
 
 * There are no pairs.  S-expressions are not implemented as singly
   linked lists of cons cells, but as tuples/vectors.
+
+* `set!` does not redefine a variable, use `redefine` for that.
+  There is a `set!` procedure, but it is a vector mutator.
