@@ -39,6 +39,7 @@
 	X("false?",             f_falsep,       1,      false      )\
 	X("newline",            f_newline,      0,      true       )\
 	X("null?",              f_nullp,        1,      false      )\
+	X("not",                f_not,          1,      false      )\
 	X("number?",            f_numberp,      1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
@@ -439,6 +440,17 @@ f_newline(Simp ctx, Simp args)
 	if (!simp_isport(ctx, port))
 		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_printf(ctx, port, "\n");
+}
+
+static Simp
+f_not(Simp ctx, Simp args)
+{
+	Simp obj;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (simp_isfalse(ctx, obj))
+		return simp_true();
+	return simp_false();
 }
 
 static Simp

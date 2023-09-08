@@ -1,6 +1,6 @@
 PROG = simp
 SRCS = simp.c data.c port.c eval.c gc.c io.c
-OBJS = ${SRCS:.c=.o} stdlib.o
+OBJS = ${SRCS:.c=.o}
 MANS = simp.1
 HEDS = simp.h
 
@@ -18,9 +18,6 @@ ${PROG}: ${OBJS}
 
 .c.o:
 	${CC} -std=c99 -pedantic ${DEFS} ${CFLAGS} ${CPPFLAGS} -o $@ -c $<
-
-stdlib.o: stdlib.lisp
-	${LD} -r -b binary -o stdlib.o -m ${LDEMULATION} stdlib.lisp
 
 ${PDFS}: ${@:.pdf=.1}
 	{ printf '.fp 5 CW DejaVuSansMono\n' ; cat "${@:.pdf=.1}" ; } | \

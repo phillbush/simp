@@ -6,9 +6,6 @@
 
 #include "simp.h"
 
-extern unsigned char _binary_stdlib_lisp_start[];
-extern unsigned char _binary_stdlib_lisp_end[];
-
 static void
 usage(void)
 {
@@ -110,13 +107,6 @@ main(int argc, char *argv[])
 	ctx = simp_contextnew();
 	if (simp_isexception(simp_nil(), ctx))
 		errx(EXIT_FAILURE, "%s", simp_getexception(simp_nil(), ctx));
-	port = simp_openstring(
-		ctx,
-		_binary_stdlib_lisp_start,
-		_binary_stdlib_lisp_end - _binary_stdlib_lisp_start,
-		"r"
-	);
-	rel(ctx, port);
 	iport = simp_contextiport(ctx);
 	switch (mode) {
 	case MODE_STRING:
