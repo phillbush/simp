@@ -38,9 +38,9 @@ expression computes the ackermann function applied to 1 and 6.
 
 The following can be observed:
 
-* The quotins syntactic sugar is expressed with a backslash rather than
-  with a apostrophe, like in scheme.  Apostrophes are used to represent
-  bytes and literal characters, like in C.
+* The `quote` syntactic sugar is expressed with a backslash rather than
+  with a apostrophe like in scheme.  Apostrophes are used to represent
+  literal characters like in C.
 
 * There is no `defun` form or a `define` form with embedded lambda.
   Defining a procedure must be done with both `define` and `lambda`
