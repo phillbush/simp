@@ -52,7 +52,7 @@
 	X("procedure?",         f_procedurep,   1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
 	X("set!",               f_vectorset,    3,      false      )\
-	X("slice",   ,          f_slicevector,  3,      false      )\
+	X("slice",              f_slicevector,  3,      false      )\
 	X("stderr",             f_stderr,       0,      false      )\
 	X("stdin",              f_stdin,        0,      false      )\
 	X("stdout",             f_stdout,       0,      false      )\
