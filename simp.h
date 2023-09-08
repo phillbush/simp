@@ -114,6 +114,7 @@ unsigned char *simp_errorstr(int exception);
 
 /* data constant utils */
 Simp    simp_nil(void);
+Simp    simp_nulenv(void);
 Simp    simp_empty(void);
 Simp    simp_eof(void);
 Simp    simp_false(void);

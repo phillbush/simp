@@ -73,15 +73,6 @@ simp_nulbind(void)
 }
 
 static Simp
-simp_nulenv(void)
-{
-	return (Simp){
-		.type = TYPE_ENVIRONMENT,
-		.u.vector = NULL,
-	};
-}
-
-static Simp
 simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 {
 	Simp bind;
@@ -862,6 +853,17 @@ simp_nil(void)
 {
 	return (Simp){
 		.type = TYPE_VECTOR,
+		.capacity = 0,
+		.nmembers = 0,
+		.u.vector = NULL,
+	};
+}
+
+Simp
+simp_nulenv(void)
+{
+	return (Simp){
+		.type = TYPE_ENVIRONMENT,
 		.capacity = 0,
 		.nmembers = 0,
 		.u.vector = NULL,

@@ -33,10 +33,13 @@
 	X("car",                f_car,          1,      false      )\
 	X("cdr",                f_cdr,          1,      false      )\
 	X("display",            f_display,      1,      true       )\
+	X("empty?",             f_emptyp,       1,      false      )\
+	X("environment",        f_envnew,       0,      true       )\
 	X("environment?",       f_envp,         1,      false      )\
-	X("falsep",             f_falsep,       1,      false      )\
+	X("false?",             f_falsep,       1,      false      )\
 	X("newline",            f_newline,      0,      true       )\
 	X("null?",              f_nullp,        1,      false      )\
+	X("number?",            f_numberp,      1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
@@ -44,9 +47,14 @@
 	X("stdin",              f_stdin,        0,      false      )\
 	X("stdout",             f_stdout,       0,      false      )\
 	X("string",             f_string,       0,      true       )\
+	X("string-<=?",         f_stringle,     0,      true       )\
+	X("string-<?",          f_stringlt,     0,      true       )\
+	X("string->=?",         f_stringge,     0,      true       )\
+	X("string->?",          f_stringgt,     0,      true       )\
 	X("string->vector",     f_stringvector, 1,      false      )\
 	X("string-cat",         f_stringcat,    0,      true       )\
 	X("string-copy!",       f_stringcpy,    2,      false      )\
+	X("string-dup",         f_stringdup,    1,      false      )\
 	X("string-length",      f_stringlen,    1,      false      )\
 	X("string-new",         f_makestring,   1,      false      )\
 	X("string-ref",         f_stringref,    2,      false      )\
@@ -59,11 +67,13 @@
 	X("vector",             f_vector,       0,      true       )\
 	X("vector-cat",         f_vectorcat,    0,      true       )\
 	X("vector-copy!",       f_vectorcpy,    2,      false      )\
-	X("vector-same?" ,      f_vectoreqv,    0,      true       )\
+	X("vector-dup",         f_vectordup,    0,      true       )\
 	X("vector-length",      f_vectorlen,    1,      false      )\
 	X("vector-new",         f_makevector,   1,      false      )\
 	X("vector-ref",         f_vectorref,    2,      false      )\
+	X("vector-same?" ,      f_vectoreqv,    0,      true       )\
 	X("vector-set!",        f_vectorset,    3,      false      )\
+	X("vector?",            f_vectorp,      0,      true       )\
 	X("write",              f_write,        2,      false      )
 
 enum Forms {
@@ -86,6 +96,24 @@ typepred(Simp ctx, Simp args, bool (*pred)(Simp, Simp))
 
 	obj = simp_getvectormemb(ctx, args, 0);
 	return (*pred)(ctx, obj) ? simp_true() : simp_false();
+}
+
+static int
+stringcmp(Simp ctx, Simp a, Simp b)
+{
+	SimpSiz size0, size1;
+	int cmp;
+
+	size0 = simp_getsize(ctx, a);
+	size1 = simp_getsize(ctx, b);
+	cmp = memcmp(
+		simp_getstring(ctx, a),
+		simp_getstring(ctx, b),
+		size0 < size1 ? size0 : size1
+	);
+	if (cmp == 0 && size0 != size1)
+		return size0 < size1 ? -1 : +1;
+	return cmp;
 }
 
 static Simp
@@ -185,7 +213,8 @@ f_display(Simp ctx, Simp args)
 	default:
 		return simp_makeexception(ctx, ERROR_ARGS);
 	}
-
+	if (!simp_isport(ctx, port))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_display(ctx, port, obj);
 }
 
@@ -212,6 +241,12 @@ f_divide(Simp ctx, Simp args)
 }
 
 static Simp
+f_emptyp(Simp ctx, Simp args)
+{
+	return typepred(ctx, args, simp_isempty);
+}
+
+static Simp
 f_envp(Simp ctx, Simp args)
 {
 	return typepred(ctx, args, simp_isenvironment);
@@ -222,7 +257,18 @@ f_envnew(Simp ctx, Simp args)
 {
 	Simp env;
 
-	env = simp_getvectormemb(ctx, args, 0);
+	env = simp_nulenv();
+	switch (simp_getsize(ctx, args)) {
+	case 1:
+		env = simp_getvectormemb(ctx, args, 0);
+		/* FALLTHROUGH */
+	case 0:
+		break;
+	default:
+		return simp_makeexception(ctx, ERROR_ARGS);
+	}
+	if (!simp_isenvironment(ctx, env))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_makeenvironment(ctx, env);
 }
 
@@ -383,14 +429,15 @@ f_newline(Simp ctx, Simp args)
 	port = simp_contextoport(ctx);
 	switch (simp_getsize(ctx, args)) {
 	case 1:
-		port = simp_getvectormemb(ctx, args, 1);
+		port = simp_getvectormemb(ctx, args, 0);
 		/* FALLTHROUGH */
 	case 0:
 		break;
 	default:
 		return simp_makeexception(ctx, ERROR_ARGS);
 	}
-
+	if (!simp_isport(ctx, port))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
 	return simp_printf(ctx, port, "\n");
 }
 
@@ -398,6 +445,12 @@ static Simp
 f_nullp(Simp ctx, Simp args)
 {
 	return typepred(ctx, args, simp_isnil);
+}
+
+static Simp
+f_numberp(Simp ctx, Simp args)
+{
+	return typepred(ctx, args, simp_isnum);
 }
 
 static Simp
@@ -458,6 +511,8 @@ f_slicevector(Simp ctx, Simp args)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size < 0 || from + size > capacity)
 		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size == 0)
+		return simp_nil();
 	return simp_slicevector(ctx, v, from, size);
 }
 
@@ -483,6 +538,8 @@ f_slicestring(Simp ctx, Simp args)
 		return simp_makeexception(ctx, ERROR_RANGE);
 	if (size < 0 || from + size > capacity)
 		return simp_makeexception(ctx, ERROR_RANGE);
+	if (size == 0)
+		return simp_empty();
 	return simp_slicestring(ctx, v, from, size);
 }
 
@@ -557,33 +614,6 @@ f_stringcat(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringcmp(Simp ctx, Simp args)
-{
-	SimpSiz size0, size1;
-	Simp a, b;
-	int cmp;
-
-	a = simp_getvectormemb(ctx, args, 0);
-	b = simp_getvectormemb(ctx, args, 1);
-	if (!simp_isstring(ctx, a) || !simp_isstring(ctx, b))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	size0 = simp_getsize(ctx, a);
-	size1 = simp_getsize(ctx, b);
-	cmp = memcmp(
-		simp_getstring(ctx, a),
-		simp_getstring(ctx, b),
-		size0 < size1 ? size0 : size1
-	);
-	if (cmp == 0 && size0 != size1)
-		cmp = size0 < size1 ? -1 : +1;
-	else if (cmp < 0)
-		cmp = -1;
-	else if (cmp > 0)
-		cmp = +1;
-	return simp_makenum(ctx, cmp);
-}
-
-static Simp
 f_stringcpy(Simp ctx, Simp args)
 {
 	Simp dst, src;
@@ -599,6 +629,95 @@ f_stringcpy(Simp ctx, Simp args)
 		return simp_makeexception(ctx, ERROR_OUTOFRANGE);
 	simp_cpystring(ctx, dst, src);
 	return simp_void();
+}
+
+static Simp
+f_stringdup(Simp ctx, Simp args)
+{
+	Simp obj;
+	SimpSiz len;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (!simp_isstring(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	len = simp_getsize(ctx, obj);
+	return simp_makestring(ctx, simp_getstring(ctx, obj), len);
+}
+
+static Simp
+f_stringge(Simp ctx, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp next, prev;
+
+	nargs = simp_getsize(ctx, args);
+	for (i = 0; i < nargs; i++, prev = next) {
+		next = simp_getvectormemb(ctx, args, i);
+		if (!simp_isstring(ctx, next))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		if (i == 0)
+			continue;
+		if (stringcmp(ctx, prev,next) < 0)
+			return simp_false();
+	}
+	return simp_true();
+}
+
+static Simp
+f_stringgt(Simp ctx, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp next, prev;
+
+	nargs = simp_getsize(ctx, args);
+	for (i = 0; i < nargs; i++, prev = next) {
+		next = simp_getvectormemb(ctx, args, i);
+		if (!simp_isstring(ctx, next))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		if (i == 0)
+			continue;
+		if (stringcmp(ctx, prev,next) <= 0)
+			return simp_false();
+	}
+	return simp_true();
+}
+
+static Simp
+f_stringle(Simp ctx, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp next, prev;
+
+	nargs = simp_getsize(ctx, args);
+	for (i = 0; i < nargs; i++, prev = next) {
+		next = simp_getvectormemb(ctx, args, i);
+		if (!simp_isstring(ctx, next))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		if (i == 0)
+			continue;
+		if (stringcmp(ctx, prev,next) > 0)
+			return simp_false();
+	}
+	return simp_true();
+}
+
+static Simp
+f_stringlt(Simp ctx, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp next, prev;
+
+	nargs = simp_getsize(ctx, args);
+	for (i = 0; i < nargs; i++, prev = next) {
+		next = simp_getvectormemb(ctx, args, i);
+		if (!simp_isstring(ctx, next))
+			return simp_makeexception(ctx, ERROR_ILLTYPE);
+		if (i == 0)
+			continue;
+		if (stringcmp(ctx, prev,next) >= 0)
+			return simp_false();
+	}
+	return simp_true();
 }
 
 static Simp
@@ -755,6 +874,30 @@ f_vectorcpy(Simp ctx, Simp args)
 }
 
 static Simp
+f_vectordup(Simp ctx, Simp args)
+{
+	Simp src, dst;
+	SimpSiz i, len;
+
+	src = simp_getvectormemb(ctx, args, 0);
+	if (!simp_isvector(ctx, src))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	len = simp_getsize(ctx, src);
+	dst = simp_makevector(ctx, len);
+	if (simp_isexception(ctx, dst))
+		return dst;
+	for (i = 0; i < len; i++) {
+		simp_setvector(
+			ctx,
+			dst,
+			i,
+			simp_getvectormemb(ctx, src, i)
+		);
+	}
+	return dst;
+}
+
+static Simp
 f_vectoreqv(Simp ctx, Simp args)
 {
 	Simp a, b;
@@ -780,6 +923,12 @@ f_vectoreqv(Simp ctx, Simp args)
 		}
 	}
 	return simp_true();
+}
+
+static Simp
+f_vectorp(Simp ctx, Simp args)
+{
+	return typepred(ctx, args, simp_isvector);
 }
 
 static Simp
@@ -1035,8 +1184,20 @@ loop:
 		/* (eval EXPRESSION ENVIRONMENT) */
 		if (noperands != 2)
 			return simp_makeexception(ctx, ERROR_ILLFORM);
-		expr = simp_getvectormemb(ctx, operands, 0);
-		env = simp_getvectormemb(ctx, operands, 1);
+		expr = simp_eval(
+			ctx,
+			simp_getvectormemb(ctx, operands, 0),
+			env
+		);
+		if (simp_isexception(ctx, expr))
+			return expr;
+		env = simp_eval(
+			ctx,
+			simp_getvectormemb(ctx, operands, 1),
+			env
+		);
+		if (simp_isexception(ctx, env))
+			return env;
 		goto loop;
 	} else if (simp_issame(ctx, operator, forms[FORM_LAMBDA])) {
 		/* (lambda PARAMETER BODY) */

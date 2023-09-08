@@ -107,14 +107,48 @@ In
 .Nm ,
 lists can be implemented as a chain of vectors,
 in which the last element of each vector is a pointer to the next vector.
-.Sh EXPRESSIONS
+.Sh LANGUAGE
 A
 .Nm
 program is a sequence of expressions, possibly alternated with comments and whitespace.
 The kind of value that an expression returns is specified below after the
 .Em "⇒" symbol.
 An expression can be a special form, a symbol, a literal or a procedure combination.
-Builtin procedures are listed below, after the special forms.
+The initial
+.Nm
+environment starts out with a number of variables bound to builtin procedures,
+which are listed below (after the special forms).
+.Pp
+.Nm
+(like most Lisps)
+is a dynamically typed programming language.
+Types are associated with objects rather than with variables.
+(Statically typed languages, by contrast,
+associate types with variables and expressions as well with values).
+Objects are self-typing;
+the primitive data type of each object is implicit in the object itself.
+Primitive data types are list below,
+together with the builtin procedures that manipulate them.
+.Pp
+.Nm
+is a statically scoped language with block structure.
+To each place where an identifier is bound in a program there corresponds a
+.Em region
+of the program text within which the binding is visible.
+Every mention of an identifier refers to the binding of the identifier
+that established the innermost of the regions containing the use.
+.Pp
+Expressions can be evaluated, yielding a value.
+An expression can evaluate to itself (a so called
+.Em self-evaluating
+expression ) .
+An evaluation can do more than just compute things,
+such as mutate an object, or perform input/output.
+Such additional processes are called
+.Em "side effects" .
+An expression can also signal an error,
+in which case the evaluation algorithm is interrupted,
+even when at a deep level of recursion.
 .Ss Syntax Sugars
 .Bl -tag -width Ds -compact
 .It Ar "\eOBJECT" "⇒" OBJECT
@@ -152,10 +186,6 @@ Each
 .Ar ARGUMENT
 must be an expression that evaluates to a single value;
 otherwise an error is signaled.
-As a syntax-sugar, the syntactical symbol
-.Cm apply
-can be replaced with the exclamation point.
-.Cm "\)!" .
 .It Ic ( define Ar SYMBOL EXPRESSION Ic ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
 .Ar SYMBOL
@@ -194,44 +224,39 @@ Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
-.It Ar SYMBOL
-Return the value that the given symbol is bound to in the current environment.
-.Ar SYMBOL
-must be a symbol already bound in the current environment;
-otherwise an error is signaled.
-.It Ar LITERAL
-Return the given literal expression.
-.Ar LITERAL
-can be any expression, except a symbol or a vector.
 .El
-.Ss Type Procedures
+.Ss Values
+There are two means of comparing objects.
+Two objects are the
+.Em same
+if they are bound to the same thing or location.
+Two objects are
+.Em equivalent
+if the values stored in their locations are equivalent by some predicate.
+.Pp
+The notation
+.Ic "(+ 2 6) ⇒ 8"
+means that the expression
+.Ic "(+ 2 6)"
+evaluates to the value represented by
+.Ic "8" .
+The notation
+.Ic "(+ 2 6) ≡ (+ 4 4)"
+means that both expressions
+.Ic "(+ 2 6)"
+and
+.Ic "(+ 4 4)"
+evaluate to the same value.
 .Bl -tag -width Ds -compact
 .It Ic ( same?\) Ar OBJECT ... ) "⇒" BOOLEAN
 Return whether the given objects are the same.
-.It Ic ( boolean?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a boolean object.
-.It Ic ( byte?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a byte object.
-.It Ic ( empty?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is the string object with zero elements.
-.It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is an environment object.
-.It Ic ( false?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is the false object.
-.It Ic ( null?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is the vector object with zero elements.
-.It Ic ( port?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a port object.
-.It Ic ( procedure?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a procedure object.
-.It Ic ( string?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a string object.
-.It Ic ( true?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is not the false object.
-.It Ic ( vector?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is a vector object.
 .El
-.Ss Arithmetic Procedures
+.Ss Numbers
+Numbers are self-evaluating objects that represent an integer or real value.
+.Nm
+currently only implements fixed-size integer and double-sized floating point data types.
+The procedures below only apply to integers.
+The external representation of a number is a number literal.
 .Bl -tag -width Ds -compact
 .It Ic ( "+" Ar NUMBER ... ) "⇒" NUMBER
 Return the sum of the given numbers.
@@ -251,20 +276,71 @@ Return whether the given numbers are monotonically decreasing.
 Return whether the given numbers are monotonically nondecreasing.
 .It Ic ( ">=" Ar NUMBER ... ) "⇒" BOOLEAN
 Return whether the given numbers are monotonically nonincreasing.
+.It Ic ( number?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a number.
 .El
-.Ss String Procedures
+.Ss Symbols
+Symbols are non-self-evaluating objects holding an interned string of characters.
+A symbol evaluates to the value bound to its homonymous variable in the current environment.
+The external representation of a symbol is an identifier.
 .Bl -tag -width Ds -compact
+.It Ic ( symbol?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a symbol object.
+.El
+.Ss Booleans
+Boolean are one of two distinct unique self-evaluating objects: the true and false objects.
+These objects have no read external representation (therefore they cannot be created by the
+.Ic read
+procedure).
+.Pp
+Booleans can be used to control the evaluation of conditional procedures.
+.Nm
+interprets the false boolean object as a logical false, and any other
+object (including the true boolean object itself) as a logical true.
+.Bl -tag -width Ds -compact
+.It Ic ( boolean?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a boolean object.
+.It Ic ( false?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the false object.
+.It Ic ( true?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is not the false object.
+.El
+.Ss Bytes
+Bytes are self-evaluating objects representing an integer in the range from 0 to 255 inclusive.
+The external representation of a byte is a character literal.
+.Bl -tag -width Ds -compact
+.It Ic ( byte?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a byte object.
+.El
+.Ss Strings
+Strings (or bytevectors) are self-evaluating objects bound to a
+homogeneous sequence of zero or more locations in memory,
+each one holding exactly a byte and indexed from zero.
+A
+.Em byte
+is an exact integer in the range from 0 to 255 inclusive.
+A string is typically more space-efficient than a vector containing the same values.
+The external representation of a string is a string literal.
+.Bl -tag -width Ds -compact
+.It Ic ( empty?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the string object with zero elements.
 .It Ic ( string Ar BYTE ... ) "⇒" STRING
 Return a newly allocated string containing the given bytes.
-.It Ic ( string-concat Ar STRING ... ) "⇒" STRING
+.It Ic ( string-<?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in increasing order.
+.It Ic ( string->?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in decreasing order.
+.It Ic ( string-<=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in nondecreasing order.
+.It Ic ( string->=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
+Return whether the given strings are lexicographically sorted in nonincreasing order.
+.It Ic ( string-cat Ar STRING ... ) "⇒" STRING
 Return a newly allocated string whose elements form the concatenation of the given strings.
 .It Ic ( string-copy!\) Ar STRING STRING ) "⇒" VOID
 Copy all elements of the second string into the first one.
 The length of the second string must be lesser or equal to the first's, or an error will be signaled
 .It Ic ( string-dup Ar STRING ) "⇒" STRING
 Return a newly allocated string with size and elements the same as the given string.
-.It Ic ( string-equiv?\) Ar STRING ... ) "⇒" BOOLEAN
-Return whether the given strings have the same length and the same elements.
 .It Ic ( string-length Ar STRING ) "⇒" NUMBER
 Return the number of elements of the given string.
 .It Ic ( string-new Ar NUMBER ) "⇒" STRING
@@ -283,9 +359,30 @@ returns the string
 Both strings point to the same memory,
 so changing an element in the resulting string
 also changes the corresponding element in the original string.
+.It Ic ( string?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a string object.
 .El
-.Ss Vector Procedures
+.Ss Vectors
+Vectors are non-self-evaluating objects bound to a heterogeneous sequence
+of zero or more locations in memory,
+each one holding exactly an object of arbitrary type, and indexed from zero.
+The external representation of a number is a number literal.
+.Pp
+A vector with zero element is called a
+.Em nil .
+A vector with one element is called a
+.Em box .
+A vector with two elements is called a
+.Em pair .
+A vector with a number of n elements is called an
+.Em n-uple .
+.Pp
+More complex data structures,
+such as linked lists, hash tables, trees, and records (to name a few),
+can be implemented in terms of vectors.
 .Bl -tag -width Ds -compact
+.It Ic ( null?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is the vector object with zero elements.
 .It Ic ( subvector Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
 Return the given vector indexed from the first given number (default 0)
 with the second given number (default maximum possible) elements.
@@ -300,119 +397,121 @@ also changes the corresponding element in the original vector.
 Return a newly allocated vector filled with the bytes of the given string.
 .It Ic ( vector Ar OBJECT ... ) "⇒" VECTOR
 Return a newly allocated vector containing the given objects.
-.It Ic ( vector-concat Ar VECTOR ... ) "⇒" VECTOR
+.It Ic ( vector-cat Ar VECTOR ... ) "⇒" VECTOR
 Return a newly allocated vector whose elements form the concatenation of the given vectors.
 .It Ic ( vector-copy!\) Ar VECTOR VECTOR ) "⇒" VOID
 Copy all elements of the second vector into the first one.
 The length of the second vector must be lesser or equal to the first's.
 .It Ic ( vector-dup Ar VECTOR ) "⇒" VECTOR
 Return a newly allocated vector with size and elements the same as the given vector.
-.It Ic ( vector-equiv?\) Ar VECTOR ... ) "⇒" BOOLEAN
-Return whether the given vectors have the same length and the same elements.
 .It Ic ( vector-length Ar VECTOR ) "⇒" NUMBER
 Return the number of elements of the given vector.
 .It Ic ( vector-new Ar NUMBER ) "⇒" VECTOR
 Return a newly allocated vector of the given size filled with the null object.
 .It Ic ( vector-ref Ar VECTOR NUMBER ) "⇒" OBJECT
 Return the i-th element of the given vector.
+.It Ic ( vector-same?\) Ar VECTOR ... ) "⇒" BOOLEAN
+Return whether the given vectors have the same length and the same elements.
 .It Ic ( vector-set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
 Set the i-th element of the given vector to the given object.
+.It Ic ( vector?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a vector object.
 .El
-.Ss Input/Output Procedures
+.Ss Procedures
+Procedures are self-evaluating objects that represent either a builtin procedure or
+a closure created with the
+.Ic lambda
+syntactical form.
 .Bl -tag -width Ds -compact
+.It Ic ( procedure?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a procedure object.
+.El
+.Ss Ports
+Ports are self-evaluating objects representing input or output devices.
+A port object has no read external representation.
+The printed external representation of a port is unique for each port object,
+but unpredictable.
+.Pp
+Ports can be input or output ports;
+and can be used to read/write bytes from/into files or strings.
+Ports can be closed.
+When a port is closed, no further input/output operation is permited on that port.
+Input/output operation can be buffered, and closing a port flushes the buffer.
+.Pp
+Operations on ports are listed below.
+.Bl -tag -width Ds -compact
+.It Ic ( port?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is a port object.
 .It Ic ( stderr ) Ar "⇒" PORT
 Return the standard error port.
 .It Ic ( stdin ) Ar "⇒" PORT
 Return the standard input port.
 .It Ic ( stdout ) Ar "⇒" PORT
 Return the standard output port.
-.It Ic ( display Ar OBJECT [ PORT ] ) "⇒" PORT
-Write into the given object to the given port (standard output, by default)
+.El
+.Ss Input/Output
+The
+.Em "read external representation"
+of an object is a representation of an object as a sequence of characters.
+This representation is not necessarily unique;
+and certain objects may have no read external representation at all.
+For example, the integer 28 has the read external representations
+.Ic Qq 28 ,
+.Ic Qq +28 ,
+and
+.Ic Qq 0x1C ,
+among others.
+Closures and port objects, for example, have no read external representation.
+The read external representation of an object is parsed by the
+.Ic read
+procedure.
+.Pp
+The
+.Em "printed external representation"
+of an object is a representation of an object as a sequence of characters.
+This representation is unique;
+and all objects have one.
+For example, the printed external representation of the integer 28
+is the sequence of characters
+.Ic Qq 28 ,
+and the printed external representation of a vector consisting of the integers 8 and 13
+is the sequence of characters
+.Ic Qq "(8 13)".
+For most data types, an object's printed external representation
+is also a valid read external representation for the object.
+The printed external representation of an object is generated by the
+.Ic write
+procedure.
+.Pp
+The
+.Em "pretty-printed external representation"
+of an object is a representation of an object as a sequence of characters.
+This representation is not necessarily unique;
+and all objects have one.
+The pretty-printed external representation is similar to the regular printed external representation,
+except that it is not guaranteed that a pretty-printed external representation
+for an object is a valid read external representation.
+In other words, while the printed external representation of an object can be read by the interpreter,
+the pretty-printed external representation of an object is made for user consumption.
+The pretty-printed external representation of an object is generated by the
+.Ic display
+procedure.
+.Bl -tag -width Ds -compact
+.It Ic ( display Ar OBJECT [ PORT ] ) "⇒" VOID
+Write the given object into the given port (standard output, by default)
 in user-readable form.
-.It Ic ( write Ar OBJECT [ PORT ] ) "⇒" PORT
-Write into the given object to the given port (standard output, by default)
-in its external representation.
+.It Ic ( newline [ PORT ] ) Ar "⇒" VOID
+Write a newline into the given port (standard output, by default).
+.It Ic ( write Ar OBJECT [ PORT ] ) "⇒" VOID
+Write the given object into the given port (standard output, by default)
+in its printed external representation.
 .El
-.Ss Environment Procedures
-.Bl -tag -width Ds -compact
-.It Ic ( environment-new Ar ENVIRONMENT ) "⇒" ENVIRONMENT
-Return a newly allocated environment using the given environment as parent environment.
-.It Ic ( environment-empty ) Ar "⇒" ENVIRONMENT
-Return the empty environment.
-.El
-.Ss Lexicographical Comparison Procedures
-.Bl -tag -width Ds -compact
-.It Ic ( string-<?\) Ar STRING STRING ... ) "⇒" BOOLEAN
-Return whether the given strings are lexicographically sorted in increasing order.
-.It Ic ( string->?\) Ar STRING STRING ... ) "⇒" BOOLEAN
-Return whether the given strings are lexicographically sorted in decreasing order.
-.It Ic ( string-<=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
-Return whether the given strings are lexicographically sorted in nondecreasing order.
-.It Ic ( string->=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
-Return whether the given strings are lexicographically sorted in nonincreasing order.
-.El
-.Sh EVALUATION
-.Em Evaluation
-is the process of computing values from expressions.
-An expression can evaluate to zero or more values
-(TODO: THAT'S A LIE, EACH EXPRESSION EVALUATES TO A SINGLE OBJECT FOR NOW.
-IN THE FUTURE SIMP WILL SUPPORT RETURNING MULTIPLE VALUES).
-An expression can even evaluate to itself (a so called
-.Em self-evaluating
-expression).
-An evaluation can do more than just compute things,
-such as mutate an object, or perform input/output;
-such additional processes are called
-.Em side effects .
-An expression can also signal an error,
-in which case, the evaluation algorithm is interrupted,
-even when at a deep level of recursion.
+.Ss Environments
+Evaluation is subject to the current environment
+(or the enviroment given to the
+.Ic eval
+special form).
 .Pp
-Although objects are usually read and then evaluated, those are separate processes, and either can be performed alone.
-Reading does not evaluate anything; it just converts an external representation of an object to the object itself.
-For example, the sequence of characters
-.Qq Ic "(apply + 2 6)"
-is an external representation of an object that evaluates to the integer 8;
-it is not however an external representation of the integer 8.
-The syntax of
-.Nm
-has the property that any sequence of characters that is an expression is also the external representation of some object.
-That can lead to confusion, since it may not be obvious out of context whether a given sequence of characters is intended to denote data or program,
-but it is also a source of power, since it facilitates writing programs such as interpreters and compilers that treat programs as data (or vice versa).
-.Pp
-This manual uses the rightwards double arrow symbol
-.Dq Ic "⇒"
-.Pq "U+21D2"
-to separate the external representation of an object from the external representation of the objects it evaluates to.
-For example
-.Qq Ic "(apply + 2 6) ⇒ 8"
-means that the object represented by
-.Qq Ic "(apply + 2 6)"
-evaluates to the object represented by
-.Qq Ic "8" .
-.Pp
-This manual also uses the triple bar symbol
-.Dq Ic "≡"
-.Pq U+2261
-to separate the external representations of two objects that evaluate to the same objects.
-For example
-.Qq Ic "(apply + 2 6) ≡ (apply + 4 4)"
-means that the object represented by
-.Qq Ic "(apply + 2 6)"
-and the object represented by
-.Qq Ic "(apply + 4 4)"
-evaluate to the same thing.
-.Pp
-There are two means of comparing objects.
-Two objects are the
-.Em same
-if they denote they are bound to the same thing or location.
-Two objects are
-.Em equivalent
-if the values stored in their locations are the same.
-.Pp
-Evaluation is subject to the current environment (see below).
-.Ss Environment
 An identifier may name a location in memory where a value can be stored.
 Such identifier is called a
 .Em variable
@@ -432,215 +531,23 @@ An environment is a sequence of
 Each frame is a table (possible empty) of
 .Em bindings ,
 which associate variable names with their corresponding location in memory.
-Frames are structured as a tree:
+Frames are structured in a singly linked list:
 each frame can point to either nothing or to a parent tree.
 The
-.Em value of a variable
-with respect to an environment
-is the value on the location given by the binding of the variable
+.Em "value of a variable"
+with respect to an environment is the value on the location given by the binding of the variable
 in the first frame in the environment that contains a binding for that variable.
 If no frame in the sequence specifies a binding for the variable,
 then the variable is said to be
 .Em unbound
 in the environment.
-.Pp
-The environment is crucial for the evaluation process,
-because it determines the context in which an expression should be evaluated.
-Indeed, one could say that expressions do not, in themselves, have any meaning.
-Rather, an expression aquires a meaning only with respect to some environment in which it is evaluated.
-Even the interpretation of an expression as straightforward as
-.Ic "(apply + 1 1)"
-depends on an understanding that one is operating in a context in which
-.Ic "\)+"
-is the symbol of addition.
-.Pp
-.Nm
-is a statically scoped language with block structure.
-To each place where an identifier is bound in a program there corresponds a
-.Em region
-of the program text within which the binding is visible.
-Every mention of an identifier refers to the binding of the identifier that established the innermost of the regions containing the use.
-If there is no binding of the identifier whose region contains the use, then the use refers to the binding for the variable in the top level environment, if any.
-If there is no binding for the identifier, it is said to be
-.Em unbound .
-.Ss External representations
-An important concept in
-.Nm
-(and Lisp)
-is that of the
-.Em external representation
-of an object as a sequence of characters.
-There are two forms of external representation:
-the printed and the read forms.
-.Pp
-The
-.Em printed external representation
-of an object is unique;
-and all objects have a printed external representation.
-For example, the printed external representation of the integer 28 is the sequence of characters
-.Qq Ic "28" ,
-and the printed external representation of a vector consisting of the integers 8 and 13 is the sequence of characters
-.Qq Ic "(8 13)" .
-The printed external representation of an object is generated by the
-.Ic write
-procedure.
-.Pp
-The
-.Em read external representation
-of an object is not necessarily unique;
-and certain objects may have no read external representation at all.
-The integer 28 has the read external representations
-.Qq Ic "28" ,
-.Qq Ic "28e",
-and
-.Qq Ic "0x1C" ,
-among others.
-Closures and port objects, for example, have no read external representation.
-The read external representation of an object is parsed by the
-.Ic read
-procedure.
-.Pp
-In most cases, an object's printed external representation is also a valid read external representation for the object.
-Objects that have no read external representations have their printed external representation surrounded by
-.Qq Ic "#<"
-and
-.Qq Ic ">" .
-For example, the printed external representation of the an output port is something like
-.Qq Ic "#<output-port 0x0123456789ABCDEF>".
-.Sh DATA TYPES
-A
-.Em data type
-can be interpreted as a set of possible objects.
-Each object belong to at least one type.
-Data types can overlap, and objects can belong to two or more types.
-A
-.Em primitive data type
-is a basic data type that is built into
-.Nm
-and from which all other data types are constructed.
-Primitive data types are
-.Em disjoint
-and do not overlap
-(that is, each object belongs to one and only one primitive data type).
-.Pp
-.Nm
-(like in most Lisps)
-is a dynamically typed programming language.
-Types are associated with objects
-rather than with variables.
-(Statically typed languages, by contrast, associate types with variables and expressions as well as with values).
-Object are self-typing;
-the primitive type of each object is implicit in the object itself.
-.Pp
-For each primitive data type (and a few other non-primitve ones),
-the standard library defines a set of variables bound to objects
-(constants, predicates, constructors, mutators, and accessors)
-used to manipulate objects of that data type (see
-.Sx STANDARD LIBRARY ) .
-.Ss Numbers
-[TODO: fixnums, bignums, numerical tower, etc]
-.Ss Booleans
-The boolean data type contains only two distinct unique objects: the true and false objects.
-These objects have no read external representation, therefore they cannot be created by the
-.Ic read
-procedure.
-They have, however, the printed external representations "#<true>" and "#<false>".
-.Pp
-Boolean objects (or "booleans" for short) can be used to control the evaluation of conditional procedures.
-The procedures in the
-.Sx STANDARD LIBRARY
-interpret the false boolean object as a logical false, and any other object (including the true boolean object) as a logical true.
-.Pp
-A boolean is immutable and self-evaluating.
-.Ss Symbols
-The symbol data type contains objects holding an interned string of characters.
-Symbol objects have identifiers as external representations.
-Two symbol objects with the same external representation (either read or printed) are the same object
-(they denote the same location in memory).
-.Pp
-Symbol objects (or "symbols" for short) are used to represent identifiers in programs.
-The printed external representation of a symbol is called the
-.Em name
-of the symbol.
-.Pp
-A symbol is immutable and evaluates to the value bound to the variable with the same name as the symbol in the current environment.
-.Ss End-of-file
-The end-of-file data type contains a single object, called the end-of-file.
-The end-of-file object has no read external representation.
-It has, however, the printed external representation "#<eof>".
-.Pp
-The end-of-file object (or "eof" for short) is used to represent the end of a read file or program.
-.Pp
-The eof is immutable and self-evaluating.
-.Ss Port
-The port data type contains objects representing input and output devices.
-A port object has no read external representation.
-The printed external representation of a port is unique for a port object, but unpredictable.
-.Pp
-Port objects (or "ports", for short) can be input ports, used to read bytes from files or bytevectors;
-or output ports, used to write bytes into files or bytevectors.
-Ports can be closed.
-When a port is closed, no further input/output operation is permited on that port.
-Input/output operation can be buffered, and closing a port flushes the buffer.
-.Pp
-A port is immutable and self-evaluating.
-.Ss Byte
-The byte data type (also known as "character" data type)
-contains a value from 0 to 255 inclusive.
-The external representation of a byte is a character literal.
-.Ss Bytevectors
-The bytevector data type (also known as "string" data type)
-contains objects denoting a sequence of zero or more locations in memory,
-each one holding exactly a byte.
-Where a
-.Em byte
-is an exact integer in the range from 0 to 255 inclusive.
-A bytevector is typically more space-efficient than a vector containing the same values.
-The external representation of bytevectors is a string literal.
-.Pp
-Bytevector objects are homogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
-The
-.Em length
-of a bytevector is the number of elements that it contains.
-This number is a non-negative integer that is fixed when the bytevector is created.
-The
-.Em valid indexes
-of a bytevector are the exact non-negative integers less than the length of the bytevector,
-starting at index zero.
-.Pp
-Bytevectors are usually used to hold string of characters encoded in UTF-8.
-For example, "Hello World" and "Eĥoŝanĝo Ĉiuĵaŭde" are two strings of characters encoded in UTF-8 in a bytevector.
-"\ex00\ex0A\ex05" is a bytevector of length 3 containing, in order, the bytes 0, 10 and 5 (or 0, A, and 5, in their hexadecimal form).
-.Pp
-A bytevector can be mutable or immutable, and is self-evaluating.
-.Ss Vectors
-The vector data type contains objects denoting a sequence of zero or more locations in memory,
-each one holding an object of arbitrary type.
-A vector object can have several different external representations (see below).
-.Pp
-Vector objects (or "vectors" for short) are heterogenous structures whose elements are indexed by integers and whose elements can be randomly accessed in constant time.
-The
-.Em length
-of a vector is the number of elements that it contains.
-This number is a non-negative integer that is fixed when the vector is created.
-The
-.Em valid indexes
-of a vector are the exact non-negative integers less than the length of the vector.
-The first element in a vector is indexed by zero, and the last element is indexed by one less than the length of the vector.
-A vector can contain any object as its elements, even other vectors.
-.Pp
-A vector with zero element is called a
-.Em nil .
-A vector with one element is called a
-.Em box .
-A vector with two elements is called a
-.Em pair .
-A vector with a number n of elements is called a
-.Em n-tuple .
-.Pp
-More complex data structures,
-such as linked lists, hash tables, trees, and records (to name a few),
-can be implemented in terms of vectors.
+.Bl -tag -width Ds -compact
+.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
+Return a newly allocated environment using the given environment as parent environment.
+If no environment is given, return the empty environment.
+.It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is an environment object.
+.El
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for
 .Nm
@@ -931,8 +838,6 @@ I have no idea what a formal semantics is or does.
 .Sh EXAMPLES
 [TODO]
 .Sh SEE ALSO
-.Xr simp 1 ,
-.Xr simp 3
 .Rs
 .%A Harold Abelson
 .%A Gerald Jay Sussman
@@ -971,9 +876,7 @@ programming language was designed by
 The
 .Nm
 programming language implemented in
-.Xr simp 1
-and
-.Xr simp 3
+.Nm
 is not complete, and may not conform to this manpage.
 .Pp
 This manual page is also not complete, as the language is only
