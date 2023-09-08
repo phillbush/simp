@@ -99,10 +99,6 @@ implements S-expressions as
 rather than cons cells (aka pairs).
 In fact, it is the vector, not the pair, the primary mean
 of data combination.
-.Nm
-has no notion of
-.Ic cons , car , cdr
-or other procedures common in other LISP dialects.
 In
 .Nm ,
 lists can be implemented as a chain of vectors,
@@ -219,7 +215,7 @@ Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
 .It Ic ( quote Ar EXPRESSION ) "⇒" OBJECT
 Return the given expression itself, without evaluating it.
-.It Ic ( set!\) Ar SYMBOL OBJECT ) "⇒" VOID
+.It Ic ( redefine!\) Ar SYMBOL OBJECT ) "⇒" VOID
 Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE
@@ -337,28 +333,28 @@ Return whether the given strings are lexicographically sorted in decreasing orde
 Return whether the given strings are lexicographically sorted in nondecreasing order.
 .It Ic ( string->=?\) Ar STRING STRING ... ) "⇒" BOOLEAN
 Return whether the given strings are lexicographically sorted in nonincreasing order.
-.It Ic ( string-cat Ar STRING ... ) "⇒" STRING
+.It Ic ( string-concat Ar STRING ... ) "⇒" STRING
 Return a newly allocated string whose elements form the concatenation of the given strings.
 .It Ic ( string-copy!\) Ar STRING STRING ) "⇒" VOID
 Copy all elements of the second string into the first one.
 The length of the second string must be lesser or equal to the first's, or an error will be signaled
-.It Ic ( string-dup Ar STRING ) "⇒" STRING
+.It Ic ( string-clone Ar STRING ) "⇒" STRING
 Return a newly allocated string with size and elements the same as the given string.
 .It Ic ( string-length Ar STRING ) "⇒" NUMBER
 Return the number of elements of the given string.
-.It Ic ( string-new Ar NUMBER ) "⇒" STRING
+.It Ic ( string-alloc Ar NUMBER ) "⇒" STRING
 Return a newly allocated string of the given size filled with the zero byte.
-.It Ic ( string-ref Ar STRING NUMBER ) "⇒" BYTE
+.It Ic ( string-get Ar STRING NUMBER ) "⇒" BYTE
 Return the i-th element of the given string.
 .It Ic ( string-set!\) Ar STRING NUMBER BYTE ) "⇒" STRING
 Set the i-th element of the given string to the given byte.
-.It Ic ( substring Ar STRING [ NUMBER [ NUMBER ] ] ) "⇒" STRING
+.It Ic ( string-slice Ar STRING [ NUMBER [ NUMBER ] ] ) "⇒" STRING
 Return the given string indexed from the first given number (default 0)
 with the second given number (default maximum possible) elements.
 For example,
-.Cm "(substring "abcde" 1 3)"
+.Cm "(string-slice \(dqabcde\(dq 1 3)"
 returns the string
-.Cm "bcd" .
+.Cm \(dqbcd\(dq .
 Both strings point to the same memory,
 so changing an element in the resulting string
 also changes the corresponding element in the original string.
@@ -384,15 +380,42 @@ More complex data structures,
 such as linked lists, hash tables, trees, and records (to name a few),
 can be implemented in terms of vectors.
 .Bl -tag -width Ds -compact
+.It Ic ( alloc Ar NUMBER ) "⇒" VECTOR
+Return a newly allocated vector of the given size filled with the null object.
+.It Ic ( car Ar VECTOR ) "⇒" OBJECT
+Return the first element of the given vector.
+.Ic "(car v)"
+is equivalent to
+.Ic "(get v 0)" .
+.It Ic ( cdr Ar VECTOR) "⇒" VECTOR
+Return the given vector indexed from the second element.
+.Ic "(cdr v)"
+is equivalent to
+.Ic "(slice v 1 (- (length v) 1))" .
+.It Ic ( clone Ar VECTOR ) "⇒" VECTOR
+Return a newly allocated vector with size and elements the same as the given vector.
+.It Ic ( concat Ar VECTOR ... ) "⇒" VECTOR
+Return a newly allocated vector whose elements form the concatenation of the given vectors.
+.It Ic ( copy!\) Ar VECTOR VECTOR ) "⇒" VOID
+Copy all elements of the second vector into the first one.
+The length of the second vector must be lesser or equal to the first's.
+.It Ic ( equiv?\) Ar VECTOR ... ) "⇒" BOOLEAN
+Return whether the given vectors have the same length and the same elements.
+.It Ic ( get Ar VECTOR NUMBER ) "⇒" OBJECT
+Return the i-th element of the given vector.
+.It Ic ( length Ar VECTOR ) "⇒" NUMBER
+Return the number of elements of the given vector.
 .It Ic ( null?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is the vector object with zero elements.
-.It Ic ( subvector Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
+.It Ic ( set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
+Set the i-th element of the given vector to the given object.
+.It Ic ( slice Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
 Return the given vector indexed from the first given number (default 0)
 with the second given number (default maximum possible) elements.
 For example,
-.Cm "(subvector (vector 'a' 'b' 'c' 'd' 'e') 1 3)"
+.Cm "(slice (vector \(aqa\(aq \(aqb\(aq \(aqc\(aq \(aqd\(aq \(aqe\(aq) 1 3)"
 returns the vector
-.Cm "('b' 'c' 'd')" .
+.Cm "(\(aqb\(aq \(aqc\(aq \(aqd\(aq)" .
 Both vectors point to the same memory,
 so changing an element in the resulting vector
 also changes the corresponding element in the original vector.
@@ -400,23 +423,6 @@ also changes the corresponding element in the original vector.
 Return a newly allocated vector filled with the bytes of the given string.
 .It Ic ( vector Ar OBJECT ... ) "⇒" VECTOR
 Return a newly allocated vector containing the given objects.
-.It Ic ( vector-cat Ar VECTOR ... ) "⇒" VECTOR
-Return a newly allocated vector whose elements form the concatenation of the given vectors.
-.It Ic ( vector-copy!\) Ar VECTOR VECTOR ) "⇒" VOID
-Copy all elements of the second vector into the first one.
-The length of the second vector must be lesser or equal to the first's.
-.It Ic ( vector-dup Ar VECTOR ) "⇒" VECTOR
-Return a newly allocated vector with size and elements the same as the given vector.
-.It Ic ( vector-length Ar VECTOR ) "⇒" NUMBER
-Return the number of elements of the given vector.
-.It Ic ( vector-new Ar NUMBER ) "⇒" VECTOR
-Return a newly allocated vector of the given size filled with the null object.
-.It Ic ( vector-ref Ar VECTOR NUMBER ) "⇒" OBJECT
-Return the i-th element of the given vector.
-.It Ic ( vector-same?\) Ar VECTOR ... ) "⇒" BOOLEAN
-Return whether the given vectors have the same length and the same elements.
-.It Ic ( vector-set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
-Set the i-th element of the given vector to the given object.
 .It Ic ( vector?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is a vector object.
 .El
@@ -656,7 +662,7 @@ The backslash character
 the double-quote character
 .Pq Ic "\(dq" ,
 and the single-quote character
-.Pq Ic "'" ,
+.Pq Ic "\(aq" ,
 which have special meanings and thus would need to be escaped,
 are represented by the special classes
 .Ic "[:slash:]" ,

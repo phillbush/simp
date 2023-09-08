@@ -28,22 +28,31 @@
 	X("=",                  f_equal,        1,      true       )\
 	X(">",                  f_gt,           0,      true       )\
 	X(">=",                 f_ge,           0,      true       )\
+	X("alloc",              f_makevector,   1,      false      )\
 	X("boolean?",           f_booleanp,     1,      false      )\
 	X("byte?",              f_bytep,        1,      false      )\
 	X("car",                f_car,          1,      false      )\
 	X("cdr",                f_cdr,          1,      false      )\
+	X("clone",              f_vectordup,    0,      true       )\
+	X("concat",             f_vectorcat,    0,      true       )\
+	X("copy!",              f_vectorcpy,    2,      false      )\
 	X("display",            f_display,      1,      true       )\
 	X("empty?",             f_emptyp,       1,      false      )\
 	X("environment",        f_envnew,       0,      true       )\
 	X("environment?",       f_envp,         1,      false      )\
+	X("equiv?" ,            f_vectoreqv,    0,      true       )\
 	X("false?",             f_falsep,       1,      false      )\
+	X("get",                f_vectorref,    2,      false      )\
+	X("length",             f_vectorlen,    1,      false      )\
 	X("newline",            f_newline,      0,      true       )\
-	X("null?",              f_nullp,        1,      false      )\
 	X("not",                f_not,          1,      false      )\
+	X("null?",              f_nullp,        1,      false      )\
 	X("number?",            f_numberp,      1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
+	X("set!",               f_vectorset,    3,      false      )\
+	X("slice",   ,          f_slicevector,  3,      false      )\
 	X("stderr",             f_stderr,       0,      false      )\
 	X("stdin",              f_stdin,        0,      false      )\
 	X("stdout",             f_stdout,       0,      false      )\
@@ -53,27 +62,18 @@
 	X("string->=?",         f_stringge,     0,      true       )\
 	X("string->?",          f_stringgt,     0,      true       )\
 	X("string->vector",     f_stringvector, 1,      false      )\
-	X("string-cat",         f_stringcat,    0,      true       )\
+	X("string-alloc",       f_makestring,   1,      false      )\
+	X("string-clone",       f_stringdup,    1,      false      )\
+	X("string-concat",      f_stringcat,    0,      true       )\
 	X("string-copy!",       f_stringcpy,    2,      false      )\
-	X("string-dup",         f_stringdup,    1,      false      )\
+	X("string-get",         f_stringref,    2,      false      )\
 	X("string-length",      f_stringlen,    1,      false      )\
-	X("string-new",         f_makestring,   1,      false      )\
-	X("string-ref",         f_stringref,    2,      false      )\
 	X("string-set!",        f_stringset,    3,      false      )\
 	X("string?",            f_stringp,      1,      false      )\
 	X("substring",          f_slicestring,  3,      false      )\
-	X("subvector",          f_slicevector,  3,      false      )\
 	X("symbol?",            f_symbolp,      1,      false      )\
 	X("true?",              f_truep,        1,      false      )\
 	X("vector",             f_vector,       0,      true       )\
-	X("vector-cat",         f_vectorcat,    0,      true       )\
-	X("vector-copy!",       f_vectorcpy,    2,      false      )\
-	X("vector-dup",         f_vectordup,    0,      true       )\
-	X("vector-length",      f_vectorlen,    1,      false      )\
-	X("vector-new",         f_makevector,   1,      false      )\
-	X("vector-ref",         f_vectorref,    2,      false      )\
-	X("vector-same?" ,      f_vectoreqv,    0,      true       )\
-	X("vector-set!",        f_vectorset,    3,      false      )\
 	X("vector?",            f_vectorp,      0,      true       )\
 	X("write",              f_write,        2,      false      )
 
