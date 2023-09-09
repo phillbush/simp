@@ -1,4 +1,6 @@
+#include <limits.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "simp.h"
@@ -29,6 +31,7 @@
 	X("=",                  f_equal,        1,      true       )\
 	X(">",                  f_gt,           0,      true       )\
 	X(">=",                 f_ge,           0,      true       )\
+	X("abs",                f_abs,          1,      false      )\
 	X("alloc",              f_makevector,   1,      false      )\
 	X("boolean?",           f_booleanp,     1,      false      )\
 	X("byte?",              f_bytep,        1,      false      )\
@@ -123,6 +126,20 @@ stringcmp(Simp ctx, Simp a, Simp b)
 	if (cmp == 0 && size0 != size1)
 		return size0 < size1 ? -1 : +1;
 	return cmp;
+}
+
+static Simp
+f_abs(Simp ctx, Simp args)
+{
+	Simp obj;
+	SimpInt num;
+
+	obj = simp_getvectormemb(ctx, args, 0);
+	if (!simp_isnum(ctx, obj))
+		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	num = simp_getnum(ctx, obj);
+	num = llabs(num);
+	return simp_makenum(ctx, num);
 }
 
 static Simp
