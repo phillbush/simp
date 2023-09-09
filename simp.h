@@ -15,11 +15,13 @@
 	X(ERROR_UNBOUND,        "unbound variable"                      )\
 	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
 	X(ERROR_OUTOFRANGE,     "out of range"                          )\
+	X(ERROR_MAP,            "map over vectors of different sizes"   )\
 	X(ERROR_ILLEXPR,        "ill expression"                        )\
 	X(ERROR_ILLFORM,        "ill-formed syntactical form"           )\
 	X(ERROR_ILLSYNTAX,      "ill syntax form"                       )\
 	X(ERROR_UNKSYNTAX,      "unknown syntax form"                   )\
 	X(ERROR_ILLTYPE,        "improper type"                         )\
+	X(ERROR_NOTBYTE,        "not a byte"                            )\
 	X(ERROR_NOTSYM,         "not a symbol"                          )\
 	X(ERROR_STREAM,         "stream error"                          )\
 	X(ERROR_RANGE,          "out of range"                          )\
@@ -159,6 +161,7 @@ bool    simp_isnil(Simp ctx, Simp obj);
 bool    simp_ispair(Simp ctx, Simp obj);
 bool    simp_ispair(Simp ctx, Simp obj);
 bool    simp_isport(Simp ctx, Simp obj);
+bool    simp_isprocedure(Simp ctx, Simp obj);
 bool    simp_isreal(Simp ctx, Simp obj);
 bool    simp_isstring(Simp ctx, Simp obj);
 bool    simp_issymbol(Simp ctx, Simp obj);

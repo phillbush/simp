@@ -405,8 +405,21 @@ Return whether the given vectors have the same length and the same elements.
 Return the i-th element of the given vector.
 .It Ic ( length Ar VECTOR ) "⇒" NUMBER
 Return the number of elements of the given vector.
+.It Ic ( member Ar PROCEDURE OBJECT VECTOR ) "⇒" OBJECT
+If the given vector contains an object for which the given binary predicate procedure passes for the given object,
+return the slice of the given vector starting from such object until the end;
+return the false object otherwise.
+For example,
+.Ic "(member > 3 \(0 2 4 6 8))"
+returns the slice
+.Ic "(4 6 8)",
+which begins from the first object larger than 3.
 .It Ic ( null?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is the vector object with zero elements.
+.It Ic ( reverse Ar VECTOR ) "⇒" VECTOR
+Return a newly allocated vector with the same size and elements as the given vector, but in reverse order.
+.It Ic ( reverse!\) Ar VECTOR ) "⇒" VECTOR
+Reverse the elements of the given vector in place, and return it.
 .It Ic ( set!\) Ar VECTOR NUMBER OBJECT ) "⇒" VECTOR
 Set the i-th element of the given vector to the given object.
 .It Ic ( slice Ar VECTOR [ NUMBER [ NUMBER ] ] ) "⇒" VECTOR
@@ -432,6 +445,31 @@ a closure created with the
 .Ic lambda
 syntactical form.
 .Bl -tag -width Ds -compact
+.It Ic ( for-each Ar PROCEDURE VECTOR VECTOR ... ) "⇒" VOID
+Apply the given procedure element-wise to the elements of the given vectors, in order.
+It is an error if the given procedure does not accept as many arguments as there are vectors.
+The procedure
+.Ic for-each
+is like
+.Ic map
+but calls procedure for its side effects rather than for its value.
+.It Ic ( map Ar PROCEDURE VECTOR VECTOR ... ) "⇒" VECTOR
+Return the vector of results of applications of the given procedure
+element-wise to the elements of the given vectors, in order.
+It is an error if the given procedure does not accept as many arguments as there are vectors.
+.It Ic ( string-for-each Ar PROCEDURE STRING STRING ... ) "⇒" VOID
+Apply the given procedure element-wise to the bytes of the given strings, in order.
+It is an error if the given procedure does not accept as many arguments as there are strings.
+The procedure
+.Ic string-for-each
+is like
+.Ic string-map
+but calls procedure for its side effects rather than for its value.
+.It Ic ( string-map Ar PROCEDURE STRING STRING ... ) "⇒" STRING
+Return the string of results of applications of the given procedure
+element-wise to the bytes of the given string, in order.
+It is an error if the given procedure does not accept as many arguments as there are strings,
+or if the procedure does not return a byte.
 .It Ic ( procedure?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is a procedure object.
 .El

@@ -556,6 +556,12 @@ simp_isport(Simp ctx, Simp obj)
 }
 
 bool
+simp_isprocedure(Simp ctx, Simp obj)
+{
+	return simp_isbuiltin(ctx, obj) || simp_isclosure(ctx, obj);
+}
+
+bool
 simp_isreal(Simp ctx, Simp obj)
 {
 	(void)ctx;
