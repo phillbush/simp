@@ -89,10 +89,6 @@ simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 {
 	Simp bind;
 
-	if (!simp_issymbol(sym))
-		return simp_exception(ERROR_ILLTYPE);
-	if (!simp_isbinding(frame))
-		return simp_exception(ERROR_ILLTYPE);
 	bind = simp_makevector(ctx, BINDING_SIZE);
 	if (simp_isexception(bind))
 		return bind;
@@ -169,8 +165,6 @@ simp_envget(Simp ctx, Simp env, Simp sym)
 	Simp bind, var;
 
 	(void)ctx;
-	if (!simp_issymbol(sym))
-		return simp_exception(ERROR_ILLTYPE);
 	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
 		for (bind = simp_getenvframe(env);
 		     !simp_isnulbind(bind);
@@ -205,10 +199,6 @@ Simp
 simp_envset(Simp ctx, Simp env, Simp var, Simp val)
 {
 	(void)ctx;
-	if (!simp_isenvironment(env))
-		return simp_exception(ERROR_ILLTYPE);
-	if (!simp_issymbol(var))
-		return simp_exception(ERROR_ILLTYPE);
 	if (xenvset(env, var, val))
 		return var;
 	return simp_exception(ERROR_UNBOUND);
@@ -219,10 +209,6 @@ simp_envdef(Simp ctx, Simp env, Simp var, Simp val)
 {
 	Simp frame, bind;
 
-	if (!simp_isenvironment(env))
-		return simp_exception(ERROR_ILLTYPE);
-	if (!simp_issymbol(var))
-		return simp_exception(ERROR_ILLTYPE);
 	if (xenvset(env, var, val))
 		return var;
 	frame = simp_getenvframe(env);
@@ -353,40 +339,24 @@ simp_getbyte(Simp obj)
 Simp
 simp_getclosureenv(Simp obj)
 {
-	enum Type type = simp_gettype(obj);
-
-	if (type != TYPE_CLOSURE)
-		return simp_exception(ERROR_ILLTYPE);
 	return simp_getclosure(obj)[CLOSURE_ENVIRONMENT];
 }
 
 Simp
 simp_getclosureparam(Simp obj)
 {
-	enum Type type = simp_gettype(obj);
-
-	if (type != TYPE_CLOSURE)
-		return simp_exception(ERROR_ILLTYPE);
 	return simp_getclosure(obj)[CLOSURE_PARAMETERS];
 }
 
 Simp
 simp_getclosurevarargs(Simp obj)
 {
-	enum Type type = simp_gettype(obj);
-
-	if (type != TYPE_CLOSURE)
-		return simp_exception(ERROR_ILLTYPE);
 	return simp_getclosure(obj)[CLOSURE_VARARGS];
 }
 
 Simp
 simp_getclosurebody(Simp obj)
 {
-	enum Type type = simp_gettype(obj);
-
-	if (type != TYPE_CLOSURE)
-		return simp_exception(ERROR_ILLTYPE);
 	return simp_getclosure(obj)[CLOSURE_EXPRESSIONS];
 }
 
@@ -674,8 +644,6 @@ simp_makeenvironment(Simp ctx, Simp parent)
 	Simp env;
 
 	(void)ctx;
-	if (!simp_isenvironment(parent))
-		return simp_exception(ERROR_ILLTYPE);
 	env = simp_makevector(ctx, ENVIRONMENT_SIZE);
 	if (simp_isexception(env))
 		return env;
@@ -747,8 +715,6 @@ simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 {
 	unsigned char *dst = NULL;
 
-	if (size < 0)
-		return simp_exception(ERROR_RANGE);
 	if (size == 0)
 		return simp_empty();
 	dst = simp_gcnewarray(ctx, size, 1);
@@ -809,8 +775,6 @@ simp_makevector(Simp ctx, SimpSiz size)
 	SimpSiz i;
 	Simp *data;
 
-	if (size < 0)
-		return simp_exception(ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
 	data = simp_gcnewarray(ctx, size, sizeof(Simp));
