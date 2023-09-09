@@ -127,6 +127,7 @@ main(int argc, char *argv[])
 		break;
 	case MODE_SCRIPT:
 		if (argv[0][0] == '-' && argv[0][1] == '\0') {
+			fp = stdin;
 			port = iport;
 			iflag = 0;
 		} else if ((fp = fopen(argv[0], "r")) != NULL) {

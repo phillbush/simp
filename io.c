@@ -227,18 +227,16 @@ readstr(Simp port)
 	for (;;) {
 		c = simp_readbyte(port);
 		if (c == NOTHING)
-			return (Token){ .type = TOK_ERROR };
+			goto error;
 		if (c == '"')
 			break;
 		c = readbyte(port, c);
 		if (c == NOTHING)
-			return (Token){ .type = TOK_ERROR };
+			goto error;
 		if (len + 1 >= size) {
 			size <<= 2;
-			if ((p = realloc(str, size)) == NULL) {
-				free(str);
-				return (Token){.type = TOK_ERROR};
-			}
+			if ((p = realloc(str, size)) == NULL)
+				goto error;
 			str = p;
 		}
 		str[len++] = (unsigned char)c;
@@ -249,6 +247,9 @@ readstr(Simp port)
 		.u.str.str = str,
 		.u.str.len = len,
 	};
+error:
+	free(str);
+	return (Token){ .type = TOK_ERROR };
 }
 
 static Token
@@ -353,7 +354,6 @@ done:
 		if (exptsign == -1)
 			expt = 1.0/expt;
 		floatn = pow(floatn, expt);
-		isfloat = true;
 	}
 	if (!cisdelimiter(c))
 		return (Token){.type = TOK_ERROR};
