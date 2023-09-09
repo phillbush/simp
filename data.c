@@ -58,10 +58,21 @@ static unsigned char *errortab[NEXCEPTIONS] = {
 };
 
 static int
-simp_isbinding(Simp ctx, Simp obj)
+simp_isbinding(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_BINDING;
+	return simp_gettype(obj) == TYPE_BINDING;
+}
+
+static int
+simp_isnulenv(Simp obj)
+{
+	return simp_isenvironment(obj) && obj.u.vector == NULL;
+}
+
+static int
+simp_isnulbind(Simp obj)
+{
+	return simp_isbinding(obj) && obj.u.vector == NULL;
 }
 
 static Simp
@@ -78,91 +89,77 @@ simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 {
 	Simp bind;
 
-	if (!simp_issymbol(ctx, sym))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (!simp_isbinding(ctx, frame))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	if (!simp_issymbol(sym))
+		return simp_exception(ERROR_ILLTYPE);
+	if (!simp_isbinding(frame))
+		return simp_exception(ERROR_ILLTYPE);
 	bind = simp_makevector(ctx, BINDING_SIZE);
-	if (simp_isexception(ctx, bind))
+	if (simp_isexception(bind))
 		return bind;
-	simp_setvector(ctx, bind, BINDING_VARIABLE, sym);
-	simp_setvector(ctx, bind, BINDING_VALUE, val);
-	simp_setvector(ctx, bind, BINDING_NEXT, frame);
+	simp_setvector(bind, BINDING_VARIABLE, sym);
+	simp_setvector(bind, BINDING_VALUE, val);
+	simp_setvector(bind, BINDING_NEXT, frame);
 	bind.type = TYPE_BINDING;
 	return bind;
 }
 
-static int
-simp_isnulenv(Simp ctx, Simp obj)
-{
-	return simp_isenvironment(ctx, obj) && obj.u.vector == NULL;
-}
-
-static int
-simp_isnulbind(Simp ctx, Simp obj)
-{
-	return simp_isbinding(ctx, obj) && obj.u.vector == NULL;
-}
-
 Simp *
-simp_getvector(Simp ctx, Simp obj)
+simp_getvector(Simp obj)
 {
-	(void)ctx;
 	return obj.u.vector;
 }
 
 static Simp *
-simp_getclosure(Simp ctx, Simp obj)
+simp_getclosure(Simp obj)
 {
-	return simp_getvector(ctx, obj);
+	return simp_getvector(obj);
 }
 
 static Simp *
-simp_getenvironment(Simp ctx, Simp obj)
+simp_getenvironment(Simp obj)
 {
-	return simp_getvector(ctx, obj);
+	return simp_getvector(obj);
 }
 
 static Simp *
-simp_getbind(Simp ctx, Simp obj)
+simp_getbind(Simp obj)
 {
-	return simp_getvector(ctx, obj);
+	return simp_getvector(obj);
 }
 
 static Simp
-simp_getenvframe(Simp ctx, Simp obj)
+simp_getenvframe(Simp obj)
 {
-	return simp_getenvironment(ctx, obj)[ENVIRONMENT_FRAME];
+	return simp_getenvironment(obj)[ENVIRONMENT_FRAME];
 }
 
 static Simp
-simp_getenvparent(Simp ctx, Simp obj)
+simp_getenvparent(Simp obj)
 {
-	return simp_getenvironment(ctx, obj)[ENVIRONMENT_PARENT];
+	return simp_getenvironment(obj)[ENVIRONMENT_PARENT];
 }
 
 static Simp
-simp_getbindvariable(Simp ctx, Simp obj)
+simp_getbindvariable(Simp obj)
 {
-	return simp_getbind(ctx, obj)[BINDING_VARIABLE];
+	return simp_getbind(obj)[BINDING_VARIABLE];
 }
 
 static Simp
-simp_getbindvalue(Simp ctx, Simp obj)
+simp_getbindvalue(Simp obj)
 {
-	return simp_getbind(ctx, obj)[BINDING_VALUE];
+	return simp_getbind(obj)[BINDING_VALUE];
 }
 
 static Simp
-simp_getbindnext(Simp ctx, Simp obj)
+simp_getbindnext(Simp obj)
 {
-	return simp_getbind(ctx, obj)[BINDING_NEXT];
+	return simp_getbind(obj)[BINDING_NEXT];
 }
 
 enum Type
-simp_gettype(Simp ctx, Simp obj)
+simp_gettype(Simp obj)
 {
-	(void)ctx;
 	return obj.type;
 }
 
@@ -171,32 +168,33 @@ simp_envget(Simp ctx, Simp env, Simp sym)
 {
 	Simp bind, var;
 
-	if (!simp_issymbol(ctx, sym))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	for (; !simp_isnulenv(ctx, env); env = simp_getenvparent(ctx, env)) {
-		for (bind = simp_getenvframe(ctx, env);
-		     !simp_isnulbind(ctx, bind);
-		     bind = simp_getbindnext(ctx, bind)) {
-			var = simp_getbindvariable(ctx, bind);
-			if (simp_issame(ctx, var, sym)) {
-				return simp_getbindvalue(ctx, bind);
+	(void)ctx;
+	if (!simp_issymbol(sym))
+		return simp_exception(ERROR_ILLTYPE);
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
+		for (bind = simp_getenvframe(env);
+		     !simp_isnulbind(bind);
+		     bind = simp_getbindnext(bind)) {
+			var = simp_getbindvariable(bind);
+			if (simp_issame(var, sym)) {
+				return simp_getbindvalue(bind);
 			}
 		}
 	}
-	return simp_makeexception(ctx, ERROR_UNBOUND);
+	return simp_exception(ERROR_UNBOUND);
 }
 
-bool
-xenvset(Simp ctx, Simp env, Simp var, Simp val)
+static bool
+xenvset(Simp env, Simp var, Simp val)
 {
 	Simp bind, sym;
 
-	for (bind = simp_getenvframe(ctx, env);
-	     !simp_isnulbind(ctx, bind);
-	     bind = simp_getbindnext(ctx, bind)) {
-		sym = simp_getbindvariable(ctx, bind);
-		if (simp_issame(ctx, var, sym)) {
-			simp_setvector(ctx, bind, BINDING_VALUE, val);
+	for (bind = simp_getenvframe(env);
+	     !simp_isnulbind(bind);
+	     bind = simp_getbindnext(bind)) {
+		sym = simp_getbindvariable(bind);
+		if (simp_issame(var, sym)) {
+			simp_setvector(bind, BINDING_VALUE, val);
 			return true;
 		}
 	}
@@ -206,13 +204,14 @@ xenvset(Simp ctx, Simp env, Simp var, Simp val)
 Simp
 simp_envset(Simp ctx, Simp env, Simp var, Simp val)
 {
-	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (!simp_issymbol(ctx, var))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (xenvset(ctx, env, var, val))
+	(void)ctx;
+	if (!simp_isenvironment(env))
+		return simp_exception(ERROR_ILLTYPE);
+	if (!simp_issymbol(var))
+		return simp_exception(ERROR_ILLTYPE);
+	if (xenvset(env, var, val))
 		return var;
-	return simp_makeexception(ctx, ERROR_UNBOUND);
+	return simp_exception(ERROR_UNBOUND);
 }
 
 Simp
@@ -220,17 +219,17 @@ simp_envdef(Simp ctx, Simp env, Simp var, Simp val)
 {
 	Simp frame, bind;
 
-	if (!simp_isenvironment(ctx, env))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (!simp_issymbol(ctx, var))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	if (xenvset(ctx, env, var, val))
+	if (!simp_isenvironment(env))
+		return simp_exception(ERROR_ILLTYPE);
+	if (!simp_issymbol(var))
+		return simp_exception(ERROR_ILLTYPE);
+	if (xenvset(env, var, val))
 		return var;
-	frame = simp_getenvframe(ctx, env);
+	frame = simp_getenvframe(env);
 	bind = simp_makebind(ctx, var, val, frame);
-	if (simp_isexception(ctx, bind))
+	if (simp_isexception(bind))
 		return bind;
-	simp_setvector(ctx, env, ENVIRONMENT_FRAME, bind);
+	simp_setvector(env, ENVIRONMENT_FRAME, bind);
 	return var;
 }
 
@@ -259,15 +258,15 @@ simp_contextnew(void)
 	};
 
 	ctx = simp_makevector(simp_nil(), NCONTEXTS);
-	membs = simp_getvector(ctx, ctx);
+	membs = simp_getvector(ctx);
 	for (i = 0; i < NCONTEXTS; i++) {
 		obj = (*init[i])(ctx);
-		if (simp_isexception(ctx, obj))
+		if (simp_isexception(obj))
 			return obj;
 		membs[i] = obj;
 	}
 	obj = simp_initbuiltins(ctx);
-	if (simp_isexception(ctx, obj))
+	if (simp_isexception(obj))
 		return obj;
 	return ctx;
 }
@@ -275,44 +274,44 @@ simp_contextnew(void)
 Simp
 simp_contextsymtab(Simp ctx)
 {
-	return simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
+	return simp_getvectormemb(ctx, CONTEXT_SYMTAB);
 }
 
 Simp
 simp_contextforms(Simp ctx)
 {
-	return simp_getvectormemb(ctx, ctx, CONTEXT_FORMS);
+	return simp_getvectormemb(ctx, CONTEXT_FORMS);
 }
 
 Simp
 simp_contextenvironment(Simp ctx)
 {
-	return simp_getvectormemb(ctx, ctx, CONTEXT_ENVIRONMENT);
+	return simp_getvectormemb(ctx, CONTEXT_ENVIRONMENT);
 }
 
 Simp
 simp_contextports(Simp ctx)
 {
-	return simp_getvectormemb(ctx, ctx, CONTEXT_PORTS);
+	return simp_getvectormemb(ctx, CONTEXT_PORTS);
 }
 
 void
-simp_cpystring(Simp ctx, Simp dst, Simp src)
+simp_cpystring(Simp dst, Simp src)
 {
 	(void)memcpy(
-		simp_getstring(ctx, dst),
-		simp_getstring(ctx, src),
-		simp_getsize(ctx, src) * sizeof(unsigned char)
+		simp_getstring(dst),
+		simp_getstring(src),
+		simp_getsize(src) * sizeof(unsigned char)
 	);
 }
 
 void
-simp_cpyvector(Simp ctx, Simp dst, Simp src)
+simp_cpyvector(Simp dst, Simp src)
 {
 	(void)memcpy(
-		simp_getvector(ctx, dst),
-		simp_getvector(ctx, src),
-		simp_getsize(ctx, src) * sizeof(Simp)
+		simp_getvector(dst),
+		simp_getvector(src),
+		simp_getsize(src) * sizeof(Simp)
 	);
 }
 
@@ -340,127 +339,117 @@ simp_false(void)
 }
 
 Builtin *
-simp_getbuiltin(Simp ctx, Simp obj)
+simp_getbuiltin(Simp obj)
 {
-	(void)ctx;
 	return obj.u.builtin;
 }
 
 unsigned char
-simp_getbyte(Simp ctx, Simp obj)
+simp_getbyte(Simp obj)
 {
-	(void)ctx;
 	return obj.u.byte;
 }
 
 Simp
-simp_getclosureenv(Simp ctx, Simp obj)
+simp_getclosureenv(Simp obj)
 {
-	enum Type type = simp_gettype(ctx, obj);
+	enum Type type = simp_gettype(obj);
 
 	if (type != TYPE_CLOSURE)
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getclosure(ctx, obj)[CLOSURE_ENVIRONMENT];
+		return simp_exception(ERROR_ILLTYPE);
+	return simp_getclosure(obj)[CLOSURE_ENVIRONMENT];
 }
 
 Simp
-simp_getclosureparam(Simp ctx, Simp obj)
+simp_getclosureparam(Simp obj)
 {
-	enum Type type = simp_gettype(ctx, obj);
+	enum Type type = simp_gettype(obj);
 
 	if (type != TYPE_CLOSURE)
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getclosure(ctx, obj)[CLOSURE_PARAMETERS];
+		return simp_exception(ERROR_ILLTYPE);
+	return simp_getclosure(obj)[CLOSURE_PARAMETERS];
 }
 
 Simp
-simp_getclosurevarargs(Simp ctx, Simp obj)
+simp_getclosurevarargs(Simp obj)
 {
-	enum Type type = simp_gettype(ctx, obj);
+	enum Type type = simp_gettype(obj);
 
 	if (type != TYPE_CLOSURE)
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getclosure(ctx, obj)[CLOSURE_VARARGS];
+		return simp_exception(ERROR_ILLTYPE);
+	return simp_getclosure(obj)[CLOSURE_VARARGS];
 }
 
 Simp
-simp_getclosurebody(Simp ctx, Simp obj)
+simp_getclosurebody(Simp obj)
 {
-	enum Type type = simp_gettype(ctx, obj);
+	enum Type type = simp_gettype(obj);
 
 	if (type != TYPE_CLOSURE)
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
-	return simp_getclosure(ctx, obj)[CLOSURE_EXPRESSIONS];
+		return simp_exception(ERROR_ILLTYPE);
+	return simp_getclosure(obj)[CLOSURE_EXPRESSIONS];
 }
 
 unsigned char *
-simp_getexception(Simp ctx, Simp obj)
+simp_getexception(Simp obj)
 {
-	(void)ctx;
 	return obj.u.errmsg;
 }
 
 SimpInt
-simp_getnum(Simp ctx, Simp obj)
+simp_getnum(Simp obj)
 {
-	(void)ctx;
 	return obj.u.num;
 }
 
 void *
-simp_getport(Simp ctx, Simp obj)
+simp_getport(Simp obj)
 {
-	(void)ctx;
 	return obj.u.port;
 }
 
 double
-simp_getreal(Simp ctx, Simp obj)
+simp_getreal(Simp obj)
 {
-	(void)ctx;
 	return obj.u.real;
 }
 
 SimpSiz
-simp_getcapacity(Simp ctx, Simp obj)
+simp_getcapacity(Simp obj)
 {
-	(void)ctx;
 	return obj.capacity;
 }
 
 SimpSiz
-simp_getsize(Simp ctx, Simp obj)
+simp_getsize(Simp obj)
 {
-	(void)ctx;
 	return obj.nmembers;
 }
 
 unsigned char *
-simp_getstring(Simp ctx, Simp obj)
+simp_getstring(Simp obj)
 {
-	(void)ctx;
-	if (simp_isempty(ctx, obj))
+	if (simp_isempty(obj))
 		return NULL;
 	return obj.u.string;
 }
 
 unsigned char *
-simp_getsymbol(Simp ctx, Simp obj)
+simp_getsymbol(Simp obj)
 {
-	(void)ctx;
 	return obj.u.string;
 }
 
 Simp
-simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos)
+simp_getvectormemb(Simp obj, SimpSiz pos)
 {
-	return simp_getvector(ctx, obj)[pos];
+	return simp_getvector(obj)[pos];
 }
 
 unsigned char
-simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos)
+simp_getstringmemb(Simp obj, SimpSiz pos)
 {
-	return simp_getstring(ctx, obj)[pos];
+	return simp_getstring(obj)[pos];
 }
 
 unsigned char *
@@ -472,107 +461,96 @@ simp_errorstr(int exception)
 }
 
 bool
-simp_isbool(Simp ctx, Simp obj)
+simp_isbool(Simp obj)
 {
-	enum Type t = simp_gettype(ctx, obj);
+	enum Type t = simp_gettype(obj);
 
-	(void)ctx;
 	return t == TYPE_TRUE || t == TYPE_FALSE;
 }
 
 bool
-simp_isbuiltin(Simp ctx, Simp obj)
+simp_isbuiltin(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_BUILTIN;
+	return simp_gettype(obj) == TYPE_BUILTIN;
 }
 
 bool
-simp_isclosure(Simp ctx, Simp obj)
+simp_isclosure(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_CLOSURE;
+	return simp_gettype(obj) == TYPE_CLOSURE;
 }
 
 bool
-simp_isbyte(Simp ctx, Simp obj)
+simp_isbyte(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_BYTE;
+	return simp_gettype(obj) == TYPE_BYTE;
 }
 
 bool
-simp_isempty(Simp ctx, Simp obj)
+simp_isempty(Simp obj)
 {
-	return simp_isstring(ctx, obj) && obj.u.string == NULL;
+	return simp_isstring(obj) && obj.u.string == NULL;
 }
 
 bool
-simp_isenvironment(Simp ctx, Simp obj)
+simp_isenvironment(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_ENVIRONMENT;
+	return simp_gettype(obj) == TYPE_ENVIRONMENT;
 }
 
 bool
-simp_iseof(Simp ctx, Simp obj)
+simp_iseof(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_EOF;
+	return simp_gettype(obj) == TYPE_EOF;
 }
 
 bool
-simp_isexception(Simp ctx, Simp obj)
+simp_isexception(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_EXCEPTION;
+	return simp_gettype(obj) == TYPE_EXCEPTION;
 }
 
 bool
-simp_isfalse(Simp ctx, Simp obj)
+simp_isfalse(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_FALSE;
+	return simp_gettype(obj) == TYPE_FALSE;
 }
 
 bool
-simp_isnil(Simp ctx, Simp obj)
+simp_isnil(Simp obj)
 {
-	return simp_isvector(ctx, obj) && obj.u.vector == NULL;
+	return simp_isvector(obj) && obj.u.vector == NULL;
 }
 
 bool
-simp_isnum(Simp ctx, Simp obj)
+simp_isnum(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_SIGNUM;
+	return simp_gettype(obj) == TYPE_SIGNUM;
 }
 
 bool
-simp_isport(Simp ctx, Simp obj)
+simp_isport(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_PORT;
+	return simp_gettype(obj) == TYPE_PORT;
 }
 
 bool
-simp_isprocedure(Simp ctx, Simp obj)
+simp_isprocedure(Simp obj)
 {
-	return simp_isbuiltin(ctx, obj) || simp_isclosure(ctx, obj);
+	return simp_isbuiltin(obj) || simp_isclosure(obj);
 }
 
 bool
-simp_isreal(Simp ctx, Simp obj)
+simp_isreal(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_REAL;
+	return simp_gettype(obj) == TYPE_REAL;
 }
 
 bool
-simp_issame(Simp ctx, Simp a, Simp b)
+simp_issame(Simp a, Simp b)
 {
-	enum Type typea = simp_gettype(ctx, a);
-	enum Type typeb = simp_gettype(ctx, b);
+	enum Type typea = simp_gettype(a);
+	enum Type typeb = simp_gettype(b);
 
 	if (typea != typeb)
 		return false;
@@ -581,23 +559,23 @@ simp_issame(Simp ctx, Simp a, Simp b)
 	case TYPE_VECTOR:
 	case TYPE_BINDING:
 	case TYPE_ENVIRONMENT:
-		return simp_getvector(ctx, a) == simp_getvector(ctx, b);
+		return simp_getvector(a) == simp_getvector(b);
 	case TYPE_SIGNUM:
-		return simp_getnum(ctx, a) == simp_getnum(ctx, b);
+		return simp_getnum(a) == simp_getnum(b);
 	case TYPE_REAL:
-		return simp_getreal(ctx, a) == simp_getreal(ctx, b);
+		return simp_getreal(a) == simp_getreal(b);
 	case TYPE_PORT:
-		return simp_getport(ctx, a) == simp_getport(ctx, b);
+		return simp_getport(a) == simp_getport(b);
 	case TYPE_BYTE:
-		return simp_getbyte(ctx, a) == simp_getbyte(ctx, b);
+		return simp_getbyte(a) == simp_getbyte(b);
 	case TYPE_SYMBOL:
-		return simp_getsymbol(ctx, a) == simp_getsymbol(ctx, b);
+		return simp_getsymbol(a) == simp_getsymbol(b);
 	case TYPE_STRING:
-		return simp_getstring(ctx, a) == simp_getstring(ctx, b);
+		return simp_getstring(a) == simp_getstring(b);
 	case TYPE_EXCEPTION:
-		return simp_getexception(ctx, a) == simp_getexception(ctx, b);
+		return simp_getexception(a) == simp_getexception(b);
 	case TYPE_BUILTIN:
-		return simp_getbuiltin(ctx, a) == simp_getbuiltin(ctx, b);
+		return simp_getbuiltin(a) == simp_getbuiltin(b);
 	case TYPE_EOF:
 	case TYPE_TRUE:
 	case TYPE_FALSE:
@@ -607,48 +585,44 @@ simp_issame(Simp ctx, Simp a, Simp b)
 }
 
 bool
-simp_isstring(Simp ctx, Simp obj)
+simp_isstring(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_STRING;
+	return simp_gettype(obj) == TYPE_STRING;
 }
 
 bool
-simp_issymbol(Simp ctx, Simp obj)
+simp_issymbol(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_SYMBOL;
+	return simp_gettype(obj) == TYPE_SYMBOL;
 }
 
 bool
-simp_istrue(Simp ctx, Simp obj)
+simp_istrue(Simp obj)
 {
-	return !simp_isfalse(ctx, obj);
+	return !simp_isfalse(obj);
 }
 
 bool
-simp_isvector(Simp ctx, Simp obj)
+simp_isvector(Simp obj)
 {
-	(void)ctx;
-	return simp_gettype(ctx, obj) == TYPE_VECTOR;
+	return simp_gettype(obj) == TYPE_VECTOR;
 }
 
 void
-simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char u)
+simp_setstring(Simp obj, SimpSiz pos, unsigned char u)
 {
-	simp_getstring(ctx, obj)[pos] = u;
+	simp_getstring(obj)[pos] = u;
 }
 
 void
-simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val)
+simp_setvector(Simp obj, SimpSiz pos, Simp val)
 {
-	simp_getvector(ctx, obj)[pos] = val;
+	simp_getvector(obj)[pos] = val;
 }
 
 Simp
-simp_slicevector(Simp ctx, Simp obj, SimpSiz from, SimpSiz size)
+simp_slicevector(Simp obj, SimpSiz from, SimpSiz size)
 {
-	(void)ctx;
 	return (Simp){
 		.type = TYPE_VECTOR,
 		.u.vector = obj.u.vector + from,
@@ -658,9 +632,8 @@ simp_slicevector(Simp ctx, Simp obj, SimpSiz from, SimpSiz size)
 }
 
 Simp
-simp_slicestring(Simp ctx, Simp obj, SimpSiz from, SimpSiz size)
+simp_slicestring(Simp obj, SimpSiz from, SimpSiz size)
 {
-	(void)ctx;
 	return (Simp){
 		.type = TYPE_STRING,
 		.u.string = obj.u.string + from,
@@ -700,21 +673,21 @@ simp_makeenvironment(Simp ctx, Simp parent)
 {
 	Simp env;
 
-	if (!simp_isenvironment(ctx, parent))
-		return simp_makeexception(ctx, ERROR_ILLTYPE);
+	(void)ctx;
+	if (!simp_isenvironment(parent))
+		return simp_exception(ERROR_ILLTYPE);
 	env = simp_makevector(ctx, ENVIRONMENT_SIZE);
-	if (simp_isexception(ctx, env))
+	if (simp_isexception(env))
 		return env;
-	simp_setvector(ctx, env, ENVIRONMENT_PARENT, parent);
-	simp_setvector(ctx, env, ENVIRONMENT_FRAME, simp_nulbind());
+	simp_setvector(env, ENVIRONMENT_PARENT, parent);
+	simp_setvector(env, ENVIRONMENT_FRAME, simp_nulbind());
 	env.type = TYPE_ENVIRONMENT;
 	return env;
 }
 
 Simp
-simp_makeexception(Simp ctx, int n)
+simp_exception(int n)
 {
-	(void)ctx;
 	return (Simp){
 		.type = TYPE_EXCEPTION,
 		.u.errmsg = simp_errorstr(n),
@@ -737,12 +710,12 @@ simp_makeclosure(Simp ctx, Simp env, Simp params, Simp varargs, Simp body)
 	Simp lambda;
 
 	lambda = simp_makevector(ctx, CLOSURE_SIZE);
-	if (simp_isexception(ctx, lambda))
+	if (simp_isexception(lambda))
 		return lambda;
-	simp_setvector(ctx, lambda, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(ctx, lambda, CLOSURE_PARAMETERS, params);
-	simp_setvector(ctx, lambda, CLOSURE_VARARGS, varargs);
-	simp_setvector(ctx, lambda, CLOSURE_EXPRESSIONS, body);
+	simp_setvector(lambda, CLOSURE_ENVIRONMENT, env);
+	simp_setvector(lambda, CLOSURE_PARAMETERS, params);
+	simp_setvector(lambda, CLOSURE_VARARGS, varargs);
+	simp_setvector(lambda, CLOSURE_EXPRESSIONS, body);
 	lambda.type = TYPE_CLOSURE;
 	return lambda;
 }
@@ -775,12 +748,12 @@ simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 	unsigned char *dst = NULL;
 
 	if (size < 0)
-		return simp_makeexception(ctx, ERROR_RANGE);
+		return simp_exception(ERROR_RANGE);
 	if (size == 0)
 		return simp_empty();
 	dst = simp_gcnewarray(ctx, size, 1);
 	if (dst == NULL)
-		return simp_makeexception(ctx, ERROR_MEMORY);
+		return simp_exception(ERROR_MEMORY);
 	if (src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
@@ -798,35 +771,35 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 	SimpSiz i, bucket, len;
 	unsigned char *dst;
 
-	symtab = simp_getvectormemb(ctx, ctx, CONTEXT_SYMTAB);
+	symtab = simp_getvectormemb(ctx, CONTEXT_SYMTAB);
 	bucket = 0;
 	for (i = 0; i < size; i++) {
 		bucket *= SYMTAB_MULT;
 		bucket += src[i];
 	}
 	bucket %= SYMTAB_SIZE;
-	list = simp_getvectormemb(ctx, symtab, bucket);
+	list = simp_getvectormemb(symtab, bucket);
 	prev = simp_nil();
-	for (pair = list; !simp_isnil(ctx, pair); pair = simp_getvectormemb(ctx, pair, 1)) {
-		sym = simp_getvectormemb(ctx, pair, 0);
-		dst = simp_getstring(ctx, sym);
-		len = simp_getsize(ctx, sym);
+	for (pair = list; !simp_isnil(pair); pair = simp_getvectormemb(pair, 1)) {
+		sym = simp_getvectormemb(pair, 0);
+		dst = simp_getstring(sym);
+		len = simp_getsize(sym);
 		if (len == size && memcmp(src, dst, size) == 0)
 			return sym;
 		prev = pair;
 	}
 	sym = simp_makestring(ctx, src, size);
-	if (simp_isexception(ctx, sym))
+	if (simp_isexception(sym))
 		return sym;
 	sym.type = TYPE_SYMBOL;
 	pair = simp_makevector(ctx, 2);
-	if (simp_isexception(ctx, pair))
+	if (simp_isexception(pair))
 		return pair;
-	simp_setvector(ctx, pair, 0, sym);
-	if (simp_isnil(ctx, prev))
-		simp_setvector(ctx, symtab, bucket, pair);
+	simp_setvector(pair, 0, sym);
+	if (simp_isnil(prev))
+		simp_setvector(symtab, bucket, pair);
 	else
-		simp_setvector(ctx, prev, 1, pair);
+		simp_setvector(prev, 1, pair);
 	return sym;
 }
 
@@ -837,12 +810,12 @@ simp_makevector(Simp ctx, SimpSiz size)
 	Simp *data;
 
 	if (size < 0)
-		return simp_makeexception(ctx, ERROR_RANGE);
+		return simp_exception(ERROR_RANGE);
 	if (size == 0)
 		return simp_nil();
 	data = simp_gcnewarray(ctx, size, sizeof(Simp));
 	if (data == NULL)
-		return simp_makeexception(ctx, ERROR_MEMORY);
+		return simp_exception(ERROR_MEMORY);
 	for (i = 0; i < size; i++)
 		data[i] = simp_nil();
 	return (Simp){
@@ -882,7 +855,7 @@ simp_void(void)
 }
 
 void *
-simp_getgcmemory(Simp ctx, Simp obj)
+simp_getgcmemory(Simp obj)
 {
 	enum Type type;
 	static bool isvector[] = {
@@ -891,14 +864,13 @@ simp_getgcmemory(Simp ctx, Simp obj)
 #undef  X
 	};
 
-	(void)ctx;
-	type = simp_gettype(ctx, obj);
+	type = simp_gettype(obj);
 	if (isvector[type]) {
 		if (obj.u.vector == NULL)
 			return NULL;
 		return &obj.u.vector[obj.capacity];
 	}
-	switch (simp_gettype(ctx, obj)) {
+	switch (simp_gettype(obj)) {
 	case TYPE_STRING:
 	case TYPE_SYMBOL:
 		if (obj.u.string == NULL)

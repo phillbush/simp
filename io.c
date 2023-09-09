@@ -147,7 +147,7 @@ cisnum(int c, enum Numtype type, SimpInt *num)
 }
 
 static int
-readbyte(Simp ctx, Simp port, int c)
+readbyte(Simp port, int c)
 {
 	SimpSiz i = 0;
 	unsigned char u = 0;
@@ -156,7 +156,7 @@ readbyte(Simp ctx, Simp port, int c)
 		return c;
 	if (c != '\\')
 		return c;
-	if ((c = simp_readbyte(ctx, port)) == NOTHING)
+	if ((c = simp_readbyte(port)) == NOTHING)
 		return c;
 	switch (c) {
 	case '"':
@@ -181,24 +181,24 @@ readbyte(Simp ctx, Simp port, int c)
 	case '4': case '5': case '6': case '7':
 loop:
 		if (i >= 3 || c == NOTHING || !cisoctal(c)) {
-			simp_unreadbyte(ctx, port, c);
+			simp_unreadbyte(port, c);
 			return u & 0xFF;
 		}
 		u <<= 3;
 		u += ctoi(c);
 		i++;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 		goto loop;
 	case 'x':
-		if (!cishex(c = simp_readbyte(ctx, port))) {
-			simp_unreadbyte(ctx, port, c);
+		if (!cishex(c = simp_readbyte(port))) {
+			simp_unreadbyte(port, c);
 			return 'x';
 		}
-		for (; cishex(c); c = simp_readbyte(ctx, port)) {
+		for (; cishex(c); c = simp_readbyte(port)) {
 			u <<= 4;
 			u += ctoi(c);
 		}
-		simp_unreadbyte(ctx, port, c);
+		simp_unreadbyte(port, c);
 		return u & 0xFF;
 	case 'u':
 		// TODO: handle 4-digit unicode
@@ -214,7 +214,7 @@ loop:
 }
 
 static Token
-readstr(Simp ctx, Simp port)
+readstr(Simp port)
 {
 	SimpSiz size, len;
 	unsigned char *str, *p;
@@ -225,12 +225,12 @@ readstr(Simp ctx, Simp port)
 	if ((str = malloc(size)) == NULL)
 		return (Token){.type = TOK_ERROR};
 	for (;;) {
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 		if (c == NOTHING)
 			return (Token){ .type = TOK_ERROR };
 		if (c == '"')
 			break;
-		c = readbyte(ctx, port, c);
+		c = readbyte(port, c);
 		if (c == NOTHING)
 			return (Token){ .type = TOK_ERROR };
 		if (len + 1 >= size) {
@@ -252,7 +252,7 @@ readstr(Simp ctx, Simp port)
 }
 
 static Token
-readnum(Simp ctx, Simp port, int c)
+readnum(Simp port, int c)
 {
 	enum Numtype numtype = NUM_DECIMAL;
 	double floatn = 0.0;
@@ -264,13 +264,13 @@ readnum(Simp ctx, Simp port, int c)
 	bool isfloat = false;
 
 	if (c == '+') {
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 	} else if (c == '-') {
 		basesign = -1;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 	}
 	if (c == '0') {
-		switch ((c = simp_readbyte(ctx, port))) {
+		switch ((c = simp_readbyte(port))) {
 		case 'B': case 'b':
 			numtype = NUM_BINARY;
 			break;
@@ -291,12 +291,12 @@ readnum(Simp ctx, Simp port, int c)
 	for (;;) {
 		if (!cisnum(c, numtype, &base))
 			goto done;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 	}
 done:
 	base *= basesign;
 	if (c == '.') {
-		while (cisnum(c = simp_readbyte(ctx, port), numtype, &n)) {
+		while (cisnum(c = simp_readbyte(port), numtype, &n)) {
 			floatn += (double)n;
 			n = 0;
 			switch (numtype) {
@@ -322,12 +322,12 @@ done:
 		if (!isfloat)
 			floatn = (double)base;
 		isfloat = true;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 		if (c == '+') {
-			c = simp_readbyte(ctx, port);
+			c = simp_readbyte(port);
 		} else if (c == '-') {
 			exptsign = -1;
-			c = simp_readbyte(ctx, port);
+			c = simp_readbyte(port);
 		}
 		n = 0;
 		while (cisnum(c, numtype, &n)) {
@@ -348,7 +348,7 @@ done:
 				expt *= 10.0;
 				break;
 			}
-			c = simp_readbyte(ctx, port);
+			c = simp_readbyte(port);
 		}
 		if (exptsign == -1)
 			expt = 1.0/expt;
@@ -357,7 +357,7 @@ done:
 	}
 	if (!cisdelimiter(c))
 		return (Token){.type = TOK_ERROR};
-	simp_unreadbyte(ctx, port, c);
+	simp_unreadbyte(port, c);
 	if (isfloat) {
 		return (Token){
 			.type = TOK_REAL,
@@ -372,7 +372,7 @@ done:
 }
 
 static Token
-readident(Simp ctx, Simp port, int c)
+readident(Simp port, int c)
 {
 	SimpSiz size = STRBUFSIZE;
 	SimpSiz len = 0;
@@ -390,9 +390,9 @@ readident(Simp ctx, Simp port, int c)
 			str = p;
 		}
 		str[len++] = (unsigned char)c;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 	}
-	simp_unreadbyte(ctx, port, c);
+	simp_unreadbyte(port, c);
 	str[len] = '\0';
 	return (Token){
 		.type = TOK_IDENTIFIER,
@@ -402,18 +402,18 @@ readident(Simp ctx, Simp port, int c)
 }
 
 static Token
-readtok(Simp ctx, Simp port)
+readtok(Simp port)
 {
 	Token tok = { 0 };
 	int c;
 
 loop:
 	do {
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 	} while (c != NOTHING && cisspace(c));
 	if (c != NOTHING && c == '#') {
 		do {
-			c = simp_readbyte(ctx, port);
+			c = simp_readbyte(port);
 		} while (c != NOTHING && c != '\n');
 		if (c == '\n')
 			goto loop;
@@ -433,35 +433,35 @@ loop:
 		tok.type = TOK_RPAREN;
 		return tok;
 	case '"':
-		return readstr(ctx, port);
+		return readstr(port);
 	case '\'':
-		c = simp_readbyte(ctx, port);
-		c = readbyte(ctx, port, c);
+		c = simp_readbyte(port);
+		c = readbyte(port, c);
 		if (c == NOTHING) {
 			tok.type = TOK_ERROR;
 			return tok;
 		}
 		tok.u.fixnum = c;
-		c = simp_readbyte(ctx, port);
+		c = simp_readbyte(port);
 		if (c == '\'') {
 			tok.type = TOK_CHAR;
 			return tok;
 		}
 		while (c != NOTHING && c != '\'') {
-			c = simp_readbyte(ctx, port);
+			c = simp_readbyte(port);
 		}
 		tok.type = TOK_CHAR;
 		return tok;
 	case '+': case '-':
-		if (!cisdecimal(simp_peekbyte(ctx, port)))
+		if (!cisdecimal(simp_peekbyte(port)))
 			goto token;
 		/* FALLTHROUGH */
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
-		return readnum(ctx, port, c);
+		return readnum(port, c);
 	default:
 token:
-		return readident(ctx, port, c);
+		return readident(port, c);
 	}
 	/* UNREACHABLE */
 	return tok;
@@ -487,14 +487,14 @@ fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 	SimpSiz i = 0;
 
 	vect = simp_makevector(ctx, nitems);
-	if (simp_isexception(ctx, vect)) {
+	if (simp_isexception(vect)) {
 		cleanvector(list);
-		return simp_makeexception(ctx, ERROR_MEMORY);
+		return simp_exception(ERROR_MEMORY);
 	}
 	while (list != NULL) {
 		tmp = list;
 		list = list->next;
-		simp_setvector(ctx, vect, i++, tmp->obj);
+		simp_setvector(vect, i++, tmp->obj);
 		free(tmp);
 	}
 	return vect;
@@ -510,7 +510,7 @@ readvector(Simp ctx, Simp port)
 	list = NULL;
 	last = NULL;
 	for (;;) {
-		tok = readtok(ctx, port);
+		tok = readtok(port);
 		switch (tok.type) {
 		case TOK_ERROR:
 		case TOK_EOF:
@@ -520,7 +520,7 @@ readvector(Simp ctx, Simp port)
 			pair = malloc(sizeof(*pair));
 			if (pair == NULL) {
 				cleanvector(list);
-				return simp_makeexception(ctx, ERROR_MEMORY);
+				return simp_exception(ERROR_MEMORY);
 			}
 			pair->obj = toktoobj(ctx, port, tok);
 			pair->next = NULL;
@@ -534,73 +534,73 @@ readvector(Simp ctx, Simp port)
 		}
 	}
 	/* UNREACHABLE */
-	return simp_makeexception(ctx, -1);
+	return simp_exception(-1);
 }
 
 static void
-simp_printchar(Simp ctx, Simp port, int c)
+simp_printchar(Simp port, int c)
 {
 	switch (c) {
 	case '\"':
-		simp_printf(ctx, port, "\\\"");
+		simp_printf(port, "\\\"");
 		break;
 	case '\a':
-		simp_printf(ctx, port, "\\a");
+		simp_printf(port, "\\a");
 		break;
 	case '\b':
-		simp_printf(ctx, port, "\\b");
+		simp_printf(port, "\\b");
 		break;
 	case '\033':
-		simp_printf(ctx, port, "\\e");
+		simp_printf(port, "\\e");
 		break;
 	case '\f':
-		simp_printf(ctx, port, "\\f");
+		simp_printf(port, "\\f");
 		break;
 	case '\n':
-		simp_printf(ctx, port, "\\n");
+		simp_printf(port, "\\n");
 		break;
 	case '\r':
-		simp_printf(ctx, port, "\\a");
+		simp_printf(port, "\\a");
 		break;
 	case '\t':
-		simp_printf(ctx, port, "\\t");
+		simp_printf(port, "\\t");
 		break;
 	case '\v':
-		simp_printf(ctx, port, "\\v");
+		simp_printf(port, "\\v");
 		break;
 	default:
 		if (ciscntrl(c)) {
-			simp_printf(ctx, port, "\\x%x", c);
+			simp_printf(port, "\\x%x", c);
 		} else {
-			simp_printf(ctx, port, "%c", c);
+			simp_printf(port, "%c", c);
 		}
 		break;
 	}
 }
 
 static void
-simp_printbyte(Simp ctx, Simp port, Simp obj)
+simp_printbyte(Simp port, Simp obj)
 {
-	simp_printchar(ctx, port, (int)simp_getbyte(ctx, obj));
+	simp_printchar(port, (int)simp_getbyte(obj));
 }
 
 static void
-simp_printsym(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
+simp_printsym(Simp port, unsigned char *str, SimpSiz len)
 {
 	SimpSiz i;
 
 	for (i = 0; i < len; i++) {
-		simp_printchar(ctx, port, (int)str[i]);
+		simp_printchar(port, (int)str[i]);
 	}
 }
 
 static void
-simp_printstr(Simp ctx, Simp port, unsigned char *str, SimpSiz len)
+simp_printstr(Simp port, unsigned char *str, SimpSiz len)
 {
 	SimpSiz i;
 
 	for (i = 0; i < len; i++) {
-		simp_printf(ctx, port, "%c", str[i]);
+		simp_printf(port, "%c", str[i]);
 	}
 }
 
@@ -618,17 +618,17 @@ toktoobj(Simp ctx, Simp port, Token tok)
 		return obj;
 	case TOK_QUOTE:
 		obj = simp_makevector(ctx, 2);
-		if (simp_isexception(ctx, obj))
+		if (simp_isexception(obj))
 			return obj;
-		tok = readtok(ctx, port);
+		tok = readtok(port);
 		quote = simp_makesymbol(ctx, (unsigned char *)"quote", 5);
-		if (simp_isexception(ctx, quote))
+		if (simp_isexception(quote))
 			return quote;
 		literal = toktoobj(ctx, port, tok);
-		if (simp_isexception(ctx, literal))
+		if (simp_isexception(literal))
 			return literal;
-		simp_setvector(ctx, obj, 0, quote);
-		simp_setvector(ctx, obj, 1, literal);
+		simp_setvector(obj, 0, quote);
+		simp_setvector(obj, 1, literal);
 		return obj;
 	case TOK_STRING:
 		obj = simp_makestring(ctx, tok.u.str.str, tok.u.str.len);
@@ -643,7 +643,7 @@ toktoobj(Simp ctx, Simp port, Token tok)
 	case TOK_EOF:
 		return simp_eof();
 	default:
-		return simp_makeexception(ctx, ERROR_ILLEXPR);
+		return simp_exception(ERROR_ILLEXPR);
 	}
 }
 
@@ -652,92 +652,92 @@ simp_read(Simp ctx, Simp port)
 {
 	Token tok;
 
-	tok = readtok(ctx, port);
+	tok = readtok(port);
 	return toktoobj(ctx, port, tok);
 }
 
 static void
-dowrite(Simp ctx, Simp port, Simp obj, bool display)
+dowrite(Simp port, Simp obj, bool display)
 {
 	Simp curr;
 	SimpSiz len, i;
 
-	switch (simp_gettype(ctx, obj)) {
+	switch (simp_gettype(obj)) {
 	case TYPE_BINDING:
-		simp_printf(ctx, port, "#<variable binding>");
+		simp_printf(port, "#<variable binding>");
 		break;
 	case TYPE_ENVIRONMENT:
-		simp_printf(ctx, port, "#<environment>");
+		simp_printf(port, "#<environment>");
 		break;
 	case TYPE_EOF:
-		simp_printf(ctx, port, "#<end-of-file>");
+		simp_printf(port, "#<end-of-file>");
 		break;
 	case TYPE_FALSE:
-		simp_printf(ctx, port, "#<false>");
+		simp_printf(port, "#<false>");
 		break;
 	case TYPE_TRUE:
-		simp_printf(ctx, port, "#<true>");
+		simp_printf(port, "#<true>");
 		break;
 	case TYPE_BYTE:
 		if (!display)
-			simp_printf(ctx, port, "\'");
-		simp_printbyte(ctx, port, obj);
+			simp_printf(port, "\'");
+		simp_printbyte(port, obj);
 		if (!display)
-			simp_printf(ctx, port, "\'");
+			simp_printf(port, "\'");
 		break;
 	case TYPE_SIGNUM:
-		simp_printf(ctx, port, "%ld", simp_getnum(ctx, obj));
+		simp_printf(port, "%ld", simp_getnum(obj));
 		break;
 	case TYPE_REAL:
-		simp_printf(ctx, port, "%g", simp_getreal(ctx, obj));
+		simp_printf(port, "%g", simp_getreal(obj));
 		break;
 	case TYPE_BUILTIN:
 	case TYPE_CLOSURE:
-		simp_printf(ctx, port, "#<procedure>");
+		simp_printf(port, "#<procedure>");
 		break;
 	case TYPE_PORT:
-		simp_printf(ctx, port, "#<port %p>", simp_getport(ctx, obj));
+		simp_printf(port, "#<port %p>", simp_getport(obj));
 		break;
 	case TYPE_STRING:
 		if (!display)
-			simp_printf(ctx, port, "\"");
+			simp_printf(port, "\"");
 		if (display)
-			simp_printstr(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
+			simp_printstr(port, simp_getstring(obj), simp_getsize(obj));
 		else
-			simp_printsym(ctx, port, simp_getstring(ctx, obj), simp_getsize(ctx, obj));
+			simp_printsym(port, simp_getstring(obj), simp_getsize(obj));
 		if (!display)
-			simp_printf(ctx, port, "\"");
+			simp_printf(port, "\"");
 		break;
 	case TYPE_SYMBOL:
-		simp_printsym(ctx, port, simp_getsymbol(ctx, obj), simp_getsize(ctx, obj));
+		simp_printsym(port, simp_getsymbol(obj), simp_getsize(obj));
 		break;
 	case TYPE_EXCEPTION:
-		simp_printf(ctx, port, "ERROR: %s", simp_getexception(ctx, obj));
+		simp_printf(port, "ERROR: %s", simp_getexception(obj));
 		break;
 	case TYPE_VECTOR:
-		simp_printf(ctx, port, "(");
-		len = simp_getsize(ctx, obj);
+		simp_printf(port, "(");
+		len = simp_getsize(obj);
 		for (i = 0; i < len; i++) {
 			if (i > 0)
-				simp_printf(ctx, port, " ");
-			curr = simp_getvectormemb(ctx, obj, i);
-			dowrite(ctx, port, curr, display);
+				simp_printf(port, " ");
+			curr = simp_getvectormemb(obj, i);
+			dowrite(port, curr, display);
 		}
-		simp_printf(ctx, port, ")");
+		simp_printf(port, ")");
 		break;
 	}
 }
 
 Simp
-simp_write(Simp ctx, Simp port, Simp obj)
+simp_write(Simp port, Simp obj)
 {
-	dowrite(ctx, port, obj, false);
+	dowrite(port, obj, false);
 	return simp_void();     // TODO: check write error
 }
 
 Simp
-simp_display(Simp ctx, Simp port, Simp obj)
+simp_display(Simp port, Simp obj)
 {
-	dowrite(ctx, port, obj, true);
+	dowrite(port, obj, true);
 	return simp_void();     // TODO: check write error
 }

@@ -56,13 +56,13 @@ mark(Simp ctx, Simp obj)
 {
 	Footer *footer;
 	SimpSiz size, i;
-	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	GC *gc = (GC *)simp_getgcmemory(ctx);
 	enum Type type;
 
-	type = simp_gettype(ctx, obj);
+	type = simp_gettype(obj);
 	if (!isheap[type])
 		return;
-	footer = simp_getgcmemory(ctx, obj);
+	footer = simp_getgcmemory(obj);
 	if (footer == NULL)
 		return;
 	if (footer->mark == gc->mark)
@@ -81,7 +81,7 @@ mark(Simp ctx, Simp obj)
 	gc->curr = footer;
 	if (!isvector[type])
 		return;
-	size = simp_getsize(ctx, obj);
+	size = simp_getsize(obj);
 	for (i = 0; i < size; i++) {
 		mark(ctx, ((Simp *)footer->data)[i]);
 	}
@@ -90,7 +90,7 @@ mark(Simp ctx, Simp obj)
 static void
 sweep(Simp ctx)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	GC *gc = (GC *)simp_getgcmemory(ctx);
 	Footer *footer, *tmp;
 
 	footer = gc->free;
@@ -104,14 +104,14 @@ sweep(Simp ctx)
 void
 simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	GC *gc = (GC *)simp_getgcmemory(ctx);
 	SimpSiz size, i;
 
 	gc->free = gc->curr;
 	gc->curr = NULL;
 	for (i = 0; i < nobjs; i++)
 		mark(ctx, objs[i]);
-	size = simp_getsize(ctx, ctx);
+	size = simp_getsize(ctx);
 	for (i = 0; i < size; i++)
 		mark(ctx, ((Simp *)gc->data)[i]);
 	sweep(ctx);
@@ -122,7 +122,7 @@ simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 void
 simp_gcfree(Simp ctx)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx, ctx);
+	GC *gc = (GC *)simp_getgcmemory(ctx);
 
 	gc->free = gc->curr;
 	sweep(ctx);
@@ -136,10 +136,10 @@ simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
 	void *data = NULL;
 	GC *gc;
 
-	if (simp_isnil(ctx, ctx))
+	if (simp_isnil(ctx))
 		gc = NULL;
 	else
-		gc = (GC *)simp_getgcmemory(ctx, ctx);
+		gc = (GC *)simp_getgcmemory(ctx);
 	if (posix_memalign(&data, ALIGN, nmembs * membsiz + sizeof(*footer)) != 0)
 		goto error;
 	footer = (Footer *)((char *)data + nmembs * membsiz);

@@ -26,13 +26,13 @@ canread(Port *port)
 	       !(port->mode & PORT_EOF);
 }
 
-Simp
-simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
+void
+simp_printf(Simp obj, const char *fmt, ...)
 {
 	Port *port;
 	va_list ap;
 
-	port = simp_getport(ctx, obj);
+	port = simp_getport(obj);
 	va_start(ap, fmt);
 	switch (port->type) {
 	case PORT_STRING:
@@ -50,13 +50,12 @@ simp_printf(Simp ctx, Simp obj, const char *fmt, ...)
 		break;
 	}
 	va_end(ap);
-	return simp_void();
 }
 
 int
-simp_readbyte(Simp ctx, Simp obj)
+simp_readbyte(Simp obj)
 {
-	Port *port = simp_getport(ctx, obj);
+	Port *port = simp_getport(obj);
 	int byte = NOTHING;
 	int c;
 
@@ -88,13 +87,13 @@ simp_readbyte(Simp ctx, Simp obj)
 }
 
 void
-simp_unreadbyte(Simp ctx, Simp obj, int c)
+simp_unreadbyte(Simp obj, int c)
 {
 	Port *port;
 
 	if (c == NOTHING)
 		return;
-	port = simp_getport(ctx, obj);
+	port = simp_getport(obj);
 	if (!canread(port))
 		return;
 	switch (port->type) {
@@ -109,12 +108,12 @@ simp_unreadbyte(Simp ctx, Simp obj, int c)
 }
 
 int
-simp_peekbyte(Simp ctx, Simp obj)
+simp_peekbyte(Simp obj)
 {
 	int c;
 
-	c = simp_readbyte(ctx, obj);
-	simp_unreadbyte(ctx, obj, c);
+	c = simp_readbyte(obj);
+	simp_unreadbyte(obj, c);
 	return c;
 }
 
@@ -126,7 +125,7 @@ simp_openstream(Simp ctx, void *p, char *mode)
 
 	stream = (FILE *)p;
 	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
-		return simp_makeexception(ctx, ERROR_MEMORY);
+		return simp_exception(ERROR_MEMORY);
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
@@ -140,7 +139,7 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	Port *port;
 
 	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
-		return simp_makeexception(ctx, ERROR_MEMORY);
+		return simp_exception(ERROR_MEMORY);
 	port->type = PORT_STRING;
 	port->mode = openmode(mode);
 	port->u.str.arr = p;
@@ -156,7 +155,7 @@ simp_porteof(Simp ctx, Simp obj)
 	Port *port;
 
 	(void)ctx;
-	port = simp_getport(ctx, obj);
+	port = simp_getport(obj);
 	return port->mode & PORT_EOF;
 }
 
@@ -166,7 +165,7 @@ simp_porterr(Simp ctx, Simp obj)
 	Port *port;
 
 	(void)ctx;
-	port = simp_getport(ctx, obj);
+	port = simp_getport(obj);
 	return port->mode & PORT_ERR;
 }
 
@@ -185,13 +184,13 @@ simp_initports(Simp ctx)
 	};
 
 	ports = simp_makevector(ctx, 3);
-	if (simp_isexception(ctx, ports))
+	if (simp_isexception(ports))
 		return ports;
 	for (i = 0; i < LEN(portinit); i++) {
 		port = simp_openstream(ctx, portinit[i].fp, portinit[i].mode);
-		if (simp_isexception(ctx, port))
+		if (simp_isexception(port))
 			return port;
-		simp_setvector(ctx, ports, i, port);
+		simp_setvector(ports, i, port);
 	}
 	return ports;
 }
@@ -202,7 +201,7 @@ simp_contextiport(Simp ctx)
 	Simp ports;
 
 	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ctx, ports, PORT_STDIN);
+	return simp_getvectormemb(ports, PORT_STDIN);
 }
 
 Simp
@@ -211,7 +210,7 @@ simp_contextoport(Simp ctx)
 	Simp ports;
 
 	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ctx, ports, PORT_STDOUT);
+	return simp_getvectormemb(ports, PORT_STDOUT);
 }
 
 Simp
@@ -220,5 +219,5 @@ simp_contexteport(Simp ctx)
 	Simp ports;
 
 	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ctx, ports, PORT_STDERR);
+	return simp_getvectormemb(ports, PORT_STDERR);
 }

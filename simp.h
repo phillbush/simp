@@ -70,7 +70,7 @@ enum Ports {
 };
 
 struct Port {
-	enum PortType {
+	enum Porttype {
 		PORT_STREAM,
 		PORT_STRING,
 	} type;
@@ -91,6 +91,12 @@ struct Port {
 	SimpInt nlines;
 };
 
+typedef enum Type {
+#define X(n, v, h) n,
+	TYPES
+#undef  X
+} Type;
+
 struct Simp {
 	union {
 		SimpInt         num;
@@ -104,11 +110,7 @@ struct Simp {
 	} u;
 	SimpSiz capacity;
 	SimpSiz nmembers;
-	enum Type {
-#define X(n, v, h) n,
-	TYPES
-#undef  X
-	} type;
+	Type type;
 };
 
 /* error handling */
@@ -124,67 +126,66 @@ Simp    simp_true(void);
 Simp    simp_void(void);
 
 /* data type accessors */
-Builtin *simp_getbuiltin(Simp ctx, Simp obj);
-unsigned char simp_getbyte(Simp ctx, Simp obj);
-SimpInt simp_getnum(Simp ctx, Simp obj);
-void   *simp_getport(Simp ctx, Simp obj);
-double  simp_getreal(Simp ctx, Simp obj);
-SimpSiz simp_getsize(Simp ctx, Simp obj);
-SimpSiz simp_getcapacity(Simp ctx, Simp obj);
-unsigned char *simp_getstring(Simp ctx, Simp obj);
-unsigned char *simp_getsymbol(Simp ctx, Simp obj);
-unsigned char *simp_getexception(Simp ctx, Simp obj);
-Simp    simp_getvectormemb(Simp ctx, Simp obj, SimpSiz pos);
-unsigned char simp_getstringmemb(Simp ctx, Simp obj, SimpSiz pos);
-enum Type simp_gettype(Simp ctx, Simp obj);
-Simp   *simp_getvector(Simp ctx, Simp obj);
-Simp    simp_getclosureenv(Simp ctx, Simp obj);
-Simp    simp_getclosureparam(Simp ctx, Simp obj);
-Simp    simp_getclosurebody(Simp ctx, Simp obj);
-Simp    simp_getclosurevarargs(Simp ctx, Simp obj);
-void   *simp_getgcmemory(Simp ctx, Simp obj);
+Builtin *simp_getbuiltin(Simp obj);
+unsigned char simp_getbyte(Simp obj);
+SimpInt simp_getnum(Simp obj);
+void   *simp_getport(Simp obj);
+double  simp_getreal(Simp obj);
+SimpSiz simp_getsize(Simp obj);
+SimpSiz simp_getcapacity(Simp obj);
+unsigned char *simp_getstring(Simp obj);
+unsigned char *simp_getsymbol(Simp obj);
+unsigned char *simp_getexception(Simp obj);
+Simp    simp_getvectormemb(Simp obj, SimpSiz pos);
+unsigned char simp_getstringmemb(Simp obj, SimpSiz pos);
+Type    simp_gettype(Simp obj);
+Simp   *simp_getvector(Simp obj);
+Simp    simp_getclosureenv(Simp obj);
+Simp    simp_getclosureparam(Simp obj);
+Simp    simp_getclosurebody(Simp obj);
+Simp    simp_getclosurevarargs(Simp obj);
+void   *simp_getgcmemory(Simp obj);
 
 /* data type predicates */
-bool    simp_isclosure(Simp ctx, Simp obj);
-bool    simp_isbool(Simp ctx, Simp obj);
-bool    simp_isbuiltin(Simp ctx, Simp obj);
-bool    simp_isvarargs(Simp ctx, Simp obj);
-bool    simp_isbyte(Simp ctx, Simp obj);
-bool    simp_isempty(Simp ctx, Simp obj);
-bool    simp_isenvironment(Simp ctx, Simp obj);
-bool    simp_iseof(Simp ctx, Simp obj);
-bool    simp_isexception(Simp ctx, Simp obj);
-bool    simp_isfalse(Simp ctx, Simp obj);
-bool    simp_isform(Simp ctx, Simp obj);
-bool    simp_isnum(Simp ctx, Simp obj);
-bool    simp_isnil(Simp ctx, Simp obj);
-bool    simp_ispair(Simp ctx, Simp obj);
-bool    simp_ispair(Simp ctx, Simp obj);
-bool    simp_isport(Simp ctx, Simp obj);
-bool    simp_isprocedure(Simp ctx, Simp obj);
-bool    simp_isreal(Simp ctx, Simp obj);
-bool    simp_isstring(Simp ctx, Simp obj);
-bool    simp_issymbol(Simp ctx, Simp obj);
-bool    simp_istrue(Simp ctx, Simp obj);
-bool    simp_isvector(Simp ctx, Simp obj);
-bool    simp_isvoid(Simp ctx, Simp obj);
+bool    simp_isclosure(Simp obj);
+bool    simp_isbool(Simp obj);
+bool    simp_isbuiltin(Simp obj);
+bool    simp_isvarargs(Simp obj);
+bool    simp_isbyte(Simp obj);
+bool    simp_isempty(Simp obj);
+bool    simp_isenvironment(Simp obj);
+bool    simp_iseof(Simp obj);
+bool    simp_isexception(Simp obj);
+bool    simp_isfalse(Simp obj);
+bool    simp_isform(Simp obj);
+bool    simp_isnum(Simp obj);
+bool    simp_isnil(Simp obj);
+bool    simp_ispair(Simp obj);
+bool    simp_ispair(Simp obj);
+bool    simp_isport(Simp obj);
+bool    simp_isprocedure(Simp obj);
+bool    simp_isreal(Simp obj);
+bool    simp_isstring(Simp obj);
+bool    simp_issymbol(Simp obj);
+bool    simp_istrue(Simp obj);
+bool    simp_isvector(Simp obj);
+bool    simp_isvoid(Simp obj);
 
 /* data type checkers */
-bool    simp_issame(Simp ctx, Simp a, Simp b);
+bool    simp_issame(Simp a, Simp b);
 
 /* data type mutators */
-void    simp_setstring(Simp ctx, Simp obj, SimpSiz pos, unsigned char u);
-void    simp_setvector(Simp ctx, Simp obj, SimpSiz pos, Simp val);
-void    simp_cpyvector(Simp ctx, Simp dst, Simp src);
-void    simp_cpystring(Simp ctx, Simp dst, Simp src);
+void    simp_setstring(Simp obj, SimpSiz pos, unsigned char u);
+void    simp_setvector(Simp obj, SimpSiz pos, Simp val);
+void    simp_cpyvector(Simp dst, Simp src);
+void    simp_cpystring(Simp dst, Simp src);
 
 /* data type constructors */
+Simp    simp_exception(int n);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makeform(Simp ctx, int);
 Simp    simp_makebuiltin(Simp ctx, Builtin *);
-Simp    simp_makevarargs(Simp ctx, int);
 Simp    simp_makeclosure(Simp ctx, Simp env, Simp params, Simp extras, Simp body);
-Simp    simp_makeexception(Simp ctx, int n);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
 Simp    simp_makeport(Simp ctx, void *p);
@@ -192,8 +193,10 @@ Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
 Simp    simp_makevector(Simp ctx, SimpSiz size);
-Simp    simp_slicevector(Simp ctx, Simp obj, SimpSiz from, SimpSiz size);
-Simp    simp_slicestring(Simp ctx, Simp obj, SimpSiz from, SimpSiz size);
+
+/* slicers */
+Simp    simp_slicevector(Simp obj, SimpSiz from, SimpSiz size);
+Simp    simp_slicestring(Simp obj, SimpSiz from, SimpSiz size);
 
 /* context operations */
 Simp    simp_contextenvironment(Simp ctx);
@@ -215,15 +218,15 @@ Simp    simp_openstream(Simp ctx, void *p, char *mode);
 Simp    simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode);
 int     simp_porteof(Simp ctx, Simp obj);
 int     simp_porterr(Simp ctx, Simp obj);
-int     simp_readbyte(Simp ctx, Simp port);
-int     simp_peekbyte(Simp ctx, Simp port);
-void    simp_unreadbyte(Simp ctx, Simp obj, int c);
-Simp    simp_printf(Simp ctx, Simp obj, const char *fmt, ...);
+int     simp_readbyte(Simp port);
+int     simp_peekbyte(Simp port);
+void    simp_unreadbyte(Simp port, int c);
+void    simp_printf(Simp port, const char *fmt, ...);
 
 /* eval */
 Simp    simp_read(Simp ctx, Simp port);
-Simp    simp_write(Simp ctx, Simp port, Simp obj);
-Simp    simp_display(Simp ctx, Simp port, Simp obj);
+Simp    simp_write(Simp port, Simp obj);
+Simp    simp_display(Simp port, Simp obj);
 Simp    simp_eval(Simp ctx, Simp expr, Simp env);
 Simp    simp_initforms(Simp ctx);
 Simp    simp_initports(Simp ctx);
