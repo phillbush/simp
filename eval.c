@@ -820,7 +820,7 @@ f_slicestring(Simp ctx, Simp args)
 		return simp_exception(ERROR_ILLTYPE);
 	from = 0;
 	size = simp_getsize(string);
-	capacity = simp_getcapacity(string);
+	capacity = simp_getsize(string);
 	if (nargs > 1) {
 		obj = simp_getvectormemb(args, 1);
 		if (!simp_isnum(obj)) {

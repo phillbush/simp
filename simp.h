@@ -95,7 +95,6 @@ struct Simp {
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
-	SimpSiz capacity;
 	SimpSiz start;
 	SimpSiz size;
 	const char *error;
@@ -145,7 +144,6 @@ SimpInt simp_getnum(Simp obj);
 Port   *simp_getport(Simp obj);
 double  simp_getreal(Simp obj);
 SimpSiz simp_getsize(Simp obj);
-SimpSiz simp_getcapacity(Simp obj);
 unsigned char *simp_getstring(Simp obj);
 unsigned char *simp_getsymbol(Simp obj);
 unsigned char *simp_getexception(Simp obj);
