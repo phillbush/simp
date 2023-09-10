@@ -67,6 +67,8 @@ repl(Simp ctx, Simp iport, int prompt)
 			simp_write(eport, obj);
 			goto newline;
 		}
+		if (simp_isvoid(obj))
+			continue;
 		simp_write(oport, obj);
 newline:
 		simp_printf(oport, "\n");

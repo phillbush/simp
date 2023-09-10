@@ -1467,6 +1467,8 @@ loop:
 		extraargs = simp_eval(ctx, extraargs, env);
 		if (simp_isexception(extraargs))
 			return extraargs;
+		if (simp_isvoid(extraargs))
+			return simp_exception(ERROR_VOID);
 		if (!simp_isvector(extraargs))
 			return simp_exception(ERROR_ILLTYPE);
 		nextraargs = simp_getsize(extraargs);
@@ -1481,6 +1483,8 @@ loop:
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(val))
 				return val;
+			if (simp_isvoid(val))
+				return simp_exception(ERROR_VOID);
 			if (simp_isfalse(val))
 				return val;
 		}
@@ -1493,6 +1497,8 @@ loop:
 			val = simp_eval(ctx, val, env);
 			if (simp_isexception(val))
 				return val;
+			if (simp_isvoid(val))
+				return simp_exception(ERROR_VOID);
 			if (simp_istrue(val))
 				return val;
 		}
@@ -1518,6 +1524,8 @@ loop:
 		for (i = 0; i + 1 < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
 			val = simp_eval(ctx, val, env);
+			if (simp_isvoid(val))
+				return simp_exception(ERROR_VOID);
 			if (simp_isexception(val))
 				return val;
 			i++;
@@ -1541,6 +1549,8 @@ loop:
 		);
 		if (simp_isexception(expr))
 			return expr;
+		if (simp_isvoid(expr))
+			return simp_exception(ERROR_VOID);
 		env = simp_eval(
 			ctx,
 			simp_getvectormemb(operands, 1),
@@ -1548,6 +1558,8 @@ loop:
 		);
 		if (simp_isexception(env))
 			return env;
+		if (simp_isvoid(env))
+			return simp_exception(ERROR_VOID);
 		goto loop;
 	} else if (simp_issame(operator, forms[FORM_LAMBDA])) {
 		/* (lambda PARAMETER ... BODY) */
@@ -1601,6 +1613,8 @@ apply:
 	operator = simp_eval(ctx, operator, env);
 	if (simp_isexception(operator))
 		return operator;
+	if (simp_isvoid(operator))
+		return simp_exception(ERROR_VOID);
 	narguments = noperands + nextraargs;
 	arguments = simp_makevector(ctx, narguments);
 	if (simp_isexception(arguments))
@@ -1611,6 +1625,8 @@ apply:
 		val = simp_eval(ctx, val, env);
 		if (simp_isexception(val))
 			return val;
+		if (simp_isvoid(val))
+			return simp_exception(ERROR_VOID);
 		simp_setvector(arguments, i, val);
 	}
 	for (i = 0; i < nextraargs; i++) {
@@ -1619,6 +1635,8 @@ apply:
 		val = simp_eval(ctx, val, env);
 		if (simp_isexception(val))
 			return val;
+		if (simp_isvoid(val))
+			return simp_exception(ERROR_VOID);
 		simp_setvector(arguments, i + noperands, val);
 	}
 	if (simp_isbuiltin(operator)) {

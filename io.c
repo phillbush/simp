@@ -663,6 +663,8 @@ dowrite(Simp port, Simp obj, bool display)
 	SimpSiz len, i;
 
 	switch (simp_gettype(obj)) {
+	case TYPE_VOID:
+		break;
 	case TYPE_BINDING:
 		simp_printf(port, "#<variable binding>");
 		break;

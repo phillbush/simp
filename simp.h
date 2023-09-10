@@ -8,25 +8,26 @@
 #define NOTHING         (-1)
 
 #define EXCEPTIONS                                                       \
-	X(ERROR_ARGS,           "wrong number of arguments"             )\
-	X(ERROR_DIVZERO,        "division by zero"                      )\
-	X(ERROR_EMPTY,          "empty operation"                       )\
-	X(ERROR_ENVIRON,        "symbol for environment not supplied"   )\
-	X(ERROR_UNBOUND,        "unbound variable"                      )\
-	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
-	X(ERROR_OUTOFRANGE,     "out of range"                          )\
-	X(ERROR_MAP,            "map over vectors of different sizes"   )\
-	X(ERROR_VARFORM,        "macro used as variable"                )\
-	X(ERROR_ILLEXPR,        "ill expression"                        )\
-	X(ERROR_ILLFORM,        "ill-formed syntactical form"           )\
-	X(ERROR_ILLSYNTAX,      "ill syntax form"                       )\
-	X(ERROR_UNKSYNTAX,      "unknown syntax form"                   )\
-	X(ERROR_ILLTYPE,        "improper type"                         )\
-	X(ERROR_NOTBYTE,        "not a byte"                            )\
-	X(ERROR_NOTSYM,         "not a symbol"                          )\
-	X(ERROR_STREAM,         "stream error"                          )\
-	X(ERROR_RANGE,          "out of range"                          )\
-	X(ERROR_MEMORY,         "allocation error"                      )
+	X(ERROR_ARGS,       "wrong number of arguments"                 )\
+	X(ERROR_DIVZERO,    "division by zero"                          )\
+	X(ERROR_EMPTY,      "empty operation"                           )\
+	X(ERROR_ENVIRON,    "symbol for environment not supplied"       )\
+	X(ERROR_UNBOUND,    "unbound variable"                          )\
+	X(ERROR_OPERATOR,   "operator is not a procedure"               )\
+	X(ERROR_OUTOFRANGE, "out of range"                              )\
+	X(ERROR_MAP,        "map over vectors of different sizes"       )\
+	X(ERROR_VARFORM,    "macro used as variable"                    )\
+	X(ERROR_ILLEXPR,    "ill expression"                            )\
+	X(ERROR_ILLFORM,    "ill-formed syntactical form"               )\
+	X(ERROR_ILLSYNTAX,  "ill syntax form"                           )\
+	X(ERROR_UNKSYNTAX,  "unknown syntax form"                       )\
+	X(ERROR_ILLTYPE,    "improper type"                             )\
+	X(ERROR_NOTBYTE,    "not a byte"                                )\
+	X(ERROR_NOTSYM,     "not a symbol"                              )\
+	X(ERROR_STREAM,     "stream error"                              )\
+	X(ERROR_RANGE,      "out of range"                              )\
+	X(ERROR_MEMORY,     "allocation error"                          )\
+	X(ERROR_VOID,       "expression evaluated to nothing; expected value")
 
 #define TYPES                                              \
 	/* Object type        Is vector   Is allocated   */\
@@ -44,7 +45,8 @@
 	X(TYPE_SIGNUM,        false,      false           )\
 	X(TYPE_STRING,        false,      true            )\
 	X(TYPE_SYMBOL,        false,      true            )\
-	X(TYPE_TRUE,          false,      false           )
+	X(TYPE_TRUE,          false,      false           )\
+	X(TYPE_VOID,          false,      false           )
 
 #define PORTS                           \
 	X(PORT_STDIN,   stdin,  "r"    )\
