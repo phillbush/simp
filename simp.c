@@ -44,7 +44,7 @@ main(int argc, char *argv[])
 		mode = MODE_SCRIPT;
 	ctx = simp_contextnew();
 	if (simp_isexception(ctx))
-		errx(EXIT_FAILURE, "%s", simp_getexception(ctx));
+		errx(EXIT_FAILURE, "could not create context");
 	iport = simp_contextiport(ctx);
 	switch (mode) {
 	case MODE_STRING:
@@ -69,7 +69,7 @@ main(int argc, char *argv[])
 			port = iport;
 			iflag = 0;
 		} else if ((fp = fopen(argv[0], "r")) != NULL) {
-			port = simp_openstream(ctx, fp, "r");
+			port = simp_openstream(ctx, argv[0], fp, "r");
 		} else {
 			goto error;
 		}

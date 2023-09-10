@@ -29,6 +29,9 @@ typedef struct Footer {
 	struct Footer  *next;
 	void           *data;
 	int             mark;
+	const char     *filename;
+	SimpSiz         lineno;
+	SimpSiz         column;
 } Footer;
 
 typedef struct GC {
@@ -37,6 +40,9 @@ typedef struct GC {
 	struct Footer  *curr;
 	void           *data;
 	int             mark;
+	const char     *filename;
+	SimpSiz         lineno;
+	SimpSiz         column;
 } GC;
 
 static bool isvector[] = {
@@ -130,7 +136,7 @@ simp_gcfree(Simp ctx)
 }
 
 void *
-simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
+simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column)
 {
 	Footer *footer = NULL;
 	void *data = NULL;
@@ -148,6 +154,9 @@ simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz)
 		.prev = NULL,
 		.next = NULL,
 		.data = data,
+		.filename = filename,
+		.lineno = lineno,
+		.column = column,
 	};
 	if (gc == NULL) {
 		/* there's no garbage context (we're creating it right now) */

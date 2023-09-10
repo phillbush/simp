@@ -89,7 +89,7 @@ simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 {
 	Simp bind;
 
-	bind = simp_makevector(ctx, BINDING_SIZE);
+	bind = simp_makevector(ctx, NULL, 0, 0, BINDING_SIZE);
 	if (simp_isexception(bind))
 		return bind;
 	simp_setvector(bind, BINDING_VARIABLE, sym);
@@ -247,7 +247,7 @@ simp_initenviron(Simp ctx)
 static Simp
 simp_inithashtab(Simp ctx)
 {
-	return simp_makevector(ctx, SYMTAB_SIZE);
+	return simp_makevector(ctx, NULL, 0, 0, SYMTAB_SIZE);
 }
 
 Simp
@@ -262,7 +262,7 @@ simp_contextnew(void)
 #undef  X
 	};
 
-	ctx = simp_makevector(simp_nil(), NCONTEXTS);
+	ctx = simp_makevector(simp_nil(), NULL, 0, 0, NCONTEXTS);
 	membs = simp_getvector(ctx);
 	for (i = 0; i < NCONTEXTS; i++) {
 		obj = (*init[i])(ctx);
@@ -670,7 +670,7 @@ simp_makeenvironment(Simp ctx, Simp parent)
 	Simp env;
 
 	(void)ctx;
-	env = simp_makevector(ctx, ENVIRONMENT_SIZE);
+	env = simp_makevector(ctx, NULL, 0, 0, ENVIRONMENT_SIZE);
 	if (simp_isexception(env))
 		return env;
 	simp_setvector(env, ENVIRONMENT_PARENT, parent);
@@ -703,7 +703,7 @@ simp_makeclosure(Simp ctx, Simp env, Simp params, Simp varargs, Simp body)
 {
 	Simp lambda;
 
-	lambda = simp_makevector(ctx, CLOSURE_SIZE);
+	lambda = simp_makevector(ctx, NULL, 0, 0, CLOSURE_SIZE);
 	if (simp_isexception(lambda))
 		return lambda;
 	simp_setvector(lambda, CLOSURE_ENVIRONMENT, env);
@@ -737,13 +737,13 @@ simp_makereal(Simp ctx, double x)
 }
 
 Simp
-simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
+simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size)
 {
 	unsigned char *dst = NULL;
 
 	if (size == 0)
 		return simp_empty();
-	dst = simp_gcnewarray(ctx, size, 1);
+	dst = simp_gcnewarray(ctx, size, 1, NULL, 0, 0);
 	if (dst == NULL)
 		return simp_exception(ERROR_MEMORY);
 	if (src != NULL)
@@ -757,7 +757,7 @@ simp_makestring(Simp ctx, unsigned char *src, SimpSiz size)
 }
 
 Simp
-simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
+simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size)
 {
 	Simp list, prev, pair, symtab, sym;
 	SimpSiz i, bucket, len;
@@ -784,7 +784,7 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 	if (simp_isexception(sym))
 		return sym;
 	sym.type = TYPE_SYMBOL;
-	pair = simp_makevector(ctx, 2);
+	pair = simp_makevector(ctx, NULL, 0, 0, 2);
 	if (simp_isexception(pair))
 		return pair;
 	simp_setvector(pair, 0, sym);
@@ -796,14 +796,14 @@ simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size)
 }
 
 Simp
-simp_makevector(Simp ctx, SimpSiz size)
+simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size)
 {
 	SimpSiz i;
 	Simp *data;
 
 	if (size == 0)
 		return simp_nil();
-	data = simp_gcnewarray(ctx, size, sizeof(Simp));
+	data = simp_gcnewarray(ctx, size, sizeof(Simp), filename, lineno, column);
 	if (data == NULL)
 		return simp_exception(ERROR_MEMORY);
 	for (i = 0; i < size; i++)
@@ -874,3 +874,8 @@ simp_getgcmemory(Simp obj)
 		return 0;
 	}
 }
+
+Simp    simp_makesource(Simp ctx, const char *file, SimpSiz lineno, SimpSiz column);
+const char *simp_sourcefilename(Simp obj);
+SimpSiz     simp_sourcelineno(Simp obj);
+SimpSiz     simp_sourcecolumn(Simp obj);

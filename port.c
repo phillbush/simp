@@ -118,18 +118,24 @@ simp_peekbyte(Simp obj)
 }
 
 Simp
-simp_openstream(Simp ctx, void *p, char *mode)
+simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 {
 	FILE *stream;
 	Port *port;
+	Simp sym;
 
 	stream = (FILE *)p;
-	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
+	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port), NULL, 0, 0)) == NULL)
 		return simp_exception(ERROR_MEMORY);
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
+	sym = simp_makesymbol(ctx, (const unsigned char *)file, strlen(file) + 1);
+	if (simp_isexception(sym))
+		return sym;
+	port->filename = (const char *)simp_getsymbol(sym);
 	port->lineno = 0;
+	port->column = 0;
 	return simp_makeport(ctx, port);
 }
 
@@ -138,14 +144,16 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
 
-	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port))) == NULL)
+	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port), NULL, 0, 0)) == NULL)
 		return simp_exception(ERROR_MEMORY);
 	port->type = PORT_STRING;
 	port->mode = openmode(mode);
 	port->u.str.arr = p;
 	port->u.str.size = len;
 	port->u.str.curr = 0;
+	port->filename = NULL;
 	port->lineno = 0;
+	port->column = 0;
 	return simp_makeport(ctx, port);
 }
 
@@ -168,12 +176,30 @@ simp_porterr(Simp obj)
 }
 
 SimpSiz
-simp_portline(Simp obj)
+simp_portlineno(Simp obj)
 {
 	Port *port;
 
 	port = simp_getport(obj);
 	return port->lineno;
+}
+
+SimpSiz
+simp_portcolumn(Simp obj)
+{
+	Port *port;
+
+	port = simp_getport(obj);
+	return port->column;
+}
+
+const char *
+simp_portfilename(Simp obj)
+{
+	Port *port;
+
+	port = simp_getport(obj);
+	return port->filename;
 }
 
 Simp
@@ -183,18 +209,24 @@ simp_initports(Simp ctx)
 	SimpSiz i;
 	struct {
 		FILE *fp;
+		char *name;
 		char *mode;
 	} portinit[] = {
-#define X(n, f, m) [n] = { .fp = f, .mode = m, },
+#define X(n, f, s, m) [n] = { .fp = f, .name = s, .mode = m, },
 		PORTS
 #undef  X
 	};
 
-	ports = simp_makevector(ctx, 3);
+	ports = simp_makevector(ctx, NULL, 0, 0, 3);
 	if (simp_isexception(ports))
 		return ports;
 	for (i = 0; i < LEN(portinit); i++) {
-		port = simp_openstream(ctx, portinit[i].fp, portinit[i].mode);
+		port = simp_openstream(
+			ctx,
+			portinit[i].name,
+			portinit[i].fp,
+			portinit[i].mode
+		);
 		if (simp_isexception(port))
 			return port;
 		simp_setvector(ports, i, port);

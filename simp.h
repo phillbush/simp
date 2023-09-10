@@ -48,10 +48,10 @@
 	X(TYPE_TRUE,          false,      false           )\
 	X(TYPE_VOID,          false,      false           )
 
-#define PORTS                           \
-	X(PORT_STDIN,   stdin,  "r"    )\
-	X(PORT_STDOUT,  stdout, "w"    )\
-	X(PORT_STDERR,  stderr, "w"    )
+#define PORTS                                    \
+	X(PORT_STDIN,   stdin,  "<stdin>",  "r" )\
+	X(PORT_STDOUT,  stdout, "<stdout>", "w" )\
+	X(PORT_STDERR,  stderr, "<stderr>", "w" )
 
 typedef struct Simp             Simp;
 typedef struct Port             Port;
@@ -74,9 +74,32 @@ enum Exceptions {
 };
 
 enum Ports {
-#define X(n, f, m) n,
+#define X(n, f, s, m) n,
 	PORTS
 #undef  X
+};
+
+typedef enum Type {
+#define X(n, v, h) n,
+	TYPES
+#undef  X
+} Type;
+
+struct Simp {
+	union {
+		SimpInt         num;
+		double          real;
+		Simp           *vector;
+		struct Port    *port;
+		unsigned char  *string;
+		unsigned char  *errmsg;
+		unsigned char   byte;
+		Builtin        *builtin;
+	} u;
+	SimpSiz capacity;
+	SimpSiz nmembers;
+	const char *error;
+	Type type;
 };
 
 struct Port {
@@ -98,29 +121,9 @@ struct Port {
 			SimpSiz curr, size;
 		} str;
 	} u;
+	const char *filename;
 	SimpSiz lineno;
-};
-
-typedef enum Type {
-#define X(n, v, h) n,
-	TYPES
-#undef  X
-} Type;
-
-struct Simp {
-	union {
-		SimpInt         num;
-		double          real;
-		Simp           *vector;
-		struct Port    *port;
-		unsigned char  *string;
-		unsigned char  *errmsg;
-		unsigned char   byte;
-		Builtin        *builtin;
-	} u;
-	SimpSiz capacity;       /* also used for line number */
-	SimpSiz nmembers;
-	Type type;
+	SimpSiz column;
 };
 
 /* error handling */
@@ -200,9 +203,9 @@ Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
 Simp    simp_makeport(Simp ctx, void *p);
 Simp    simp_makereal(Simp ctx, double x);
-Simp    simp_makestring(Simp ctx, unsigned char *src, SimpSiz size);
-Simp    simp_makesymbol(Simp ctx, unsigned char *src, SimpSiz size);
-Simp    simp_makevector(Simp ctx, SimpSiz size);
+Simp    simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size);
+Simp    simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size);
+Simp    simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size);
 
 /* slicers */
 Simp    simp_slicevector(Simp obj, SimpSiz from, SimpSiz size);
@@ -224,11 +227,13 @@ Simp    simp_envdef(Simp ctx, Simp env, Simp var, Simp val);
 Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 
 /* port operations */
-Simp    simp_openstream(Simp ctx, void *p, char *mode);
+Simp    simp_openstream(Simp ctx, const char *filename, void *p, char *mode);
 Simp    simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode);
 int     simp_porteof(Simp obj);
 int     simp_porterr(Simp obj);
-SimpSiz simp_portline(Simp obj);
+SimpSiz simp_portlineno(Simp obj);
+SimpSiz simp_portcolumn(Simp obj);
+const char *simp_portfilename(Simp obj);
 int     simp_readbyte(Simp port);
 int     simp_peekbyte(Simp port);
 void    simp_unreadbyte(Simp port, int c);
@@ -245,6 +250,6 @@ Simp    simp_initbuiltins(Simp ctx);
 int     simp_repl(Simp ctx, Simp iport, int mode);
 
 /* gc */
-void   *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);
+void   *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);

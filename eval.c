@@ -358,7 +358,7 @@ f_foreach(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, nargs);
+	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, prod);
@@ -403,7 +403,7 @@ f_foreachstring(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, nargs);
+	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, prod);
@@ -529,7 +529,7 @@ f_makevector(Simp ctx, Simp args)
 	size = simp_getnum(obj);
 	if (size < 0)
 		return simp_exception(ERROR_OUTOFRANGE);
-	return simp_makevector(ctx, size);
+	return simp_makevector(ctx, NULL, 0, 0, size);
 }
 
 static Simp
@@ -558,10 +558,10 @@ f_map(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, nargs);
+	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
-	vector = simp_makevector(ctx, size);
+	vector = simp_makevector(ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	simp_setvector(expr, 0, prod);
@@ -606,7 +606,7 @@ f_mapstring(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, nargs);
+	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
 	string = simp_makestring(ctx, NULL, size);
@@ -644,7 +644,7 @@ f_member(Simp ctx, Simp args)
 	if (!simp_isvector(vector))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(vector);
-	expr = simp_makevector(ctx, 3);
+	expr = simp_makevector(ctx, NULL, 0, 0, 3);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, pred);
@@ -1077,7 +1077,7 @@ f_stringvector(Simp ctx, Simp args)
 	if (!simp_isstring(str))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(str);
-	vector = simp_makevector(ctx, size);
+	vector = simp_makevector(ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (i = 0; i < size; i++) {
@@ -1148,7 +1148,7 @@ f_vectorcat(Simp ctx, Simp args)
 			return simp_exception(ERROR_ILLTYPE);
 		size += simp_getsize(obj);
 	}
-	vector = simp_makevector(ctx, size);
+	vector = simp_makevector(ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (size = i = 0; i < nargs; i++) {
@@ -1192,7 +1192,7 @@ f_vectordup(Simp ctx, Simp args)
 	if (!simp_isvector(src))
 		return simp_exception(ERROR_ILLTYPE);
 	len = simp_getsize(src);
-	dst = simp_makevector(ctx, len);
+	dst = simp_makevector(ctx, NULL, 0, 0, len);
 	if (simp_isexception(dst))
 		return dst;
 	for (i = 0; i < len; i++) {
@@ -1325,7 +1325,7 @@ f_vectorrevnew(Simp ctx, Simp args)
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(obj);
-	vector = simp_makevector(ctx, size);
+	vector = simp_makevector(ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (i = 0; i < size / 2; i++) {
@@ -1398,7 +1398,7 @@ simp_initforms(Simp ctx)
 #undef  X
 	};
 
-	forms = simp_makevector(ctx, LEN(formnames));
+	forms = simp_makevector(ctx, NULL, 0, 0, LEN(formnames));
 	if (simp_isexception(forms))
 		return forms;
 	for (i = 0; i < LEN(formnames); i++) {
@@ -1616,7 +1616,7 @@ apply:
 	if (simp_isvoid(operator))
 		return simp_exception(ERROR_VOID);
 	narguments = noperands + nextraargs;
-	arguments = simp_makevector(ctx, narguments);
+	arguments = simp_makevector(ctx, NULL, 0, 0, narguments);
 	if (simp_isexception(arguments))
 		return arguments;
 	for (i = 0; i < noperands; i++) {

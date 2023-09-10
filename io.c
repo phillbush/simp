@@ -38,6 +38,7 @@ struct Token {
 		} str;
 	} u;
 	SimpSiz lineno;
+	SimpSiz column;
 };
 
 struct List {
@@ -223,7 +224,8 @@ readstr(Simp port)
 	int c;
 
 	tok.type = TOK_ERROR;
-	tok.lineno = simp_portline(port);
+	tok.lineno = simp_portlineno(port);
+	tok.column = simp_portcolumn(port);
 	len = 0;
 	size = STRBUFSIZE;
 	if ((str = malloc(size)) == NULL)
@@ -269,7 +271,8 @@ readnum(Simp port, int c)
 	Token tok = { 0 };
 
 	tok.type = TOK_ERROR;
-	tok.lineno = simp_portline(port);
+	tok.lineno = simp_portlineno(port);
+	tok.column = simp_portcolumn(port);
 	if (c == '+') {
 		c = simp_readbyte(port);
 	} else if (c == '-') {
@@ -383,7 +386,8 @@ readident(Simp port, int c)
 	Token tok = { 0 };
 
 	tok.type = TOK_ERROR;
-	tok.lineno = simp_portline(port);
+	tok.lineno = simp_portlineno(port);
+	tok.column = simp_portcolumn(port);
 	if ((str = malloc(size)) == NULL)
 		return tok;
 	while (!cisdelimiter(c)) {
@@ -412,7 +416,8 @@ readtok(Simp port)
 	Token tok = { 0 };
 	int c;
 
-	tok.lineno = simp_portline(port);
+	tok.lineno = simp_portlineno(port);
+	tok.column = simp_portcolumn(port);
 loop:
 	do {
 		c = simp_readbyte(port);
@@ -486,13 +491,19 @@ cleanvector(struct List *list)
 }
 
 static Simp
-fillvector(Simp ctx, struct List *list, SimpSiz nitems)
+fillvector(Simp ctx, struct List *list, SimpSiz nitems, SimpSiz lineno, SimpSiz column, const char *filename)
 {
 	struct List *tmp;
 	Simp vect;
 	SimpSiz i = 0;
 
-	vect = simp_makevector(ctx, nitems);
+	vect = simp_makevector(
+		ctx,
+		filename,
+		lineno,
+		column,
+		nitems
+	);
 	if (simp_isexception(vect)) {
 		cleanvector(list);
 		return simp_exception(ERROR_MEMORY);
@@ -507,7 +518,7 @@ fillvector(Simp ctx, struct List *list, SimpSiz nitems)
 }
 
 static Simp
-readvector(Simp ctx, Simp port)
+readvector(Simp ctx, Simp port, SimpSiz lineno, SimpSiz column)
 {
 	Token tok;
 	struct List *pair, *list, *last;
@@ -521,7 +532,14 @@ readvector(Simp ctx, Simp port)
 		case TOK_ERROR:
 		case TOK_EOF:
 		case TOK_RPAREN:
-			return fillvector(ctx, list, nitems);
+			return fillvector(
+				ctx,
+				list,
+				nitems,
+				lineno,
+				column,
+				simp_portfilename(port)
+			);
 		default:
 			pair = malloc(sizeof(*pair));
 			if (pair == NULL) {
@@ -617,13 +635,19 @@ toktoobj(Simp ctx, Simp port, Token tok)
 
 	switch (tok.type) {
 	case TOK_LPAREN:
-		return readvector(ctx, port);
+		return readvector(ctx, port, tok.lineno, tok.column);
 	case TOK_IDENTIFIER:
 		obj = simp_makesymbol(ctx, tok.u.str.str, tok.u.str.len);
 		free(tok.u.str.str);
 		return obj;
 	case TOK_QUOTE:
-		obj = simp_makevector(ctx, 2);
+		obj = simp_makevector(
+			ctx,
+			simp_portfilename(port),
+			simp_portlineno(port),
+			simp_portcolumn(port),
+			2
+		);
 		if (simp_isexception(obj))
 			return obj;
 		tok = readtok(port);
