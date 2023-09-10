@@ -12,70 +12,6 @@ usage(void)
 	(void)fprintf(stderr, "usage: simp [-i] [-e string | -p string | file]");
 }
 
-static int
-rel(Simp ctx, Simp iport)
-{
-	Simp eport, obj, env;
-
-	env = simp_contextenvironment(ctx);
-	eport = simp_contexteport(ctx);
-	for (;;) {
-		simp_gc(ctx, &iport, 1);
-		if (simp_porterr(ctx, iport))
-			break;
-		obj = simp_read(ctx, iport);
-		if (simp_iseof(obj))
-			break;
-		if (simp_isexception(obj)) {
-			simp_write(eport, obj);
-			simp_printf(eport, "\n");
-			return EXIT_FAILURE;
-		}
-		obj = simp_eval(ctx, obj, env);
-		if (simp_isexception(obj)) {
-			simp_write(eport, obj);
-			simp_printf(eport, "\n");
-			return EXIT_FAILURE;
-		}
-	}
-	return EXIT_SUCCESS;
-}
-
-static int
-repl(Simp ctx, Simp iport, int prompt)
-{
-	Simp oport, eport, obj, env;
-
-	env = simp_contextenvironment(ctx);
-	oport = simp_contextoport(ctx);
-	eport = simp_contexteport(ctx);
-	for (;;) {
-		simp_gc(ctx, &iport, 1);
-		if (simp_porterr(ctx, iport))
-			return EXIT_FAILURE;
-		if (prompt)
-			simp_printf(oport, "> ");
-		obj = simp_read(ctx, iport);
-		if (simp_iseof(obj))
-			break;
-		if (simp_isexception(obj)) {
-			simp_write(eport, obj);
-			goto newline;
-		}
-		obj = simp_eval(ctx, obj, env);
-		if (simp_isexception(obj)) {
-			simp_write(eport, obj);
-			goto newline;
-		}
-		if (simp_isvoid(obj))
-			continue;
-		simp_write(oport, obj);
-newline:
-		simp_printf(oport, "\n");
-	}
-	return EXIT_SUCCESS;
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -115,17 +51,17 @@ main(int argc, char *argv[])
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(port))
 			goto error;
-		rel(ctx, port);
+		simp_repl(ctx, port, 0);
 		if (iflag)
-			repl(ctx, iport, 1);
+			simp_repl(ctx, iport, SIMP_INTERACTIVE);
 		break;
 	case MODE_PRINT:
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(port))
 			goto error;
-		repl(ctx, port, 0);
+		simp_repl(ctx, port, SIMP_ECHO);
 		if (iflag)
-			repl(ctx, iport, 1);
+			simp_repl(ctx, iport, SIMP_INTERACTIVE);
 		break;
 	case MODE_SCRIPT:
 		if (argv[0][0] == '-' && argv[0][1] == '\0') {
@@ -139,14 +75,14 @@ main(int argc, char *argv[])
 		}
 		if (simp_isexception(port))
 			goto error;
-		rel(ctx, port);
+		simp_repl(ctx, port, 0);
 		if (fp != stdin)
 			(void)fclose(fp);
 		if (iflag)
-			repl(ctx, iport, 1);
+			simp_repl(ctx, iport, SIMP_INTERACTIVE);
 		break;
 	case MODE_INTERACTIVE:
-		repl(ctx, iport, 1);
+		simp_repl(ctx, iport, SIMP_INTERACTIVE);
 		break;
 	}
 	retval = EXIT_SUCCESS;

@@ -1678,3 +1678,41 @@ apply:
 	}
 	goto loop;
 }
+
+int
+simp_repl(Simp ctx, Simp iport, int mode)
+{
+	Simp oport, eport, obj, env;
+	int retval = -1;
+
+	env = simp_contextenvironment(ctx);
+	oport = simp_contextoport(ctx);
+	eport = simp_contexteport(ctx);
+	for (;;) {
+		simp_gc(ctx, &iport, 1);
+		if (simp_porterr(iport))
+			goto error;
+		if (mode & SIMP_PROMPT)
+			simp_printf(oport, "> ");
+		obj = simp_read(ctx, iport);
+		if (simp_iseof(obj))
+			break;
+		if (!simp_isexception(obj))
+			obj = simp_eval(ctx, obj, env);
+		if (simp_isexception(obj)) {
+			simp_write(eport, obj);
+			simp_printf(eport, "\n");
+			if (mode & SIMP_CONTINUE)
+				continue;
+			break;
+		}
+		if ((mode & SIMP_ECHO) && !simp_isvoid(obj)) {
+			simp_write(oport, obj);
+			simp_printf(oport, "\n");
+		}
+	}
+	retval = 0;
+error:
+	simp_gc(ctx, &iport, 1);
+	return retval;
+}

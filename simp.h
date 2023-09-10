@@ -59,6 +59,13 @@ typedef unsigned long long      SimpSiz;
 typedef long long               SimpInt;
 typedef struct Builtin          Builtin;
 
+enum {
+	SIMP_ECHO        = 0x01,
+	SIMP_PROMPT      = 0x02,
+	SIMP_CONTINUE    = 0x04,
+	SIMP_INTERACTIVE = (SIMP_ECHO|SIMP_PROMPT|SIMP_CONTINUE),
+};
+
 enum Exceptions {
 #define X(n, s) n,
 	EXCEPTIONS
@@ -91,7 +98,7 @@ struct Port {
 			SimpSiz curr, size;
 		} str;
 	} u;
-	SimpInt nlines;
+	SimpSiz lineno;
 };
 
 typedef enum Type {
@@ -111,7 +118,7 @@ struct Simp {
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
-	SimpSiz capacity;
+	SimpSiz capacity;       /* also used for line number */
 	SimpSiz nmembers;
 	Type type;
 };
@@ -219,8 +226,9 @@ Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 /* port operations */
 Simp    simp_openstream(Simp ctx, void *p, char *mode);
 Simp    simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode);
-int     simp_porteof(Simp ctx, Simp obj);
-int     simp_porterr(Simp ctx, Simp obj);
+int     simp_porteof(Simp obj);
+int     simp_porterr(Simp obj);
+SimpSiz simp_portline(Simp obj);
 int     simp_readbyte(Simp port);
 int     simp_peekbyte(Simp port);
 void    simp_unreadbyte(Simp port, int c);
@@ -234,6 +242,7 @@ Simp    simp_eval(Simp ctx, Simp expr, Simp env);
 Simp    simp_initforms(Simp ctx);
 Simp    simp_initports(Simp ctx);
 Simp    simp_initbuiltins(Simp ctx);
+int     simp_repl(Simp ctx, Simp iport, int mode);
 
 /* gc */
 void   *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz);

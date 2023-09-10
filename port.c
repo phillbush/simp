@@ -82,7 +82,7 @@ simp_readbyte(Simp obj)
 		break;
 	}
 	if (byte == '\n')
-		port->nlines++;
+		port->lineno++;
 	return byte;
 }
 
@@ -129,7 +129,7 @@ simp_openstream(Simp ctx, void *p, char *mode)
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
-	port->nlines = 0;
+	port->lineno = 0;
 	return simp_makeport(ctx, port);
 }
 
@@ -145,28 +145,35 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	port->u.str.arr = p;
 	port->u.str.size = len;
 	port->u.str.curr = 0;
-	port->nlines = 0;
+	port->lineno = 0;
 	return simp_makeport(ctx, port);
 }
 
 int
-simp_porteof(Simp ctx, Simp obj)
+simp_porteof(Simp obj)
 {
 	Port *port;
 
-	(void)ctx;
 	port = simp_getport(obj);
 	return port->mode & PORT_EOF;
 }
 
 int
-simp_porterr(Simp ctx, Simp obj)
+simp_porterr(Simp obj)
 {
 	Port *port;
 
-	(void)ctx;
 	port = simp_getport(obj);
 	return port->mode & PORT_ERR;
+}
+
+SimpSiz
+simp_portline(Simp obj)
+{
+	Port *port;
+
+	port = simp_getport(obj);
+	return port->lineno;
 }
 
 Simp

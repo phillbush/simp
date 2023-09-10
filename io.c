@@ -37,6 +37,7 @@ struct Token {
 			SimpSiz    len;
 		} str;
 	} u;
+	SimpSiz lineno;
 };
 
 struct List {
@@ -216,14 +217,17 @@ loop:
 static Token
 readstr(Simp port)
 {
+	Token tok = { 0 };
 	SimpSiz size, len;
 	unsigned char *str, *p;
 	int c;
 
+	tok.type = TOK_ERROR;
+	tok.lineno = simp_portline(port);
 	len = 0;
 	size = STRBUFSIZE;
 	if ((str = malloc(size)) == NULL)
-		return (Token){.type = TOK_ERROR};
+		return tok;
 	for (;;) {
 		c = simp_readbyte(port);
 		if (c == NOTHING)
@@ -242,14 +246,13 @@ readstr(Simp port)
 		str[len++] = (unsigned char)c;
 	}
 	str[len] = '\0';
-	return (Token){
-		.type = TOK_STRING,
-		.u.str.str = str,
-		.u.str.len = len,
-	};
+	tok.type = TOK_STRING;
+	tok.u.str.str = str;
+	tok.u.str.len = len;
+	return tok;
 error:
 	free(str);
-	return (Token){ .type = TOK_ERROR };
+	return tok;
 }
 
 static Token
@@ -263,7 +266,10 @@ readnum(Simp port, int c)
 	SimpInt basesign = 1;
 	SimpInt exptsign = 1;
 	bool isfloat = false;
+	Token tok = { 0 };
 
+	tok.type = TOK_ERROR;
+	tok.lineno = simp_portline(port);
 	if (c == '+') {
 		c = simp_readbyte(port);
 	} else if (c == '-') {
@@ -356,19 +362,16 @@ done:
 		floatn = pow(floatn, expt);
 	}
 	if (!cisdelimiter(c))
-		return (Token){.type = TOK_ERROR};
+		return tok;
 	simp_unreadbyte(port, c);
 	if (isfloat) {
-		return (Token){
-			.type = TOK_REAL,
-			.u.real = floatn,
-		};
+		tok.type = TOK_REAL;
+		tok.u.real = floatn;
 	} else {
-		return (Token){
-			.type = TOK_FIXNUM,
-			.u.fixnum = base,
-		};
+		tok.type = TOK_FIXNUM;
+		tok.u.fixnum = base;
 	}
+	return tok;
 }
 
 static Token
@@ -377,15 +380,18 @@ readident(Simp port, int c)
 	SimpSiz size = STRBUFSIZE;
 	SimpSiz len = 0;
 	unsigned char *str, *p;
+	Token tok = { 0 };
 
+	tok.type = TOK_ERROR;
+	tok.lineno = simp_portline(port);
 	if ((str = malloc(size)) == NULL)
-		return (Token){.type = TOK_ERROR};
+		return tok;
 	while (!cisdelimiter(c)) {
 		if (len + 1 >= size) {
 			size <<= 2;
 			if ((p = realloc(str, size)) == NULL) {
 				free(str);
-				return (Token){.type = TOK_ERROR};
+				return tok;
 			}
 			str = p;
 		}
@@ -394,11 +400,10 @@ readident(Simp port, int c)
 	}
 	simp_unreadbyte(port, c);
 	str[len] = '\0';
-	return (Token){
-		.type = TOK_IDENTIFIER,
-		.u.str.str = str,
-		.u.str.len = len,
-	};
+	tok.type = TOK_IDENTIFIER;
+	tok.u.str.str = str;
+	tok.u.str.len = len;
+	return tok;
 }
 
 static Token
@@ -407,6 +412,7 @@ readtok(Simp port)
 	Token tok = { 0 };
 	int c;
 
+	tok.lineno = simp_portline(port);
 loop:
 	do {
 		c = simp_readbyte(port);
