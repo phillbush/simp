@@ -7,7 +7,7 @@
 
 enum {
 	/*
-	 * Footers begin marked with 0; the current garbage mark begins
+	 * Heaps begin marked with 0; the current garbage mark begins
 	 * with 1.
 	 *
 	 * At each garbage collection run, the garbage mark switches
@@ -24,35 +24,31 @@ enum {
 	MARK_MUL  = -1,
 };
 
-typedef struct Footer {
-	struct Footer  *prev;
-	struct Footer  *next;
+struct Heap {
+	struct Heap    *prev;
+	struct Heap    *next;
 	void           *data;
 	int             mark;
 	const char     *filename;
 	SimpSiz         lineno;
 	SimpSiz         column;
-} Footer;
+	SimpSiz         capacity;
+};
 
 typedef struct GC {
 	/* same structure, just to rename the members */
-	struct Footer  *free;
-	struct Footer  *curr;
+	struct Heap    *free;
+	struct Heap    *curr;
 	void           *data;
 	int             mark;
 	const char     *filename;
 	SimpSiz         lineno;
 	SimpSiz         column;
+	SimpSiz         capacity;
 } GC;
 
-static bool isvector[] = {
-#define X(n, v, h) [n] = v,
-	TYPES
-#undef  X
-};
-
 static bool isheap[] = {
-#define X(n, v, h) [n] = h,
+#define X(n, h) [n] = h,
 	TYPES
 #undef  X
 };
@@ -60,36 +56,35 @@ static bool isheap[] = {
 static void
 mark(Simp ctx, Simp obj)
 {
-	Footer *footer;
-	SimpSiz size, i;
+	Heap *heap;
+	SimpSiz i;
 	GC *gc = (GC *)simp_getgcmemory(ctx);
 	enum Type type;
 
 	type = simp_gettype(obj);
 	if (!isheap[type])
 		return;
-	footer = simp_getgcmemory(obj);
-	if (footer == NULL)
+	heap = simp_getgcmemory(obj);
+	if (heap == NULL)
 		return;
-	if (footer->mark == gc->mark)
+	if (heap->mark == gc->mark)
 		return;
-	footer->mark = gc->mark;
-	if (footer->next != NULL)
-		footer->next->prev = footer->prev;
-	if (footer->prev != NULL)
-		footer->prev->next = footer->next;
+	heap->mark = gc->mark;
+	if (heap->next != NULL)
+		heap->next->prev = heap->prev;
+	if (heap->prev != NULL)
+		heap->prev->next = heap->next;
 	else
-		gc->free = footer->next;
-	footer->next = gc->curr;
-	footer->prev = NULL;
+		gc->free = heap->next;
+	heap->next = gc->curr;
+	heap->prev = NULL;
 	if (gc->curr != NULL)
-		gc->curr->prev = footer;
-	gc->curr = footer;
-	if (!isvector[type])
+		gc->curr->prev = heap;
+	gc->curr = heap;
+	if (heap->capacity == 0)
 		return;
-	size = simp_getsize(obj);
-	for (i = 0; i < size; i++) {
-		mark(ctx, ((Simp *)footer->data)[i]);
+	for (i = 0; i < heap->capacity; i++) {
+		mark(ctx, ((Simp *)heap->data)[i]);
 	}
 }
 
@@ -97,13 +92,14 @@ static void
 sweep(Simp ctx)
 {
 	GC *gc = (GC *)simp_getgcmemory(ctx);
-	Footer *footer, *tmp;
+	Heap *heap, *tmp;
 
-	footer = gc->free;
-	while (footer != NULL) {
-		tmp = footer;
-		footer = footer->next;
+	heap = gc->free;
+	while (heap != NULL) {
+		tmp = heap;
+		heap = heap->next;
 		free(tmp->data);
+		free(tmp);
 	}
 }
 
@@ -133,12 +129,13 @@ simp_gcfree(Simp ctx)
 	gc->free = gc->curr;
 	sweep(ctx);
 	free(gc->data);
+	free(gc);
 }
 
-void *
-simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column)
+Heap *
+simp_gcnewobj(Simp ctx, SimpSiz size, SimpSiz nobjs, const char *filename, SimpSiz lineno, SimpSiz column)
 {
-	Footer *footer = NULL;
+	Heap *heap = NULL;
 	void *data = NULL;
 	GC *gc;
 
@@ -146,10 +143,11 @@ simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename,
 		gc = NULL;
 	else
 		gc = (GC *)simp_getgcmemory(ctx);
-	if (posix_memalign(&data, ALIGN, nmembs * membsiz + sizeof(*footer)) != 0)
+	if ((heap = malloc(sizeof(*heap))) == NULL)
 		goto error;
-	footer = (Footer *)((char *)data + nmembs * membsiz);
-	*footer = (struct Footer){
+	if ((data = malloc(size)) == NULL)
+		goto error;
+	*heap = (Heap){
 		.mark = MARK_ZERO,
 		.prev = NULL,
 		.next = NULL,
@@ -157,18 +155,26 @@ simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename,
 		.filename = filename,
 		.lineno = lineno,
 		.column = column,
+		.capacity = nobjs,
 	};
 	if (gc == NULL) {
 		/* there's no garbage context (we're creating it right now) */
-		footer->mark = MARK_ONE;
-		return data;
+		heap->mark = MARK_ONE;
+		return heap;
 	}
-	footer->next = gc->curr;
+	heap->next = gc->curr;
 	if (gc->curr != NULL)
-		gc->curr->prev = footer;
-	gc->curr = footer;
-	return data;
+		gc->curr->prev = heap;
+	gc->curr = heap;
+	return heap;
 error:
 	free(data);
+	free(heap);
 	return NULL;
+}
+
+void *
+simp_getheapdata(Heap *heap)
+{
+	return heap->data;
 }

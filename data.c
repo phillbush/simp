@@ -66,13 +66,13 @@ simp_isbinding(Simp obj)
 static int
 simp_isnulenv(Simp obj)
 {
-	return simp_isenvironment(obj) && obj.u.vector == NULL;
+	return simp_isenvironment(obj) && obj.u.heap == NULL;
 }
 
 static int
 simp_isnulbind(Simp obj)
 {
-	return simp_isbinding(obj) && obj.u.vector == NULL;
+	return simp_isbinding(obj) && obj.u.heap == NULL;
 }
 
 static Simp
@@ -80,7 +80,7 @@ simp_nulbind(void)
 {
 	return (Simp){
 		.type = TYPE_BINDING,
-		.u.vector = NULL,
+		.u.heap = NULL,
 	};
 }
 
@@ -102,7 +102,7 @@ simp_makebind(Simp ctx, Simp sym, Simp val, Simp frame)
 Simp *
 simp_getvector(Simp obj)
 {
-	return obj.u.vector;
+	return (Simp *)simp_getheapdata(obj.u.heap);
 }
 
 static Simp *
@@ -325,8 +325,9 @@ simp_empty(void)
 {
 	return (Simp){
 		.type = TYPE_STRING,
-		.u.vector = NULL,
-		.nmembers = 0,
+		.u.heap = NULL,
+		.size = 0,
+		.start = 0,
 		.capacity = 0,
 	};
 }
@@ -391,10 +392,10 @@ simp_getnum(Simp obj)
 	return obj.u.num;
 }
 
-void *
+Port *
 simp_getport(Simp obj)
 {
-	return obj.u.port;
+	return (Port *)simp_getheapdata(obj.u.heap);
 }
 
 double
@@ -412,21 +413,19 @@ simp_getcapacity(Simp obj)
 SimpSiz
 simp_getsize(Simp obj)
 {
-	return obj.nmembers;
+	return obj.size;
 }
 
 unsigned char *
 simp_getstring(Simp obj)
 {
-	if (simp_isempty(obj))
-		return NULL;
-	return obj.u.string;
+	return (unsigned char *)simp_getheapdata(obj.u.heap);
 }
 
 unsigned char *
 simp_getsymbol(Simp obj)
 {
-	return obj.u.string;
+	return (unsigned char *)simp_getheapdata(obj.u.heap);
 }
 
 Simp
@@ -478,7 +477,7 @@ simp_isbyte(Simp obj)
 bool
 simp_isempty(Simp obj)
 {
-	return simp_isstring(obj) && obj.u.string == NULL;
+	return simp_isstring(obj) && obj.u.heap == NULL;
 }
 
 bool
@@ -508,7 +507,7 @@ simp_isfalse(Simp obj)
 bool
 simp_isnil(Simp obj)
 {
-	return simp_isvector(obj) && obj.u.vector == NULL;
+	return simp_isvector(obj) && obj.u.heap == NULL;
 }
 
 bool
@@ -619,23 +618,17 @@ simp_setvector(Simp obj, SimpSiz pos, Simp val)
 Simp
 simp_slicevector(Simp obj, SimpSiz from, SimpSiz size)
 {
-	return (Simp){
-		.type = TYPE_VECTOR,
-		.u.vector = obj.u.vector + from,
-		.capacity = obj.capacity - from,
-		.nmembers = size
-	};
+	obj.start = from;
+	obj.size = size;
+	return obj;
 }
 
 Simp
 simp_slicestring(Simp obj, SimpSiz from, SimpSiz size)
 {
-	return (Simp){
-		.type = TYPE_STRING,
-		.u.string = obj.u.string + from,
-		.capacity = obj.capacity - from,
-		.nmembers = size
-	};
+	obj.start = from;
+	obj.size = size;
+	return obj;
 }
 
 Simp
@@ -715,14 +708,15 @@ simp_makeclosure(Simp ctx, Simp env, Simp params, Simp varargs, Simp body)
 }
 
 Simp
-simp_makeport(Simp ctx, void *p)
+simp_makeport(Simp ctx, Heap *p)
 {
 	(void)ctx;
 	return (Simp){
 		.type = TYPE_PORT,
-		.nmembers = 1,
+		.size = 1,
+		.start = 0,
 		.capacity = 1,
-		.u.port = p,
+		.u.heap = p,
 	};
 }
 
@@ -739,20 +733,23 @@ simp_makereal(Simp ctx, double x)
 Simp
 simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size)
 {
+	Heap *heap;
 	unsigned char *dst = NULL;
 
 	if (size == 0)
 		return simp_empty();
-	dst = simp_gcnewarray(ctx, size, 1, NULL, 0, 0);
-	if (dst == NULL)
+	heap = simp_gcnewobj(ctx, size, 0, NULL, 0, 0);
+	if (heap == NULL)
 		return simp_exception(ERROR_MEMORY);
+	dst = (unsigned char *)simp_getheapdata(heap);
 	if (src != NULL)
 		memcpy(dst, src, size);
 	return (Simp){
 		.type = TYPE_STRING,
 		.capacity = size,
-		.nmembers = size,
-		.u.string = dst,
+		.size = size,
+		.start = 0,
+		.u.heap = heap,
 	};
 }
 
@@ -800,19 +797,22 @@ simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, 
 {
 	SimpSiz i;
 	Simp *data;
+	Heap *heap;
 
 	if (size == 0)
 		return simp_nil();
-	data = simp_gcnewarray(ctx, size, sizeof(Simp), filename, lineno, column);
-	if (data == NULL)
+	heap = simp_gcnewobj(ctx, size * sizeof(Simp), size, filename, lineno, column);
+	if (heap == NULL)
 		return simp_exception(ERROR_MEMORY);
+	data = simp_getheapdata(heap);
 	for (i = 0; i < size; i++)
 		data[i] = simp_nil();
 	return (Simp){
 		.type = TYPE_VECTOR,
-		.u.vector = data,
+		.u.heap = heap,
 		.capacity = size,
-		.nmembers = size,
+		.size = size,
+		.start = 0,
 	};
 }
 
@@ -822,8 +822,9 @@ simp_nil(void)
 	return (Simp){
 		.type = TYPE_VECTOR,
 		.capacity = 0,
-		.nmembers = 0,
-		.u.vector = NULL,
+		.size = 0,
+		.start = 0,
+		.u.heap = NULL,
 	};
 }
 
@@ -833,8 +834,9 @@ simp_nulenv(void)
 	return (Simp){
 		.type = TYPE_ENVIRONMENT,
 		.capacity = 0,
-		.nmembers = 0,
-		.u.vector = NULL,
+		.size = 0,
+		.start = 0,
+		.u.heap = NULL,
 	};
 }
 
@@ -844,35 +846,10 @@ simp_void(void)
 	return (Simp){ .type = TYPE_VOID };
 }
 
-void *
+Heap *
 simp_getgcmemory(Simp obj)
 {
-	enum Type type;
-	static bool isvector[] = {
-#define X(n, v, h) [n] = v,
-		TYPES
-#undef  X
-	};
-
-	type = simp_gettype(obj);
-	if (isvector[type]) {
-		if (obj.u.vector == NULL)
-			return NULL;
-		return &obj.u.vector[obj.capacity];
-	}
-	switch (simp_gettype(obj)) {
-	case TYPE_STRING:
-	case TYPE_SYMBOL:
-		if (obj.u.string == NULL)
-			return NULL;
-		return &obj.u.string[obj.capacity];
-	case TYPE_PORT:
-		if (obj.u.port == NULL)
-			return NULL;
-		return &obj.u.port[1];
-	default:
-		return 0;
-	}
+	return obj.u.heap;
 }
 
 Simp    simp_makesource(Simp ctx, const char *file, SimpSiz lineno, SimpSiz column);

@@ -29,30 +29,31 @@
 	X(ERROR_MEMORY,     "allocation error"                          )\
 	X(ERROR_VOID,       "expression evaluated to nothing; expected value")
 
-#define TYPES                                              \
-	/* Object type        Is vector   Is allocated   */\
-	X(TYPE_VECTOR,        true,       true            )\
-	X(TYPE_CLOSURE,       true,       true            )\
-	X(TYPE_BUILTIN,       false,      false           )\
-	X(TYPE_BYTE,          false,      false           )\
-	X(TYPE_ENVIRONMENT,   true,       true            )\
-	X(TYPE_EOF,           false,      false           )\
-	X(TYPE_EXCEPTION,     false,      false           )\
-	X(TYPE_FALSE,         false,      false           )\
-	X(TYPE_BINDING,       true,       true            )\
-	X(TYPE_PORT,          false,      true            )\
-	X(TYPE_REAL,          false,      false           )\
-	X(TYPE_SIGNUM,        false,      false           )\
-	X(TYPE_STRING,        false,      true            )\
-	X(TYPE_SYMBOL,        false,      true            )\
-	X(TYPE_TRUE,          false,      false           )\
-	X(TYPE_VOID,          false,      false           )
+#define TYPES                                  \
+	/* Object type        Is allocated   */\
+	X(TYPE_VECTOR,        true            )\
+	X(TYPE_CLOSURE,       true            )\
+	X(TYPE_BUILTIN,       false           )\
+	X(TYPE_BYTE,          false           )\
+	X(TYPE_ENVIRONMENT,   true            )\
+	X(TYPE_EOF,           false           )\
+	X(TYPE_EXCEPTION,     false           )\
+	X(TYPE_FALSE,         false           )\
+	X(TYPE_BINDING,       true            )\
+	X(TYPE_PORT,          true            )\
+	X(TYPE_REAL,          false           )\
+	X(TYPE_SIGNUM,        false           )\
+	X(TYPE_STRING,        true            )\
+	X(TYPE_SYMBOL,        true            )\
+	X(TYPE_TRUE,          false           )\
+	X(TYPE_VOID,          false           )
 
 #define PORTS                                    \
 	X(PORT_STDIN,   stdin,  "<stdin>",  "r" )\
 	X(PORT_STDOUT,  stdout, "<stdout>", "w" )\
 	X(PORT_STDERR,  stderr, "<stderr>", "w" )
 
+typedef struct Heap             Heap;
 typedef struct Simp             Simp;
 typedef struct Port             Port;
 typedef unsigned long long      SimpSiz;
@@ -80,7 +81,7 @@ enum Ports {
 };
 
 typedef enum Type {
-#define X(n, v, h) n,
+#define X(n, h) n,
 	TYPES
 #undef  X
 } Type;
@@ -89,15 +90,14 @@ struct Simp {
 	union {
 		SimpInt         num;
 		double          real;
-		Simp           *vector;
-		struct Port    *port;
-		unsigned char  *string;
+		Heap           *heap;
 		unsigned char  *errmsg;
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
 	SimpSiz capacity;
-	SimpSiz nmembers;
+	SimpSiz start;
+	SimpSiz size;
 	const char *error;
 	Type type;
 };
@@ -142,7 +142,7 @@ Simp    simp_void(void);
 Builtin *simp_getbuiltin(Simp obj);
 unsigned char simp_getbyte(Simp obj);
 SimpInt simp_getnum(Simp obj);
-void   *simp_getport(Simp obj);
+Port   *simp_getport(Simp obj);
 double  simp_getreal(Simp obj);
 SimpSiz simp_getsize(Simp obj);
 SimpSiz simp_getcapacity(Simp obj);
@@ -157,7 +157,7 @@ Simp    simp_getclosureenv(Simp obj);
 Simp    simp_getclosureparam(Simp obj);
 Simp    simp_getclosurebody(Simp obj);
 Simp    simp_getclosurevarargs(Simp obj);
-void   *simp_getgcmemory(Simp obj);
+Heap   *simp_getgcmemory(Simp obj);
 
 /* data type predicates */
 bool    simp_isclosure(Simp obj);
@@ -201,7 +201,7 @@ Simp    simp_makebuiltin(Simp ctx, Builtin *);
 Simp    simp_makeclosure(Simp ctx, Simp env, Simp params, Simp extras, Simp body);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
-Simp    simp_makeport(Simp ctx, void *p);
+Simp    simp_makeport(Simp ctx, Heap *p);
 Simp    simp_makereal(Simp ctx, double x);
 Simp    simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size);
 Simp    simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size);
@@ -250,6 +250,7 @@ Simp    simp_initbuiltins(Simp ctx);
 int     simp_repl(Simp ctx, Simp iport, int mode);
 
 /* gc */
-void   *simp_gcnewarray(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
+Heap   *simp_gcnewobj(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);
+void   *simp_getheapdata(Heap *heap);

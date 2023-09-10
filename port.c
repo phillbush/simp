@@ -122,11 +122,13 @@ simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 {
 	FILE *stream;
 	Port *port;
+	Heap *heap;
 	Simp sym;
 
 	stream = (FILE *)p;
-	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port), NULL, 0, 0)) == NULL)
+	if ((heap = simp_gcnewobj(ctx, sizeof(*port), 0, NULL, 0, 0)) == NULL)
 		return simp_exception(ERROR_MEMORY);
+	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
@@ -136,16 +138,18 @@ simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 	port->filename = (const char *)simp_getsymbol(sym);
 	port->lineno = 0;
 	port->column = 0;
-	return simp_makeport(ctx, port);
+	return simp_makeport(ctx, heap);
 }
 
 Simp
 simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
+	Heap *heap;
 
-	if ((port = simp_gcnewarray(ctx, 1, sizeof(*port), NULL, 0, 0)) == NULL)
+	if ((heap = simp_gcnewobj(ctx, sizeof(*port), 0, NULL, 0, 0)) == NULL)
 		return simp_exception(ERROR_MEMORY);
+	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STRING;
 	port->mode = openmode(mode);
 	port->u.str.arr = p;
@@ -154,7 +158,7 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	port->filename = NULL;
 	port->lineno = 0;
 	port->column = 0;
-	return simp_makeport(ctx, port);
+	return simp_makeport(ctx, heap);
 }
 
 int
