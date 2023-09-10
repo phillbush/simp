@@ -16,6 +16,7 @@
 	X(ERROR_OPERATOR,       "operator is not a procedure"           )\
 	X(ERROR_OUTOFRANGE,     "out of range"                          )\
 	X(ERROR_MAP,            "map over vectors of different sizes"   )\
+	X(ERROR_VARFORM,        "macro used as variable"                )\
 	X(ERROR_ILLEXPR,        "ill expression"                        )\
 	X(ERROR_ILLFORM,        "ill-formed syntactical form"           )\
 	X(ERROR_ILLSYNTAX,      "ill syntax form"                       )\

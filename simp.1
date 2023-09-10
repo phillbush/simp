@@ -137,7 +137,7 @@ that established the innermost of the regions containing the use.
 Expressions can be evaluated, yielding a value.
 An expression can evaluate to itself (a so called
 .Em self-evaluating
-expression ) .
+expression).
 An evaluation can do more than just compute things,
 such as mutate an object, or perform input/output.
 Such additional processes are called
@@ -215,7 +215,7 @@ Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
 .It Ic ( quote Ar EXPRESSION ) "⇒" OBJECT
 Return the given expression itself, without evaluating it.
-.It Ic ( redefine!\) Ar SYMBOL OBJECT ) "⇒" VOID
+.It Ic ( redefine Ar SYMBOL OBJECT ) "⇒" VOID
 Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE

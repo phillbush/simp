@@ -159,23 +159,18 @@ simp_gettype(Simp obj)
 	return obj.type;
 }
 
-Simp
-simp_envget(Simp ctx, Simp env, Simp sym)
+static bool
+isform(Simp ctx, Simp obj)
 {
-	Simp bind, var;
+	Simp forms;
+	SimpSiz i, nforms;
 
-	(void)ctx;
-	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
-		for (bind = simp_getenvframe(env);
-		     !simp_isnulbind(bind);
-		     bind = simp_getbindnext(bind)) {
-			var = simp_getbindvariable(bind);
-			if (simp_issame(var, sym)) {
-				return simp_getbindvalue(bind);
-			}
-		}
-	}
-	return simp_exception(ERROR_UNBOUND);
+	forms = simp_contextforms(ctx);
+	nforms = simp_getsize(forms);
+	for (i = 0; i < nforms; i++)
+		if (simp_issame(obj, simp_getvectormemb(forms, i)))
+			return true;
+	return false;
 }
 
 static bool
@@ -196,9 +191,31 @@ xenvset(Simp env, Simp var, Simp val)
 }
 
 Simp
+simp_envget(Simp ctx, Simp env, Simp sym)
+{
+	Simp bind, var;
+
+	if (isform(ctx, sym))
+		return simp_exception(ERROR_VARFORM);
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
+		for (bind = simp_getenvframe(env);
+		     !simp_isnulbind(bind);
+		     bind = simp_getbindnext(bind)) {
+			var = simp_getbindvariable(bind);
+			if (simp_issame(var, sym)) {
+				return simp_getbindvalue(bind);
+			}
+		}
+	}
+	return simp_exception(ERROR_UNBOUND);
+}
+
+Simp
 simp_envset(Simp ctx, Simp env, Simp var, Simp val)
 {
 	(void)ctx;
+	if (isform(ctx, var))
+		return simp_exception(ERROR_VARFORM);
 	if (xenvset(env, var, val))
 		return var;
 	return simp_exception(ERROR_UNBOUND);
@@ -209,6 +226,8 @@ simp_envdef(Simp ctx, Simp env, Simp var, Simp val)
 {
 	Simp frame, bind;
 
+	if (isform(ctx, var))
+		return simp_exception(ERROR_VARFORM);
 	if (xenvset(env, var, val))
 		return var;
 	frame = simp_getenvframe(env);

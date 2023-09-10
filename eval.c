@@ -16,7 +16,7 @@
 	X(FORM_LAMBDA,          "lambda"                )\
 	X(FORM_OR,              "or"                    )\
 	X(FORM_QUOTE,           "quote"                 )\
-	X(FORM_SET,             "set!"                  )\
+	X(FORM_REDEFINE,        "redefine"              )\
 	X(FORM_TRUE,            "true"                  )\
 	X(FORM_VARLAMBDA,       "varlambda"             )
 
@@ -1365,7 +1365,7 @@ f_write(Simp ctx, Simp args)
 }
 
 static Simp
-defineorset(Simp ctx, Simp expr, Simp env, bool define)
+define(Simp ctx, Simp expr, Simp env, bool redefine)
 {
 	Simp symbol, value;
 
@@ -1378,25 +1378,13 @@ defineorset(Simp ctx, Simp expr, Simp env, bool define)
 	value = simp_eval(ctx, value, env);
 	if (simp_isexception(value))
 		return value;
-	if (define)
-		value = simp_envdef(ctx, env, symbol, value);
-	else
+	if (redefine)
 		value = simp_envset(ctx, env, symbol, value);
+	else
+		value = simp_envdef(ctx, env, symbol, value);
 	if (simp_isexception(value))
 		return value;
 	return simp_void();
-}
-
-static Simp
-set(Simp ctx, Simp expr, Simp env)
-{
-	return defineorset(ctx, expr, env, false);
-}
-
-static Simp
-define(Simp ctx, Simp expr, Simp env)
-{
-	return defineorset(ctx, expr, env, true);
 }
 
 Simp
@@ -1510,7 +1498,7 @@ loop:
 		}
 		return val;
 	} else if (simp_issame(operator, forms[FORM_DEFINE])) {
-		return define(ctx, expr, env);
+		return define(ctx, expr, env, false);
 	} else if (simp_issame(operator, forms[FORM_DO])) {
 		/* (do EXPRESSION ...) */
 		if (noperands == 0)
@@ -1593,8 +1581,8 @@ loop:
 		if (noperands != 1)
 			return simp_exception(ERROR_ILLFORM);
 		return simp_getvectormemb(operands, 0);
-	} else if (simp_issame(operator, forms[FORM_SET])) {
-		return set(ctx, expr, env);
+	} else if (simp_issame(operator, forms[FORM_REDEFINE])) {
+		return define(ctx, expr, env, true);
 	} else if (simp_issame(operator, forms[FORM_FALSE])) {
 		/* (false) */
 		if (noperands != 0)
