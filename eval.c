@@ -1,4 +1,5 @@
 #include <limits.h>
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,18 +89,39 @@
 	X("vector?",            f_vectorp,      0,      true       )\
 	X("write",              f_write,        2,      false      )
 
-enum Forms {
+enum {
+	/*
+	 * An environment frame is a linked-list of triplets containing
+	 * a symbol of the variable, its value, and a pointer to the
+	 * next triplet.
+	 */
+	BINDING_VARIABLE,
+	BINDING_VALUE,
+	BINDING_NEXT,
+	BINDING_SIZE,
+};
+
+typedef enum Form {
 #define X(n, s) n,
 	FORMS
 #undef  X
-};
+} Form;
+
+typedef struct Eval {
+	Simp ctx;
+	Simp env;
+	Simp iport, oport, eport;
+} Eval;
 
 struct Builtin {
-	char *name;
+	unsigned char *name;
 	bool variadic;
-	Simp (*fun)(Simp, Simp);
+	Simp (*fun)(Eval *, Simp);
 	SimpSiz nargs;
+	SimpSiz namelen;
 };
+
+static Simp simp_eval(Eval *eval, Simp expr, Simp env);
 
 static Simp
 typepred(Simp args, bool (*pred)(Simp))
@@ -129,7 +151,7 @@ stringcmp(Simp a, Simp b)
 }
 
 static Simp
-f_abs(Simp ctx, Simp args)
+f_abs(Eval *eval, Simp args)
 {
 	Simp obj;
 	SimpInt num;
@@ -139,11 +161,11 @@ f_abs(Simp ctx, Simp args)
 		return simp_exception(ERROR_ILLTYPE);
 	num = simp_getnum(obj);
 	num = llabs(num);
-	return simp_makenum(ctx, num);
+	return simp_makenum(eval->ctx, num);
 }
 
 static Simp
-f_add(Simp ctx, Simp args)
+f_add(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	SimpInt sum;
@@ -157,30 +179,30 @@ f_add(Simp ctx, Simp args)
 			return simp_exception(ERROR_ILLTYPE);
 		sum += simp_getnum(obj);
 	}
-	return simp_makenum(ctx, sum);
+	return simp_makenum(eval->ctx, sum);
 }
 
 static Simp
-f_bytep(Simp ctx, Simp args)
+f_bytep(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isbyte);
 }
 
 static Simp
-f_booleanp(Simp ctx, Simp args)
+f_booleanp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isbool);
 }
 
 static Simp
-f_car(Simp ctx, Simp args)
+f_car(Eval *eval, Simp args)
 {
 	SimpSiz size;
 	Simp obj;
 
-	(void)ctx;
+	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
@@ -191,12 +213,12 @@ f_car(Simp ctx, Simp args)
 }
 
 static Simp
-f_cdr(Simp ctx, Simp args)
+f_cdr(Eval *eval, Simp args)
 {
 	SimpSiz size;
 	Simp obj;
 
-	(void)ctx;
+	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
@@ -207,32 +229,32 @@ f_cdr(Simp ctx, Simp args)
 }
 
 static Simp
-f_stdin(Simp ctx, Simp args)
+f_stdin(Eval *eval, Simp args)
 {
 	(void)args;
-	return simp_contextiport(ctx);
+	return eval->iport;
 }
 
 static Simp
-f_stdout(Simp ctx, Simp args)
+f_stdout(Eval *eval, Simp args)
 {
 	(void)args;
-	return simp_contextoport(ctx);
+	return eval->oport;
 }
 
 static Simp
-f_stderr(Simp ctx, Simp args)
+f_stderr(Eval *eval, Simp args)
 {
 	(void)args;
-	return simp_contexteport(ctx);
+	return eval->eport;
 }
 
 static Simp
-f_display(Simp ctx, Simp args)
+f_display(Eval *eval, Simp args)
 {
 	Simp obj, port;
 
-	port = simp_contextoport(ctx);
+	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 2:
 		port = simp_getvectormemb(args, 1);
@@ -250,7 +272,7 @@ f_display(Simp ctx, Simp args)
 }
 
 static Simp
-f_divide(Simp ctx, Simp args)
+f_divide(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	SimpInt ratio;
@@ -268,25 +290,25 @@ f_divide(Simp ctx, Simp args)
 			ratio = simp_getnum(obj);
 		}
 	}
-	return simp_makenum(ctx, ratio);
+	return simp_makenum(eval->ctx, ratio);
 }
 
 static Simp
-f_emptyp(Simp ctx, Simp args)
+f_emptyp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isempty);
 }
 
 static Simp
-f_envp(Simp ctx, Simp args)
+f_envp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isenvironment);
 }
 
 static Simp
-f_envnew(Simp ctx, Simp args)
+f_envnew(Eval *eval, Simp args)
 {
 	Simp env;
 
@@ -302,16 +324,16 @@ f_envnew(Simp ctx, Simp args)
 	}
 	if (!simp_isenvironment(env))
 		return simp_exception(ERROR_ILLTYPE);
-	return simp_makeenvironment(ctx, env);
+	return simp_makeenvironment(eval->ctx, env);
 }
 
 static Simp
-f_equal(Simp ctx, Simp args)
+f_equal(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -326,14 +348,14 @@ f_equal(Simp ctx, Simp args)
 }
 
 static Simp
-f_falsep(Simp ctx, Simp args)
+f_falsep(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isfalse);
 }
 
 static Simp
-f_foreach(Simp ctx, Simp args)
+f_foreach(Eval *eval, Simp args)
 {
 	Simp expr, prod, obj;
 	SimpSiz i, j, n, size, nargs;
@@ -358,7 +380,7 @@ f_foreach(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
+	expr = simp_makevector(eval->ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, prod);
@@ -368,7 +390,7 @@ f_foreach(Simp ctx, Simp args)
 			obj = simp_getvectormemb(obj, i);
 			simp_setvector(expr, j, obj);
 		}
-		obj = simp_eval(ctx, expr, simp_nulenv());
+		obj = simp_eval(eval, expr, simp_nulenv());
 		if (simp_isexception(obj)) {
 			return obj;
 		}
@@ -377,7 +399,7 @@ f_foreach(Simp ctx, Simp args)
 }
 
 static Simp
-f_foreachstring(Simp ctx, Simp args)
+f_foreachstring(Eval *eval, Simp args)
 {
 	Simp expr, prod, obj;
 	SimpSiz i, j, n, size, nargs;
@@ -403,7 +425,7 @@ f_foreachstring(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
+	expr = simp_makevector(eval->ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, prod);
@@ -411,10 +433,10 @@ f_foreachstring(Simp ctx, Simp args)
 		for (j = 1; j < nargs; j++) {
 			obj = simp_getvectormemb(args, j);
 			byte = simp_getstringmemb(obj, i);
-			obj = simp_makebyte(ctx, byte);
+			obj = simp_makebyte(eval->ctx, byte);
 			simp_setvector(expr, j, obj);
 		}
-		obj = simp_eval(ctx, expr, simp_nulenv());
+		obj = simp_eval(eval, expr, simp_nulenv());
 		if (simp_isexception(obj)) {
 			return obj;
 		}
@@ -423,12 +445,12 @@ f_foreachstring(Simp ctx, Simp args)
 }
 
 static Simp
-f_ge(Simp ctx, Simp args)
+f_ge(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -443,12 +465,12 @@ f_ge(Simp ctx, Simp args)
 }
 
 static Simp
-f_gt(Simp ctx, Simp args)
+f_gt(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -463,12 +485,12 @@ f_gt(Simp ctx, Simp args)
 }
 
 static Simp
-f_le(Simp ctx, Simp args)
+f_le(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -483,12 +505,12 @@ f_le(Simp ctx, Simp args)
 }
 
 static Simp
-f_lt(Simp ctx, Simp args)
+f_lt(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -503,7 +525,7 @@ f_lt(Simp ctx, Simp args)
 }
 
 static Simp
-f_makestring(Simp ctx, Simp args)
+f_makestring(Eval *eval, Simp args)
 {
 	SimpInt size;
 	Simp obj;
@@ -514,11 +536,11 @@ f_makestring(Simp ctx, Simp args)
 	size = simp_getnum(obj);
 	if (size < 0)
 		return simp_exception(ERROR_OUTOFRANGE);
-	return simp_makestring(ctx, NULL, size);
+	return simp_makestring(eval->ctx, NULL, size);
 }
 
 static Simp
-f_makevector(Simp ctx, Simp args)
+f_makevector(Eval *eval, Simp args)
 {
 	SimpInt size;
 	Simp obj;
@@ -529,11 +551,11 @@ f_makevector(Simp ctx, Simp args)
 	size = simp_getnum(obj);
 	if (size < 0)
 		return simp_exception(ERROR_OUTOFRANGE);
-	return simp_makevector(ctx, NULL, 0, 0, size);
+	return simp_makevector(eval->ctx, NULL, 0, 0, size);
 }
 
 static Simp
-f_map(Simp ctx, Simp args)
+f_map(Eval *eval, Simp args)
 {
 	Simp vector, expr, prod, obj;
 	SimpSiz i, j, n, size, nargs;
@@ -558,10 +580,10 @@ f_map(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
+	expr = simp_makevector(eval->ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
-	vector = simp_makevector(ctx, NULL, 0, 0, size);
+	vector = simp_makevector(eval->ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	simp_setvector(expr, 0, prod);
@@ -571,7 +593,7 @@ f_map(Simp ctx, Simp args)
 			obj = simp_getvectormemb(obj, i);
 			simp_setvector(expr, j, obj);
 		}
-		obj = simp_eval(ctx, expr, simp_nulenv());
+		obj = simp_eval(eval, expr, simp_nulenv());
 		if (simp_isexception(obj))
 			return obj;
 		simp_setvector(vector, i, obj);
@@ -580,7 +602,7 @@ f_map(Simp ctx, Simp args)
 }
 
 static Simp
-f_mapstring(Simp ctx, Simp args)
+f_mapstring(Eval *eval, Simp args)
 {
 	Simp string, expr, prod, obj;
 	SimpSiz i, j, n, size, nargs;
@@ -606,10 +628,10 @@ f_mapstring(Simp ctx, Simp args)
 			return simp_exception(ERROR_MAP);
 		}
 	}
-	expr = simp_makevector(ctx, NULL, 0, 0, nargs);
+	expr = simp_makevector(eval->ctx, NULL, 0, 0, nargs);
 	if (simp_isexception(expr))
 		return expr;
-	string = simp_makestring(ctx, NULL, size);
+	string = simp_makestring(eval->ctx, NULL, size);
 	if (simp_isexception(string))
 		return string;
 	simp_setvector(expr, 0, prod);
@@ -617,10 +639,10 @@ f_mapstring(Simp ctx, Simp args)
 		for (j = 1; j < nargs; j++) {
 			obj = simp_getvectormemb(args, j);
 			byte = simp_getstringmemb(obj, i);
-			obj = simp_makebyte(ctx, byte);
+			obj = simp_makebyte(eval->ctx, byte);
 			simp_setvector(expr, j, obj);
 		}
-		obj = simp_eval(ctx, expr, simp_nulenv());
+		obj = simp_eval(eval, expr, simp_nulenv());
 		if (simp_isexception(obj))
 			return obj;
 		if (!simp_isbyte(obj))
@@ -631,7 +653,7 @@ f_mapstring(Simp ctx, Simp args)
 }
 
 static Simp
-f_member(Simp ctx, Simp args)
+f_member(Eval *eval, Simp args)
 {
 	Simp expr, pred, ref, obj, vector;
 	SimpSiz i, size;
@@ -644,7 +666,7 @@ f_member(Simp ctx, Simp args)
 	if (!simp_isvector(vector))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(vector);
-	expr = simp_makevector(ctx, NULL, 0, 0, 3);
+	expr = simp_makevector(eval->ctx, NULL, 0, 0, 3);
 	if (simp_isexception(expr))
 		return expr;
 	simp_setvector(expr, 0, pred);
@@ -652,7 +674,7 @@ f_member(Simp ctx, Simp args)
 	for (i = 0; i < size; i++) {
 		obj = simp_getvectormemb(vector, i);
 		simp_setvector(expr, 2, obj);
-		obj = simp_eval(ctx, expr, simp_nulenv());
+		obj = simp_eval(eval, expr, simp_nulenv());
 		if (simp_isexception(obj))
 			return obj;
 		if (simp_istrue(obj)) {
@@ -663,7 +685,7 @@ f_member(Simp ctx, Simp args)
 }
 
 static Simp
-f_multiply(Simp ctx, Simp args)
+f_multiply(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	SimpInt prod;
@@ -677,15 +699,15 @@ f_multiply(Simp ctx, Simp args)
 			return simp_exception(ERROR_ILLTYPE);
 		prod *= simp_getnum(obj);
 	}
-	return simp_makenum(ctx, prod);
+	return simp_makenum(eval->ctx, prod);
 }
 
 Simp
-f_newline(Simp ctx, Simp args)
+f_newline(Eval *eval, Simp args)
 {
 	Simp port;
 
-	port = simp_contextoport(ctx);
+	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 1:
 		port = simp_getvectormemb(args, 0);
@@ -702,11 +724,11 @@ f_newline(Simp ctx, Simp args)
 }
 
 static Simp
-f_not(Simp ctx, Simp args)
+f_not(Eval *eval, Simp args)
 {
 	Simp obj;
 
-	(void)ctx;
+	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (simp_isfalse(obj))
 		return simp_true();
@@ -714,32 +736,32 @@ f_not(Simp ctx, Simp args)
 }
 
 static Simp
-f_nullp(Simp ctx, Simp args)
+f_nullp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isnil);
 }
 
 static Simp
-f_numberp(Simp ctx, Simp args)
+f_numberp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isnum);
 }
 
 static Simp
-f_portp(Simp ctx, Simp args)
+f_portp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isport);
 }
 
 static Simp
-f_procedurep(Simp ctx, Simp args)
+f_procedurep(Eval *eval, Simp args)
 {
 	Simp obj;
 
-	(void)ctx;
+	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (simp_isprocedure(obj))
 		return simp_true();
@@ -747,12 +769,12 @@ f_procedurep(Simp ctx, Simp args)
 }
 
 static Simp
-f_samep(Simp ctx, Simp args)
+f_samep(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -765,12 +787,12 @@ f_samep(Simp ctx, Simp args)
 }
 
 static Simp
-f_slicevector(Simp ctx, Simp args)
+f_slicevector(Eval *eval, Simp args)
 {
 	Simp vector, obj;
 	SimpSiz nargs, from, size, capacity;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	if (nargs < 1 || nargs > 3)
 		return simp_exception(ERROR_ARGS);
@@ -806,12 +828,12 @@ f_slicevector(Simp ctx, Simp args)
 }
 
 static Simp
-f_slicestring(Simp ctx, Simp args)
+f_slicestring(Eval *eval, Simp args)
 {
 	Simp string, obj;
 	SimpSiz nargs, from, size, capacity;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	if (nargs < 1 || nargs > 3)
 		return simp_exception(ERROR_ARGS);
@@ -847,7 +869,7 @@ f_slicestring(Simp ctx, Simp args)
 }
 
 static Simp
-f_subtract(Simp ctx, Simp args)
+f_subtract(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	SimpInt diff;
@@ -865,17 +887,17 @@ f_subtract(Simp ctx, Simp args)
 			diff = simp_getnum(obj);
 		}
 	}
-	return simp_makenum(ctx, diff);
+	return simp_makenum(eval->ctx, diff);
 }
 
 static Simp
-f_string(Simp ctx, Simp args)
+f_string(Eval *eval, Simp args)
 {
 	Simp string, obj;
 	SimpSiz nargs, i;
 
 	nargs = simp_getsize(args);
-	string = simp_makestring(ctx, NULL, nargs);
+	string = simp_makestring(eval->ctx, NULL, nargs);
 	for (i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isbyte(obj))
@@ -886,7 +908,7 @@ f_string(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringcat(Simp ctx, Simp args)
+f_stringcat(Eval *eval, Simp args)
 {
 	Simp obj, string;
 	SimpSiz nargs, size, n, i;
@@ -899,7 +921,7 @@ f_stringcat(Simp ctx, Simp args)
 			return simp_exception(ERROR_ILLTYPE);
 		size += simp_getsize(obj);
 	}
-	string = simp_makestring(ctx, NULL, size);
+	string = simp_makestring(eval->ctx, NULL, size);
 	if (simp_isexception(string))
 		return string;
 	for (size = i = 0; i < nargs; i++) {
@@ -915,12 +937,12 @@ f_stringcat(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringcpy(Simp ctx, Simp args)
+f_stringcpy(Eval *eval, Simp args)
 {
 	Simp dst, src;
 	SimpSiz dstsiz, srcsiz;
 
-	(void)ctx;
+	(void)eval;
 	dst = simp_getvectormemb(args, 0);
 	src = simp_getvectormemb(args, 1);
 	if (!simp_isstring(dst) || !simp_isstring(src))
@@ -934,7 +956,7 @@ f_stringcpy(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringdup(Simp ctx, Simp args)
+f_stringdup(Eval *eval, Simp args)
 {
 	Simp obj;
 	SimpSiz len;
@@ -943,16 +965,16 @@ f_stringdup(Simp ctx, Simp args)
 	if (!simp_isstring(obj))
 		return simp_exception(ERROR_ILLTYPE);
 	len = simp_getsize(obj);
-	return simp_makestring(ctx, simp_getstring(obj), len);
+	return simp_makestring(eval->ctx, simp_getstring(obj), len);
 }
 
 static Simp
-f_stringge(Simp ctx, Simp args)
+f_stringge(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -967,12 +989,12 @@ f_stringge(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringgt(Simp ctx, Simp args)
+f_stringgt(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -987,12 +1009,12 @@ f_stringgt(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringle(Simp ctx, Simp args)
+f_stringle(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -1007,12 +1029,12 @@ f_stringle(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringlt(Simp ctx, Simp args)
+f_stringlt(Eval *eval, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -1027,7 +1049,7 @@ f_stringlt(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringlen(Simp ctx, Simp args)
+f_stringlen(Eval *eval, Simp args)
 {
 	SimpInt size;
 	Simp obj;
@@ -1036,11 +1058,11 @@ f_stringlen(Simp ctx, Simp args)
 	if (!simp_isstring(obj))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(obj);
-	return simp_makenum(ctx, size);
+	return simp_makenum(eval->ctx, size);
 }
 
 static Simp
-f_stringref(Simp ctx, Simp args)
+f_stringref(Eval *eval, Simp args)
 {
 	SimpSiz size;
 	SimpInt pos;
@@ -1056,18 +1078,18 @@ f_stringref(Simp ctx, Simp args)
 	if (pos < 0 || pos >= (SimpInt)size)
 		return simp_exception(ERROR_OUTOFRANGE);
 	u = simp_getstringmemb(a, pos);
-	return simp_makebyte(ctx, u);
+	return simp_makebyte(eval->ctx, u);
 }
 
 static Simp
-f_stringp(Simp ctx, Simp args)
+f_stringp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isstring);
 }
 
 static Simp
-f_stringvector(Simp ctx, Simp args)
+f_stringvector(Eval *eval, Simp args)
 {
 	Simp vector, str, byte;
 	SimpSiz i, size;
@@ -1077,12 +1099,12 @@ f_stringvector(Simp ctx, Simp args)
 	if (!simp_isstring(str))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(str);
-	vector = simp_makevector(ctx, NULL, 0, 0, size);
+	vector = simp_makevector(eval->ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (i = 0; i < size; i++) {
 		u = simp_getstringmemb(str, i);
-		byte = simp_makebyte(ctx, u);
+		byte = simp_makebyte(eval->ctx, u);
 		if (simp_isexception(byte))
 			return byte;
 		simp_setvector(vector, i, byte);
@@ -1091,14 +1113,14 @@ f_stringvector(Simp ctx, Simp args)
 }
 
 static Simp
-f_stringset(Simp ctx, Simp args)
+f_stringset(Eval *eval, Simp args)
 {
 	Simp str, pos, val;
 	SimpSiz size;
 	SimpInt n;
 	unsigned char u;
 
-	(void)ctx;
+	(void)eval;
 	str = simp_getvectormemb(args, 0);
 	pos = simp_getvectormemb(args, 1);
 	val = simp_getvectormemb(args, 2);
@@ -1114,28 +1136,28 @@ f_stringset(Simp ctx, Simp args)
 }
 
 static Simp
-f_truep(Simp ctx, Simp args)
+f_truep(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_istrue);
 }
 
 static Simp
-f_symbolp(Simp ctx, Simp args)
+f_symbolp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_issymbol);
 }
 
 static Simp
-f_vector(Simp ctx, Simp args)
+f_vector(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return args;
 }
 
 static Simp
-f_vectorcat(Simp ctx, Simp args)
+f_vectorcat(Eval *eval, Simp args)
 {
 	Simp obj, vector;
 	SimpSiz nargs, size, n, i;
@@ -1148,7 +1170,7 @@ f_vectorcat(Simp ctx, Simp args)
 			return simp_exception(ERROR_ILLTYPE);
 		size += simp_getsize(obj);
 	}
-	vector = simp_makevector(ctx, NULL, 0, 0, size);
+	vector = simp_makevector(eval->ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (size = i = 0; i < nargs; i++) {
@@ -1164,12 +1186,12 @@ f_vectorcat(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectorcpy(Simp ctx, Simp args)
+f_vectorcpy(Eval *eval, Simp args)
 {
 	Simp dst, src;
 	SimpSiz dstsiz, srcsiz;
 
-	(void)ctx;
+	(void)eval;
 	dst = simp_getvectormemb(args, 0);
 	src = simp_getvectormemb(args, 1);
 	if (!simp_isvector(dst) || !simp_isvector(src))
@@ -1183,7 +1205,7 @@ f_vectorcpy(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectordup(Simp ctx, Simp args)
+f_vectordup(Eval *eval, Simp args)
 {
 	Simp src, dst;
 	SimpSiz i, len;
@@ -1192,7 +1214,7 @@ f_vectordup(Simp ctx, Simp args)
 	if (!simp_isvector(src))
 		return simp_exception(ERROR_ILLTYPE);
 	len = simp_getsize(src);
-	dst = simp_makevector(ctx, NULL, 0, 0, len);
+	dst = simp_makevector(eval->ctx, NULL, 0, 0, len);
 	if (simp_isexception(dst))
 		return dst;
 	for (i = 0; i < len; i++) {
@@ -1206,13 +1228,13 @@ f_vectordup(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectoreqv(Simp ctx, Simp args)
+f_vectoreqv(Eval *eval, Simp args)
 {
 	Simp a, b;
 	Simp next, prev;
 	SimpSiz nargs, newsize, oldsize, i, j;
 
-	(void)ctx;
+	(void)eval;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next, oldsize = newsize) {
 		next = simp_getvectormemb(args, i);
@@ -1235,20 +1257,20 @@ f_vectoreqv(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectorp(Simp ctx, Simp args)
+f_vectorp(Eval *eval, Simp args)
 {
-	(void)ctx;
+	(void)eval;
 	return typepred(args, simp_isvector);
 }
 
 static Simp
-f_vectorset(Simp ctx, Simp args)
+f_vectorset(Eval *eval, Simp args)
 {
 	Simp str, pos, val;
 	SimpSiz size;
 	SimpInt n;
 
-	(void)ctx;
+	(void)eval;
 	str = simp_getvectormemb(args, 0);
 	pos = simp_getvectormemb(args, 1);
 	val = simp_getvectormemb(args, 2);
@@ -1263,7 +1285,7 @@ f_vectorset(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectorlen(Simp ctx, Simp args)
+f_vectorlen(Eval *eval, Simp args)
 {
 	SimpInt size;
 	Simp obj;
@@ -1272,17 +1294,17 @@ f_vectorlen(Simp ctx, Simp args)
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(obj);
-	return simp_makenum(ctx, size);
+	return simp_makenum(eval->ctx, size);
 }
 
 static Simp
-f_vectorref(Simp ctx, Simp args)
+f_vectorref(Eval *eval, Simp args)
 {
 	SimpSiz size;
 	SimpInt pos;
 	Simp a, b;
 
-	(void)ctx;
+	(void)eval;
 	a = simp_getvectormemb(args, 0);
 	b = simp_getvectormemb(args, 1);
 	if (!simp_isvector(a) || !simp_isnum(b))
@@ -1295,12 +1317,12 @@ f_vectorref(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectorrev(Simp ctx, Simp args)
+f_vectorrev(Eval *eval, Simp args)
 {
 	SimpSiz i, n, size;
 	Simp obj, beg, end;
 
-	(void)ctx;
+	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
@@ -1316,7 +1338,7 @@ f_vectorrev(Simp ctx, Simp args)
 }
 
 static Simp
-f_vectorrevnew(Simp ctx, Simp args)
+f_vectorrevnew(Eval *eval, Simp args)
 {
 	SimpSiz i, n, size;
 	Simp vector, obj, beg, end;
@@ -1325,7 +1347,7 @@ f_vectorrevnew(Simp ctx, Simp args)
 	if (!simp_isvector(obj))
 		return simp_exception(ERROR_ILLTYPE);
 	size = simp_getsize(obj);
-	vector = simp_makevector(ctx, NULL, 0, 0, size);
+	vector = simp_makevector(eval->ctx, NULL, 0, 0, size);
 	if (simp_isexception(vector))
 		return vector;
 	for (i = 0; i < size / 2; i++) {
@@ -1343,11 +1365,11 @@ f_vectorrevnew(Simp ctx, Simp args)
 }
 
 Simp
-f_write(Simp ctx, Simp args)
+f_write(Eval *eval, Simp args)
 {
 	Simp obj, port;
 
-	port = simp_contextoport(ctx);
+	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 2:
 		port = simp_getvectormemb(args, 1);
@@ -1364,8 +1386,133 @@ f_write(Simp ctx, Simp args)
 	return simp_void();
 }
 
+static bool
+isform(Simp obj, Form *form)
+{
+	SimpSiz i;
+	int cmp;
+	static struct {
+		const char *name;
+		size_t size;
+	} forms[] = {
+#define X(n, s) [n] = { .name = s, .size = sizeof(s)-1, },
+		FORMS
+#undef  X
+	};
+
+	if (!simp_issymbol(obj))
+		return false;
+	for (i = 0; i < LEN(forms); i++) {
+		if (simp_getsize(obj) != forms[i].size)
+			continue;
+		cmp = memcmp(
+			simp_getsymbol(obj),
+			forms[i].name,
+			forms[i].size
+		);
+		if (cmp == 0) {
+			if (form != NULL)
+				*form = i;
+			return true;
+		}
+	}
+	return false;
+}
+
+static Simp *
+getbind(Simp obj)
+{
+	return simp_getvector(obj);
+}
+
 static Simp
-define(Simp ctx, Simp expr, Simp env, bool redefine)
+getbindvariable(Simp obj)
+{
+	return getbind(obj)[BINDING_VARIABLE];
+}
+
+static Simp
+getbindvalue(Simp obj)
+{
+	return getbind(obj)[BINDING_VALUE];
+}
+
+static Simp
+getnextbind(Simp obj)
+{
+	return getbind(obj)[BINDING_NEXT];
+}
+
+static bool
+xenvset(Simp env, Simp var, Simp val)
+{
+	Simp bind, sym;
+
+	for (bind = simp_getenvframe(env);
+	     !simp_isnil(bind);
+	     bind = getnextbind(bind)) {
+		sym = getbindvariable(bind);
+		if (simp_issame(var, sym)) {
+			simp_setvector(bind, BINDING_VALUE, val);
+			return true;
+		}
+	}
+	return false;
+}
+
+static Simp
+envget(Simp env, Simp sym)
+{
+	Simp bind, var;
+
+	if (isform(sym, NULL))
+		return simp_exception(ERROR_VARFORM);
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
+		for (bind = simp_getenvframe(env);
+		     !simp_isnil(bind);
+		     bind = getnextbind(bind)) {
+			var = getbindvariable(bind);
+			if (simp_issame(var, sym)) {
+				return getbindvalue(bind);
+			}
+		}
+	}
+	return simp_exception(ERROR_UNBOUND);
+}
+
+static Simp
+envset(Simp ctx, Simp env, Simp var, Simp val)
+{
+	(void)ctx;
+	if (isform(var, NULL))
+		return simp_exception(ERROR_VARFORM);
+	if (xenvset(env, var, val))
+		return var;
+	return simp_exception(ERROR_UNBOUND);
+}
+
+static Simp
+envdef(Simp ctx, Simp env, Simp var, Simp val)
+{
+	Simp frame, bind;
+
+	if (isform(var, NULL))
+		return simp_exception(ERROR_VARFORM);
+	if (xenvset(env, var, val))
+		return var;
+	frame = simp_getenvframe(env);
+	bind = simp_makevector(ctx, NULL, 0, 0, BINDING_SIZE);
+	if (simp_isexception(bind))
+		return bind;
+	simp_setvector(bind, BINDING_VARIABLE, var);
+	simp_setvector(bind, BINDING_VALUE, val);
+	simp_setvector(bind, BINDING_NEXT, frame);
+	simp_setenvframe(env, bind);
+	return var;
+}
+
+static Simp
+define(Eval *eval, Simp expr, Simp env, bool redefine)
 {
 	Simp symbol, value;
 
@@ -1375,82 +1522,63 @@ define(Simp ctx, Simp expr, Simp env, bool redefine)
 	if (!simp_issymbol(symbol))
 		return simp_exception(ERROR_NOTSYM);
 	value = simp_getvectormemb(expr, 2);
-	value = simp_eval(ctx, value, env);
+	value = simp_eval(eval, value, env);
 	if (simp_isexception(value))
 		return value;
 	if (redefine)
-		value = simp_envset(ctx, env, symbol, value);
+		value = envset(eval->ctx, env, symbol, value);
 	else
-		value = simp_envdef(ctx, env, symbol, value);
+		value = envdef(eval->ctx, env, symbol, value);
 	if (simp_isexception(value))
 		return value;
 	return simp_void();
 }
 
 Simp
-simp_initforms(Simp ctx)
+simp_environmentnew(Simp ctx)
 {
-	Simp forms, sym;
-	SimpSiz i, len;
-	unsigned char *formnames[] = {
-#define X(n, s) [n] = (unsigned char *)s,
-		FORMS
-#undef  X
-	};
-
-	forms = simp_makevector(ctx, NULL, 0, 0, LEN(formnames));
-	if (simp_isexception(forms))
-		return forms;
-	for (i = 0; i < LEN(formnames); i++) {
-		len = strlen((char *)formnames[i]);
-		sym = simp_makesymbol(ctx, formnames[i], len);
-		if (simp_isexception(sym))
-			return sym;
-		simp_setvector(forms, i, sym);
-	}
-	return forms;
-}
-
-Simp
-simp_initbuiltins(Simp ctx)
-{
-	Simp env, sym, ret, val;
-	SimpSiz i, len;
-	static Builtin builtins[] = {
-#define X(s, p, a, v) { .name = s, .fun = &p, .nargs = a, .variadic = v },
+	Simp env, sym, val;
+	SimpSiz i;
+	static Builtin bltins[] = {
+#define X(s, p, a, v) { \
+	.name = (unsigned char *)s, \
+	.fun = &p, \
+	.nargs = a, \
+	.variadic = v, \
+	.namelen = sizeof(s) },
 		BUILTINS
 #undef  X
 	};
 
-	env = simp_contextenvironment(ctx);
-	for (i = 0; i < LEN(builtins); i++) {
-		len = strlen(builtins[i].name);
-		sym = simp_makesymbol(ctx, (unsigned char *)builtins[i].name, len);
+	env = simp_makeenvironment(ctx, simp_nulenv());
+	if (simp_isexception(env))
+		return env;
+	for (i = 0; i < LEN(bltins); i++) {
+		sym = simp_makesymbol(ctx, bltins[i].name, bltins[i].namelen);
 		if (simp_isexception(sym))
 			return sym;
-		val = simp_makebuiltin(ctx, &builtins[i]);
+		val = simp_makebuiltin(ctx, &bltins[i]);
 		if (simp_isexception(val))
 			return val;
-		ret = simp_envdef(ctx, env, sym, val);
-		if (simp_isexception(ret))
-			return ret;
+		val = envdef(ctx, env, sym, val);
+		if (simp_isexception(val))
+			return val;
 	}
-	return simp_nil();
+	return env;
 }
 
-Simp
-simp_eval(Simp ctx, Simp expr, Simp env)
+static Simp
+simp_eval(Eval *eval, Simp expr, Simp env)
 {
+	Form form;
 	Builtin *bltin;
-	Simp *forms;
 	Simp operator, operands, arguments, extraargs, extraparams;
 	Simp params, var, val;
 	SimpSiz noperands, nparams, narguments, nextraargs, i;
 
-	forms = simp_getvector(simp_contextforms(ctx));
 loop:
 	if (simp_issymbol(expr))   /* expression is variable */
-		return simp_envget(ctx, env, expr);
+		return envget(env, expr);
 	if (!simp_isvector(expr))  /* expression is self-evaluating */
 		return expr;
 	if ((noperands = simp_getsize(expr)) == 0)
@@ -1458,13 +1586,14 @@ loop:
 	noperands--;
 	operator = simp_getvectormemb(expr, 0);
 	operands = simp_slicevector(expr, 1, noperands);
-	if (simp_issame(operator, forms[FORM_APPLY])) {
+	if (isform(operator, &form)) switch (form) {
+	case FORM_APPLY:
 		/* (apply PROC ARG ... ARGS) */
 		if (noperands < 2)
 			return simp_exception(ERROR_ILLFORM);
 		operator = simp_getvectormemb(operands, 0);
 		extraargs = simp_getvectormemb(operands, noperands - 1);
-		extraargs = simp_eval(ctx, extraargs, env);
+		extraargs = simp_eval(eval, extraargs, env);
 		if (simp_isexception(extraargs))
 			return extraargs;
 		if (simp_isvoid(extraargs))
@@ -1475,12 +1604,12 @@ loop:
 		operands = simp_slicevector(operands, 1, noperands - 2);
 		noperands -= 2;
 		goto apply;
-	} else if (simp_issame(operator, forms[FORM_AND])) {
+	case FORM_AND:
 		/* (and EXPRESSION ...) */
 		val = simp_true();
 		for (i = 0; i < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
-			val = simp_eval(ctx, val, env);
+			val = simp_eval(eval, val, env);
 			if (simp_isexception(val))
 				return val;
 			if (simp_isvoid(val))
@@ -1489,12 +1618,12 @@ loop:
 				return val;
 		}
 		return val;
-	} else if (simp_issame(operator, forms[FORM_OR])) {
+	case FORM_OR:
 		/* (or EXPRESSION ...) */
 		val = simp_false();
 		for (i = 0; i < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
-			val = simp_eval(ctx, val, env);
+			val = simp_eval(eval, val, env);
 			if (simp_isexception(val))
 				return val;
 			if (simp_isvoid(val))
@@ -1503,27 +1632,27 @@ loop:
 				return val;
 		}
 		return val;
-	} else if (simp_issame(operator, forms[FORM_DEFINE])) {
-		return define(ctx, expr, env, false);
-	} else if (simp_issame(operator, forms[FORM_DO])) {
+	case FORM_DEFINE:
+		return define(eval, expr, env, false);
+	case FORM_DO:
 		/* (do EXPRESSION ...) */
 		if (noperands == 0)
 			return simp_void();
 		for (i = 0; i + 1 < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
-			val = simp_eval(ctx, val, env);
+			val = simp_eval(eval, val, env);
 			if (simp_isexception(val))
 				return val;
 		}
 		expr = simp_getvectormemb(operands, i);
 		goto loop;
-	} else if (simp_issame(operator, forms[FORM_IF])) {
+	case FORM_IF:
 		/* (if [COND THEN]... [ELSE]) */
 		if (noperands < 2)
 			return simp_exception(ERROR_ILLFORM);
 		for (i = 0; i + 1 < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
-			val = simp_eval(ctx, val, env);
+			val = simp_eval(eval, val, env);
 			if (simp_isvoid(val))
 				return simp_exception(ERROR_VOID);
 			if (simp_isexception(val))
@@ -1538,12 +1667,12 @@ loop:
 			goto loop;
 		}
 		return simp_void();
-	} else if (simp_issame(operator, forms[FORM_EVAL])) {
+	case FORM_EVAL:
 		/* (eval EXPRESSION ENVIRONMENT) */
 		if (noperands != 2)
 			return simp_exception(ERROR_ILLFORM);
 		expr = simp_eval(
-			ctx,
+			eval,
 			simp_getvectormemb(operands, 0),
 			env
 		);
@@ -1552,7 +1681,7 @@ loop:
 		if (simp_isvoid(expr))
 			return simp_exception(ERROR_VOID);
 		env = simp_eval(
-			ctx,
+			eval,
 			simp_getvectormemb(operands, 1),
 			env
 		);
@@ -1561,7 +1690,7 @@ loop:
 		if (simp_isvoid(env))
 			return simp_exception(ERROR_VOID);
 		goto loop;
-	} else if (simp_issame(operator, forms[FORM_LAMBDA])) {
+	case FORM_LAMBDA:
 		/* (lambda PARAMETER ... BODY) */
 		if (noperands < 1)
 			return simp_exception(ERROR_ILLFORM);
@@ -1573,8 +1702,8 @@ loop:
 				return simp_exception(ERROR_ILLFORM);
 			}
 		}
-		return simp_makeclosure(ctx, env, params, simp_nil(), expr);
-	} else if (simp_issame(operator, forms[FORM_VARLAMBDA])) {
+		return simp_makeclosure(eval->ctx, env, params, simp_nil(), expr);
+	case FORM_VARLAMBDA:
 		/* (lambda PARAMETER PARAMETER ... BODY) */
 		if (noperands < 2)
 			return simp_exception(ERROR_ILLFORM);
@@ -1587,20 +1716,20 @@ loop:
 				return simp_exception(ERROR_ILLFORM);
 			}
 		}
-		return simp_makeclosure(ctx, env, params, extraparams, expr);
-	} else if (simp_issame(operator, forms[FORM_QUOTE])) {
+		return simp_makeclosure(eval->ctx, env, params, extraparams, expr);
+	case FORM_QUOTE:
 		/* (quote OBJ) */
 		if (noperands != 1)
 			return simp_exception(ERROR_ILLFORM);
 		return simp_getvectormemb(operands, 0);
-	} else if (simp_issame(operator, forms[FORM_REDEFINE])) {
-		return define(ctx, expr, env, true);
-	} else if (simp_issame(operator, forms[FORM_FALSE])) {
+	case FORM_REDEFINE:
+		return define(eval, expr, env, true);
+	case FORM_FALSE:
 		/* (false) */
 		if (noperands != 0)
 			return simp_exception(ERROR_ILLFORM);
 		return simp_false();
-	} else if (simp_issame(operator, forms[FORM_TRUE])) {
+	case FORM_TRUE:
 		/* (true) */
 		if (noperands != 0)
 			return simp_exception(ERROR_ILLFORM);
@@ -1610,19 +1739,19 @@ loop:
 	nextraargs = 0;
 apply:
 	/* procedure application */
-	operator = simp_eval(ctx, operator, env);
+	operator = simp_eval(eval, operator, env);
 	if (simp_isexception(operator))
 		return operator;
 	if (simp_isvoid(operator))
 		return simp_exception(ERROR_VOID);
 	narguments = noperands + nextraargs;
-	arguments = simp_makevector(ctx, NULL, 0, 0, narguments);
+	arguments = simp_makevector(eval->ctx, NULL, 0, 0, narguments);
 	if (simp_isexception(arguments))
 		return arguments;
 	for (i = 0; i < noperands; i++) {
 		/* evaluate arguments */
 		val = simp_getvectormemb(operands, i);
-		val = simp_eval(ctx, val, env);
+		val = simp_eval(eval, val, env);
 		if (simp_isexception(val))
 			return val;
 		if (simp_isvoid(val))
@@ -1632,7 +1761,7 @@ apply:
 	for (i = 0; i < nextraargs; i++) {
 		/* evaluate extra arguments */
 		val = simp_getvectormemb(extraargs, i);
-		val = simp_eval(ctx, val, env);
+		val = simp_eval(eval, val, env);
 		if (simp_isexception(val))
 			return val;
 		if (simp_isvoid(val))
@@ -1645,13 +1774,13 @@ apply:
 			return simp_exception(ERROR_ARGS);
 		if (!bltin->variadic && narguments != bltin->nargs)
 			return simp_exception(ERROR_ARGS);
-		return (*bltin->fun)(ctx, arguments);
+		return (*bltin->fun)(eval, arguments);
 	}
 	if (!simp_isclosure(operator))
 		return simp_exception(ERROR_OPERATOR);
 	expr = simp_getclosurebody(operator);
 	env = simp_getclosureenv(operator);
-	env = simp_makeenvironment(ctx, env);
+	env = simp_makeenvironment(eval->ctx, env);
 	if (simp_isexception(env))
 		return env;
 	params = simp_getclosureparam(operator);
@@ -1664,14 +1793,14 @@ apply:
 	for (i = 0; i < nparams; i++) {
 		var = simp_getvectormemb(params, i);
 		val = simp_getvectormemb(arguments, i);
-		var = simp_envdef(ctx, env, var, val);
+		var = envdef(eval->ctx, env, var, val);
 		if (simp_isexception(var)) {
 			return var;
 		}
 	}
 	if (simp_issymbol(extraparams)) {
 		val = simp_slicevector(arguments, i, narguments - i);
-		var = simp_envdef(ctx, env, extraparams, val);
+		var = envdef(eval->ctx, env, extraparams, val);
 		if (simp_isexception(var)) {
 			return var;
 		}
@@ -1680,16 +1809,23 @@ apply:
 }
 
 int
-simp_repl(Simp ctx, Simp iport, int mode)
+simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode)
 {
-	Simp oport, eport, obj, env;
+	Simp obj;
+	Simp gcignore[] = {
+		env, iport, oport, eport
+	};
+	Eval eval = {
+		.ctx = ctx,
+		.env = env,
+		.iport = iport,
+		.oport = oport,
+		.eport = eport,
+	};
 	int retval = -1;
 
-	env = simp_contextenvironment(ctx);
-	oport = simp_contextoport(ctx);
-	eport = simp_contexteport(ctx);
 	for (;;) {
-		simp_gc(ctx, &iport, 1);
+		simp_gc(ctx, gcignore, LEN(gcignore));
 		if (simp_porterr(iport))
 			goto error;
 		if (mode & SIMP_PROMPT)
@@ -1698,7 +1834,7 @@ simp_repl(Simp ctx, Simp iport, int mode)
 		if (simp_iseof(obj))
 			break;
 		if (!simp_isexception(obj))
-			obj = simp_eval(ctx, obj, env);
+			obj = simp_eval(&eval, obj, env);
 		if (simp_isexception(obj)) {
 			simp_write(eport, obj);
 			simp_printf(eport, "\n");
@@ -1713,6 +1849,6 @@ simp_repl(Simp ctx, Simp iport, int mode)
 	}
 	retval = 0;
 error:
-	simp_gc(ctx, &iport, 1);
+	simp_gc(ctx, gcignore, LEN(gcignore));
 	return retval;
 }

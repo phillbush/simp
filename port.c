@@ -126,7 +126,13 @@ simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 	Simp sym;
 
 	stream = (FILE *)p;
-	if ((heap = simp_gcnewobj(ctx, sizeof(*port), 0, NULL, 0, 0)) == NULL)
+	heap = simp_gcnewobj(
+		simp_getgcmemory(ctx),
+		sizeof(*port),
+		0, NULL,
+		0, 0
+	);
+	if (heap == NULL)
 		return simp_exception(ERROR_MEMORY);
 	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STREAM;
@@ -147,7 +153,13 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	Port *port;
 	Heap *heap;
 
-	if ((heap = simp_gcnewobj(ctx, sizeof(*port), 0, NULL, 0, 0)) == NULL)
+	heap = simp_gcnewobj(
+		simp_getgcmemory(ctx),
+		sizeof(*port),
+		0, NULL,
+		0, 0
+	);
+	if (heap == NULL)
 		return simp_exception(ERROR_MEMORY);
 	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STRING;
@@ -204,63 +216,4 @@ simp_portfilename(Simp obj)
 
 	port = simp_getport(obj);
 	return port->filename;
-}
-
-Simp
-simp_initports(Simp ctx)
-{
-	Simp ports, port;
-	SimpSiz i;
-	struct {
-		FILE *fp;
-		char *name;
-		char *mode;
-	} portinit[] = {
-#define X(n, f, s, m) [n] = { .fp = f, .name = s, .mode = m, },
-		PORTS
-#undef  X
-	};
-
-	ports = simp_makevector(ctx, NULL, 0, 0, 3);
-	if (simp_isexception(ports))
-		return ports;
-	for (i = 0; i < LEN(portinit); i++) {
-		port = simp_openstream(
-			ctx,
-			portinit[i].name,
-			portinit[i].fp,
-			portinit[i].mode
-		);
-		if (simp_isexception(port))
-			return port;
-		simp_setvector(ports, i, port);
-	}
-	return ports;
-}
-
-Simp
-simp_contextiport(Simp ctx)
-{
-	Simp ports;
-
-	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ports, PORT_STDIN);
-}
-
-Simp
-simp_contextoport(Simp ctx)
-{
-	Simp ports;
-
-	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ports, PORT_STDOUT);
-}
-
-Simp
-simp_contexteport(Simp ctx)
-{
-	Simp ports;
-
-	ports = simp_contextports(ctx);
-	return simp_getvectormemb(ports, PORT_STDERR);
 }

@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #include "simp.h"
@@ -694,10 +695,6 @@ dowrite(Simp port, Simp obj, bool display)
 
 	switch (simp_gettype(obj)) {
 	case TYPE_VOID:
-		break;
-	case TYPE_BINDING:
-		simp_printf(port, "#<variable binding>");
-		break;
 	case TYPE_ENVIRONMENT:
 		simp_printf(port, "#<environment>");
 		break;

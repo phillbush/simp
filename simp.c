@@ -17,7 +17,7 @@ main(int argc, char *argv[])
 {
 	enum { MODE_INTERACTIVE, MODE_STRING, MODE_PRINT, MODE_SCRIPT } mode;
 	FILE *fp;
-	Simp ctx, iport, port;
+	Simp ctx, env, iport, oport, eport, port;
 	int ch, retval = EXIT_FAILURE;
 	int iflag = 0;
 	char *expr = NULL;
@@ -42,26 +42,41 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (mode == MODE_INTERACTIVE && argc > 0)
 		mode = MODE_SCRIPT;
+
+	/* first, create context (holds symbol table and garbage context) */
 	ctx = simp_contextnew();
 	if (simp_isexception(ctx))
 		errx(EXIT_FAILURE, "could not create context");
-	iport = simp_contextiport(ctx);
+
+	/* then, create standard input/output/error ports */
+	iport = simp_openstream(ctx, "<stdin>", stdin, "r");
+	if (simp_isexception(iport))
+		errx(EXIT_FAILURE, "could not open input port");
+	oport = simp_openstream(ctx, "<stdout>", stdout, "w");
+	if (simp_isexception(oport))
+		errx(EXIT_FAILURE, "could not open output port");
+	eport = simp_openstream(ctx, "<stderr>", stderr, "w");
+	if (simp_isexception(eport))
+		errx(EXIT_FAILURE, "could not open error port");
+
+	/* finally, create environment (holds variable bindings) */
+	env = simp_environmentnew(ctx);
+	if (simp_isexception(env))
+		errx(EXIT_FAILURE, "could not create environment");
+
 	switch (mode) {
 	case MODE_STRING:
-		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
-		if (simp_isexception(port))
-			goto error;
-		simp_repl(ctx, port, 0);
-		if (iflag)
-			simp_repl(ctx, iport, SIMP_INTERACTIVE);
-		break;
 	case MODE_PRINT:
 		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
 		if (simp_isexception(port))
 			goto error;
-		simp_repl(ctx, port, SIMP_ECHO);
-		if (iflag)
-			simp_repl(ctx, iport, SIMP_INTERACTIVE);
+		retval = simp_repl(
+			ctx, env,
+			port, oport, eport,
+			mode == MODE_PRINT ? SIMP_ECHO : 0
+		);
+		if (retval == EXIT_SUCCESS && iflag)
+			goto interactive;
 		break;
 	case MODE_SCRIPT:
 		if (argv[0][0] == '-' && argv[0][1] == '\0') {
@@ -75,17 +90,21 @@ main(int argc, char *argv[])
 		}
 		if (simp_isexception(port))
 			goto error;
-		simp_repl(ctx, port, 0);
+		retval = simp_repl(ctx, env, port, oport, eport, 0);
 		if (fp != stdin)
 			(void)fclose(fp);
-		if (iflag)
-			simp_repl(ctx, iport, SIMP_INTERACTIVE);
+		if (retval == EXIT_SUCCESS && iflag)
+			goto interactive;
 		break;
 	case MODE_INTERACTIVE:
-		simp_repl(ctx, iport, SIMP_INTERACTIVE);
+interactive:
+		retval = simp_repl(
+			ctx, env,
+			iport, oport, eport,
+			SIMP_INTERACTIVE
+		);
 		break;
 	}
-	retval = EXIT_SUCCESS;
 error:
 	simp_gcfree(ctx);
 	return retval;

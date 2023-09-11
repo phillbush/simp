@@ -39,7 +39,6 @@
 	X(TYPE_EOF,           false           )\
 	X(TYPE_EXCEPTION,     false           )\
 	X(TYPE_FALSE,         false           )\
-	X(TYPE_BINDING,       true            )\
 	X(TYPE_PORT,          true            )\
 	X(TYPE_REAL,          false           )\
 	X(TYPE_SIGNUM,        false           )\
@@ -47,11 +46,6 @@
 	X(TYPE_SYMBOL,        true            )\
 	X(TYPE_TRUE,          false           )\
 	X(TYPE_VOID,          false           )
-
-#define PORTS                                    \
-	X(PORT_STDIN,   stdin,  "<stdin>",  "r" )\
-	X(PORT_STDOUT,  stdout, "<stdout>", "w" )\
-	X(PORT_STDERR,  stderr, "<stderr>", "w" )
 
 typedef struct Heap             Heap;
 typedef struct Simp             Simp;
@@ -74,12 +68,6 @@ enum Exceptions {
 #undef  X
 };
 
-enum Ports {
-#define X(n, f, s, m) n,
-	PORTS
-#undef  X
-};
-
 typedef enum Type {
 #define X(n, h) n,
 	TYPES
@@ -97,7 +85,6 @@ struct Simp {
 	} u;
 	SimpSiz start;
 	SimpSiz size;
-	const char *error;
 	Type type;
 };
 
@@ -168,8 +155,8 @@ bool    simp_isenvironment(Simp obj);
 bool    simp_iseof(Simp obj);
 bool    simp_isexception(Simp obj);
 bool    simp_isfalse(Simp obj);
-bool    simp_isform(Simp obj);
 bool    simp_isnum(Simp obj);
+bool    simp_isnulenv(Simp obj);
 bool    simp_isnil(Simp obj);
 bool    simp_ispair(Simp obj);
 bool    simp_ispair(Simp obj);
@@ -194,7 +181,6 @@ void    simp_cpystring(Simp dst, Simp src);
 /* data type constructors */
 Simp    simp_exception(int n);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
-Simp    simp_makeform(Simp ctx, int);
 Simp    simp_makebuiltin(Simp ctx, Builtin *);
 Simp    simp_makeclosure(Simp ctx, Simp env, Simp params, Simp extras, Simp body);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
@@ -208,21 +194,6 @@ Simp    simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz 
 /* slicers */
 Simp    simp_slicevector(Simp obj, SimpSiz from, SimpSiz size);
 Simp    simp_slicestring(Simp obj, SimpSiz from, SimpSiz size);
-
-/* context operations */
-Simp    simp_contextenvironment(Simp ctx);
-Simp    simp_contextsymtab(Simp ctx);
-Simp    simp_contextports(Simp ctx);
-Simp    simp_contextiport(Simp ctx);
-Simp    simp_contextoport(Simp ctx);
-Simp    simp_contexteport(Simp ctx);
-Simp    simp_contextforms(Simp ctx);
-Simp    simp_contextnew(void);
-
-/* environment operations */
-Simp    simp_envget(Simp ctx, Simp env, Simp sym);
-Simp    simp_envdef(Simp ctx, Simp env, Simp var, Simp val);
-Simp    simp_envset(Simp ctx, Simp env, Simp var, Simp val);
 
 /* port operations */
 Simp    simp_openstream(Simp ctx, const char *filename, void *p, char *mode);
@@ -241,14 +212,19 @@ void    simp_printf(Simp port, const char *fmt, ...);
 Simp    simp_read(Simp ctx, Simp port);
 Simp    simp_write(Simp port, Simp obj);
 Simp    simp_display(Simp port, Simp obj);
-Simp    simp_eval(Simp ctx, Simp expr, Simp env);
-Simp    simp_initforms(Simp ctx);
-Simp    simp_initports(Simp ctx);
-Simp    simp_initbuiltins(Simp ctx);
-int     simp_repl(Simp ctx, Simp iport, int mode);
+int     simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode);
+
+/* environment operations */
+void    simp_setenvframe(Simp env, Simp frame);
+Simp    simp_getenvframe(Simp obj);
+Simp    simp_getenvparent(Simp obj);
 
 /* gc */
-Heap   *simp_gcnewobj(Simp ctx, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
+Heap   *simp_gcnewobj(Heap *gc, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);
 void   *simp_getheapdata(Heap *heap);
+
+/* context */
+Simp    simp_contextnew(void);
+Simp    simp_environmentnew(Simp ctx);

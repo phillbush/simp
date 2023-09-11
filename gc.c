@@ -3,49 +3,51 @@
 
 #include "simp.h"
 
-#define ALIGN (sizeof(SimpSiz) > sizeof(void *) ? sizeof(SimpSiz) : sizeof(void *))
-
 enum {
 	/*
-	 * Heaps begin marked with 0; the current garbage mark begins
-	 * with 1.
+	 * Heap objects begin marked with 0.
 	 *
-	 * At each garbage collection run, the garbage mark switches
+	 * The garbage factor begins as 1.
+	 *
+	 * At each garbage collection run, the garbage factor switches
 	 * between 1 and -1.
 	 *
-	 * We begin with all allocated vectors listed on gc->free and
-	 * mark all reachable vectors with the current garbage mark and
-	 * move them to gc->curr.
+	 * We begin with all allocated objects listed on gc->p[FREE].
+	 * Then, we mark all reachable objects with the current garbage
+	 * factor and move them to gc->p[CURR].  While we're visiting
+	 * objects, we ignore those which has already been marked.
 	 *
-	 * All allocated vectors remaining on gc->free are freed.
+	 * All allocated objects remaining on gc->p[FREE] are freed.
 	 */
 	MARK_ZERO = 0,
 	MARK_ONE  = 1,
 	MARK_MUL  = -1,
+
+	/*
+	 * Heap objects points to the previous and next objects in a
+	 * doubly linked list.
+	 */
+	PREV = 0,
+	NEXT = 1,
+
+	/*
+	 * Garbage context is also a heap object, but instead point to
+	 * the list of garbage objects (to be freed), and the list of
+	 * reachable objects (to be kept).
+	 */
+	GARBAGE = 0,
+	REACHED = 1,
 };
 
 struct Heap {
-	struct Heap    *prev;
-	struct Heap    *next;
+	struct Heap    *p[2];
 	void           *data;
 	int             mark;
 	const char     *filename;
 	SimpSiz         lineno;
 	SimpSiz         column;
-	SimpSiz         capacity;
+	SimpSiz         size;
 };
-
-typedef struct GC {
-	/* same structure, just to rename the members */
-	struct Heap    *free;
-	struct Heap    *curr;
-	void           *data;
-	int             mark;
-	const char     *filename;
-	SimpSiz         lineno;
-	SimpSiz         column;
-	SimpSiz         capacity;
-} GC;
 
 static bool isheap[] = {
 #define X(n, h) [n] = h,
@@ -54,11 +56,10 @@ static bool isheap[] = {
 };
 
 static void
-mark(Simp ctx, Simp obj)
+mark(Heap *gc, Simp obj)
 {
 	Heap *heap;
 	SimpSiz i;
-	GC *gc = (GC *)simp_getgcmemory(ctx);
 	enum Type type;
 
 	type = simp_gettype(obj);
@@ -70,34 +71,33 @@ mark(Simp ctx, Simp obj)
 	if (heap->mark == gc->mark)
 		return;
 	heap->mark = gc->mark;
-	if (heap->next != NULL)
-		heap->next->prev = heap->prev;
-	if (heap->prev != NULL)
-		heap->prev->next = heap->next;
+	if (heap->p[NEXT] != NULL)
+		heap->p[NEXT]->p[PREV] = heap->p[PREV];
+	if (heap->p[PREV] != NULL)
+		heap->p[PREV]->p[NEXT] = heap->p[NEXT];
 	else
-		gc->free = heap->next;
-	heap->next = gc->curr;
-	heap->prev = NULL;
-	if (gc->curr != NULL)
-		gc->curr->prev = heap;
-	gc->curr = heap;
-	if (heap->capacity == 0)
+		gc->p[GARBAGE] = heap->p[NEXT];
+	heap->p[NEXT] = gc->p[REACHED];
+	heap->p[PREV] = NULL;
+	if (gc->p[REACHED] != NULL)
+		gc->p[REACHED]->p[PREV] = heap;
+	gc->p[REACHED] = heap;
+	if (heap->size == 0)
 		return;
-	for (i = 0; i < heap->capacity; i++) {
-		mark(ctx, ((Simp *)heap->data)[i]);
+	for (i = 0; i < heap->size; i++) {
+		mark(gc, ((Simp *)heap->data)[i]);
 	}
 }
 
 static void
-sweep(Simp ctx)
+sweep(Heap *gc)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx);
 	Heap *heap, *tmp;
 
-	heap = gc->free;
+	heap = gc->p[GARBAGE];
 	while (heap != NULL) {
 		tmp = heap;
-		heap = heap->next;
+		heap = heap->p[NEXT];
 		free(tmp->data);
 		free(tmp);
 	}
@@ -106,66 +106,59 @@ sweep(Simp ctx)
 void
 simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx);
-	SimpSiz size, i;
+	Heap *gc = simp_getgcmemory(ctx);
+	SimpSiz i;
 
-	gc->free = gc->curr;
-	gc->curr = NULL;
+	gc->p[GARBAGE] = gc->p[REACHED];
+	gc->p[REACHED] = NULL;
 	for (i = 0; i < nobjs; i++)
-		mark(ctx, objs[i]);
-	size = simp_getsize(ctx);
-	for (i = 0; i < size; i++)
-		mark(ctx, ((Simp *)gc->data)[i]);
-	sweep(ctx);
+		mark(gc, objs[i]);
+	for (i = 0; i < gc->size; i++)
+		mark(gc, ((Simp *)gc->data)[i]);
+	sweep(gc);
 	gc->mark *= MARK_MUL;
-	gc->free = NULL;
+	gc->p[GARBAGE] = NULL;
 }
 
 void
 simp_gcfree(Simp ctx)
 {
-	GC *gc = (GC *)simp_getgcmemory(ctx);
+	Heap *gc = simp_getgcmemory(ctx);
 
-	gc->free = gc->curr;
-	sweep(ctx);
+	gc->p[GARBAGE] = gc->p[REACHED];
+	sweep(gc);
 	free(gc->data);
 	free(gc);
 }
 
 Heap *
-simp_gcnewobj(Simp ctx, SimpSiz size, SimpSiz nobjs, const char *filename, SimpSiz lineno, SimpSiz column)
+simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs, const char *filename, SimpSiz lineno, SimpSiz column)
 {
 	Heap *heap = NULL;
 	void *data = NULL;
-	GC *gc;
 
-	if (simp_isnil(ctx))
-		gc = NULL;
-	else
-		gc = (GC *)simp_getgcmemory(ctx);
 	if ((heap = malloc(sizeof(*heap))) == NULL)
 		goto error;
 	if ((data = malloc(size)) == NULL)
 		goto error;
 	*heap = (Heap){
 		.mark = MARK_ZERO,
-		.prev = NULL,
-		.next = NULL,
+		.p = { NULL, NULL },
 		.data = data,
 		.filename = filename,
 		.lineno = lineno,
 		.column = column,
-		.capacity = nobjs,
+		.size = nobjs,
 	};
 	if (gc == NULL) {
 		/* there's no garbage context (we're creating it right now) */
 		heap->mark = MARK_ONE;
 		return heap;
 	}
-	heap->next = gc->curr;
-	if (gc->curr != NULL)
-		gc->curr->prev = heap;
-	gc->curr = heap;
+	heap->p[NEXT] = gc->p[REACHED];
+	if (gc->p[REACHED] != NULL)
+		gc->p[REACHED]->p[PREV] = heap;
+	gc->p[REACHED] = heap;
 	return heap;
 error:
 	free(data);
