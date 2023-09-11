@@ -126,13 +126,14 @@ simp_peekbyte(Simp obj)
 	return c;
 }
 
-Simp
-simp_openstream(Simp ctx, const char *file, void *p, char *mode)
+bool
+simp_openstream(Simp ctx, Simp *ret, const char *file, void *p, char *mode)
 {
 	FILE *stream;
 	Port *port;
 	Heap *heap;
 	Simp sym;
+	const unsigned char *filename = (const unsigned char *)file;
 
 	stream = (FILE *)p;
 	heap = simp_gcnewobj(
@@ -142,22 +143,21 @@ simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 		0, 0
 	);
 	if (heap == NULL)
-		return simp_exception(ERROR_MEMORY);
+		return false;
 	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STREAM;
 	port->mode = openmode(mode);
 	port->u.fp = stream;
-	sym = simp_makesymbol(ctx, (const unsigned char *)file, strlen(file) + 1);
-	if (simp_isexception(sym))
-		return sym;
+	if (!simp_makesymbol(ctx, &sym, filename, strlen(file) + 1))
+		return false;
 	port->filename = (const char *)simp_getsymbol(sym);
 	port->lineno = 1;
 	port->column = 1;
-	return simp_makeport(ctx, heap);
+	return simp_makeport(ctx, ret, heap);
 }
 
-Simp
-simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
+bool
+simp_openstring(Simp ctx, Simp *ret, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
 	Heap *heap;
@@ -169,7 +169,7 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 		0, 0
 	);
 	if (heap == NULL)
-		return simp_exception(ERROR_MEMORY);
+		return false;
 	port = (Port *)simp_getheapdata(heap);
 	port->type = PORT_STRING;
 	port->mode = openmode(mode);
@@ -179,7 +179,7 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	port->filename = NULL;
 	port->lineno = 1;
 	port->column = 1;
-	return simp_makeport(ctx, heap);
+	return simp_makeport(ctx, ret, heap);
 }
 
 int

@@ -47,7 +47,7 @@ struct List {
 	struct List *next;
 };
 
-static Simp toktoobj(Simp ctx, Simp port, Token tok);
+static bool toktoobj(Simp ctx, Simp *obj, Simp port, Token tok);
 
 static int
 cisdecimal(int c)
@@ -458,9 +458,9 @@ loop:
 		if (c == '\'') {
 			tok.type = TOK_CHAR;
 			return tok;
-		}
-		while (c != NOTHING && c != '\'') {
-			c = simp_readbyte(port);
+		} else {
+			tok.type = TOK_ERROR;
+			return tok;
 		}
 		tok.type = TOK_CHAR;
 		return tok;
@@ -491,35 +491,34 @@ cleanvector(struct List *list)
 	}
 }
 
-static Simp
-fillvector(Simp ctx, struct List *list, SimpSiz nitems, SimpSiz lineno, SimpSiz column, const char *filename)
+static bool
+fillvector(Simp ctx, Simp *vect, struct List *list, SimpSiz nitems, SimpSiz lineno, SimpSiz column, const char *filename)
 {
 	struct List *tmp;
-	Simp vect;
 	SimpSiz i = 0;
 
-	vect = simp_makevector(
+	if (!simp_makevector(
 		ctx,
+		vect,
 		filename,
 		lineno,
 		column,
 		nitems
-	);
-	if (simp_isexception(vect)) {
+	)) {
 		cleanvector(list);
-		return simp_exception(ERROR_MEMORY);
+		return false;
 	}
 	while (list != NULL) {
 		tmp = list;
 		list = list->next;
-		simp_setvector(vect, i++, tmp->obj);
+		simp_setvector(*vect, i++, tmp->obj);
 		free(tmp);
 	}
-	return vect;
+	return true;
 }
 
-static Simp
-readvector(Simp ctx, Simp port, SimpSiz lineno, SimpSiz column)
+static bool
+readvector(Simp ctx, Simp *vect, Simp port, SimpSiz lineno, SimpSiz column)
 {
 	Token tok;
 	struct List *pair, *list, *last;
@@ -535,6 +534,7 @@ readvector(Simp ctx, Simp port, SimpSiz lineno, SimpSiz column)
 		case TOK_RPAREN:
 			return fillvector(
 				ctx,
+				vect,
 				list,
 				nitems,
 				lineno,
@@ -545,9 +545,10 @@ readvector(Simp ctx, Simp port, SimpSiz lineno, SimpSiz column)
 			pair = malloc(sizeof(*pair));
 			if (pair == NULL) {
 				cleanvector(list);
-				return simp_exception(ERROR_MEMORY);
+				return false;
 			}
-			pair->obj = toktoobj(ctx, port, tok);
+			if (!toktoobj(ctx, &pair->obj, port, tok))
+				return false;
 			pair->next = NULL;
 			if (last == NULL)
 				list = pair;
@@ -559,7 +560,7 @@ readvector(Simp ctx, Simp port, SimpSiz lineno, SimpSiz column)
 		}
 	}
 	/* UNREACHABLE */
-	return simp_exception(-1);
+	abort();
 }
 
 static void
@@ -629,62 +630,73 @@ simp_printstr(Simp port, unsigned char *str, SimpSiz len)
 	}
 }
 
-static Simp
-toktoobj(Simp ctx, Simp port, Token tok)
+static bool
+toktoobj(Simp ctx, Simp *obj, Simp port, Token tok)
 {
-	Simp obj, quote, literal;
+	bool success;
+	Simp quote, literal;
 
 	switch (tok.type) {
 	case TOK_LPAREN:
-		return readvector(ctx, port, tok.lineno, tok.column);
+		return readvector(ctx, obj, port, tok.lineno, tok.column);
 	case TOK_IDENTIFIER:
-		obj = simp_makesymbol(ctx, tok.u.str.str, tok.u.str.len);
-		free(tok.u.str.str);
-		return obj;
-	case TOK_QUOTE:
-		obj = simp_makevector(
+		success = simp_makesymbol(
 			ctx,
+			obj,
+			tok.u.str.str,
+			tok.u.str.len
+		);
+		free(tok.u.str.str);
+		return success;
+	case TOK_QUOTE:
+		if (!simp_makevector(
+			ctx,
+			obj,
 			simp_portfilename(port),
 			simp_portlineno(port),
 			simp_portcolumn(port),
 			2
-		);
-		if (simp_isexception(obj))
-			return obj;
+		)) {
+			return false;
+		}
 		tok = readtok(port);
-		quote = simp_makesymbol(ctx, (unsigned char *)"quote", 5);
-		if (simp_isexception(quote))
-			return quote;
-		literal = toktoobj(ctx, port, tok);
-		if (simp_isexception(literal))
-			return literal;
-		simp_setvector(obj, 0, quote);
-		simp_setvector(obj, 1, literal);
-		return obj;
+		if (!simp_makesymbol(ctx, &quote, (unsigned char *)"quote", 5))
+			return false;
+		if (!toktoobj(ctx, &literal, port, tok))
+			return false;
+		simp_setvector(*obj, 0, quote);
+		simp_setvector(*obj, 1, literal);
+		return true;
 	case TOK_STRING:
-		obj = simp_makestring(ctx, tok.u.str.str, tok.u.str.len);
+		success = simp_makestring(
+			ctx,
+			obj,
+			tok.u.str.str,
+			tok.u.str.len
+		);
 		free(tok.u.str.str);
-		return obj;
+		return success;
 	case TOK_REAL:
-		return simp_makereal(ctx, tok.u.real);
+		return simp_makereal(ctx, obj, tok.u.real);
 	case TOK_FIXNUM:
-		return simp_makenum(ctx, tok.u.fixnum);
+		return simp_makenum(ctx, obj, tok.u.fixnum);
 	case TOK_CHAR:
-		return simp_makebyte(ctx, (unsigned char)tok.u.fixnum);
+		return simp_makebyte(ctx, obj, (unsigned char)tok.u.fixnum);
 	case TOK_EOF:
-		return simp_eof();
+		*obj = simp_eof();
+		return true;
 	default:
-		return simp_exception(ERROR_ILLEXPR);
+		return false;
 	}
 }
 
-Simp
-simp_read(Simp ctx, Simp port)
+bool
+simp_read(Simp ctx, Simp *obj, Simp port)
 {
 	Token tok;
 
 	tok = readtok(port);
-	return toktoobj(ctx, port, tok);
+	return toktoobj(ctx, obj, port, tok);
 }
 
 static void
@@ -740,9 +752,6 @@ dowrite(Simp port, Simp obj, bool display)
 	case TYPE_SYMBOL:
 		simp_printsym(port, simp_getsymbol(obj), simp_getsize(obj));
 		break;
-	case TYPE_EXCEPTION:
-		simp_printf(port, "ERROR: %s", simp_getexception(obj));
-		break;
 	case TYPE_VECTOR:
 		simp_printf(port, "(");
 		len = simp_getsize(obj);
@@ -757,16 +766,14 @@ dowrite(Simp port, Simp obj, bool display)
 	}
 }
 
-Simp
+void
 simp_write(Simp port, Simp obj)
 {
 	dowrite(port, obj, false);
-	return simp_void();     // TODO: check write error
 }
 
-Simp
+void
 simp_display(Simp port, Simp obj)
 {
 	dowrite(port, obj, true);
-	return simp_void();     // TODO: check write error
 }

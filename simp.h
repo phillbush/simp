@@ -7,29 +7,6 @@
 #define RETURN_SUCCESS  0
 #define NOTHING         (-1)
 
-#define EXCEPTIONS                                                       \
-	X(ERROR_ARGS,       "wrong number of arguments"                 )\
-	X(ERROR_DIVZERO,    "division by zero"                          )\
-	X(ERROR_EMPTY,      "empty operation"                           )\
-	X(ERROR_ENVIRON,    "symbol for environment not supplied"       )\
-	X(ERROR_UNBOUND,    "unbound variable"                          )\
-	X(ERROR_OPERATOR,   "operator is not a procedure"               )\
-	X(ERROR_OUTOFRANGE, "out of range"                              )\
-	X(ERROR_MAP,        "map over vectors of different sizes"       )\
-	X(ERROR_VARFORM,    "macro used as variable"                    )\
-	X(ERROR_ILLEXPR,    "ill expression"                            )\
-	X(ERROR_ILLFORM,    "ill-formed syntactical form"               )\
-	X(ERROR_ILLSYNTAX,  "ill syntax form"                           )\
-	X(ERROR_UNKSYNTAX,  "unknown syntax form"                       )\
-	X(ERROR_ILLTYPE,    "improper type"                             )\
-	X(ERROR_NOTBYTE,    "not a byte"                                )\
-	X(ERROR_NOTVECTOR,  "expected vector"                           )\
-	X(ERROR_NOTSYM,     "not a symbol"                              )\
-	X(ERROR_STREAM,     "stream error"                              )\
-	X(ERROR_RANGE,      "out of range"                              )\
-	X(ERROR_MEMORY,     "allocation error"                          )\
-	X(ERROR_VOID,       "expression evaluated to nothing; expected value")
-
 #define TYPES                                  \
 	/* Object type        Is allocated   */\
 	X(TYPE_VECTOR,        true            )\
@@ -38,7 +15,6 @@
 	X(TYPE_BYTE,          false           )\
 	X(TYPE_ENVIRONMENT,   true            )\
 	X(TYPE_EOF,           false           )\
-	X(TYPE_EXCEPTION,     false           )\
 	X(TYPE_FALSE,         false           )\
 	X(TYPE_PORT,          true            )\
 	X(TYPE_REAL,          false           )\
@@ -60,13 +36,6 @@ enum {
 	SIMP_PROMPT      = 0x02,
 	SIMP_CONTINUE    = 0x04,
 	SIMP_INTERACTIVE = (SIMP_ECHO|SIMP_PROMPT|SIMP_CONTINUE),
-};
-
-enum Exceptions {
-#define X(n, s) n,
-	EXCEPTIONS
-	NEXCEPTIONS
-#undef  X
 };
 
 typedef enum Type {
@@ -139,7 +108,6 @@ double  simp_getreal(Simp obj);
 SimpSiz simp_getsize(Simp obj);
 unsigned char *simp_getstring(Simp obj);
 unsigned char *simp_getsymbol(Simp obj);
-const char *simp_getexception(Simp obj);
 Simp    simp_getvectormemb(Simp obj, SimpSiz pos);
 unsigned char simp_getstringmemb(Simp obj, SimpSiz pos);
 Type    simp_gettype(Simp obj);
@@ -159,7 +127,6 @@ bool    simp_isbyte(Simp obj);
 bool    simp_isempty(Simp obj);
 bool    simp_isenvironment(Simp obj);
 bool    simp_iseof(Simp obj);
-bool    simp_isexception(Simp obj);
 bool    simp_isfalse(Simp obj);
 bool    simp_isnum(Simp obj);
 bool    simp_isnulenv(Simp obj);
@@ -185,25 +152,24 @@ void    simp_cpyvector(Simp dst, Simp src);
 void    simp_cpystring(Simp dst, Simp src);
 
 /* data type constructors */
-Simp    simp_exception(int n);
-Simp    simp_makebyte(Simp ctx, unsigned char byte);
-Simp    simp_makebuiltin(Simp ctx, Builtin *);
-Simp    simp_makeclosure(Simp ctx, Simp src, Simp env, Simp params, Simp extras, Simp body);
-Simp    simp_makeenvironment(Simp ctx, Simp parent);
-Simp    simp_makenum(Simp ctx, SimpInt n);
-Simp    simp_makeport(Simp ctx, Heap *p);
-Simp    simp_makereal(Simp ctx, double x);
-Simp    simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size);
-Simp    simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size);
-Simp    simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size);
+bool    simp_makebyte(Simp ctx, Simp *ret, unsigned char byte);
+bool    simp_makebuiltin(Simp ctx, Simp *ret, Builtin *);
+bool    simp_makeclosure(Simp ctx, Simp *ret, Simp src, Simp env, Simp params, Simp extras, Simp body);
+bool    simp_makeenvironment(Simp ctx, Simp *ret, Simp parent);
+bool    simp_makenum(Simp ctx, Simp *ret, SimpInt n);
+bool    simp_makeport(Simp ctx, Simp *ret, Heap *p);
+bool    simp_makereal(Simp ctx, Simp *ret, double x);
+bool    simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size);
+bool    simp_makesymbol(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size);
+bool    simp_makevector(Simp ctx, Simp *ret, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size);
 
 /* slicers */
 Simp    simp_slicevector(Simp obj, SimpSiz from, SimpSiz size);
 Simp    simp_slicestring(Simp obj, SimpSiz from, SimpSiz size);
 
 /* port operations */
-Simp    simp_openstream(Simp ctx, const char *filename, void *p, char *mode);
-Simp    simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode);
+bool    simp_openstream(Simp ctx, Simp *ret, const char *filename, void *p, char *mode);
+bool    simp_openstring(Simp ctx, Simp *ret, unsigned char *p, SimpSiz len, char *mode);
 int     simp_porteof(Simp obj);
 int     simp_porterr(Simp obj);
 SimpSiz simp_portlineno(Simp obj);
@@ -215,9 +181,9 @@ void    simp_unreadbyte(Simp port, int c);
 void    simp_printf(Simp port, const char *fmt, ...);
 
 /* eval */
-Simp    simp_read(Simp ctx, Simp port);
-Simp    simp_write(Simp port, Simp obj);
-Simp    simp_display(Simp port, Simp obj);
+bool    simp_read(Simp ctx, Simp *obj, Simp port);
+void    simp_write(Simp port, Simp obj);
+void    simp_display(Simp port, Simp obj);
 int     simp_repl(Simp, Simp, Simp, Simp, Simp, Simp, int);
 
 /* environment operations */
@@ -232,6 +198,6 @@ void    simp_gcfree(Simp ctx);
 void   *simp_getheapdata(Heap *heap);
 
 /* context */
-Simp    simp_contextnew(void);
-Simp    simp_environmentnew(Simp ctx);
+bool    simp_contextnew(Simp *ctx);
+bool    simp_environmentnew(Simp ctx, Simp *env);
 bool    simp_getsource(Heap *, const char **, SimpSiz *, SimpSiz *);

@@ -36,12 +36,6 @@ enum {
 	CLOSURE_SIZE
 };
 
-static const char *errortab[NEXCEPTIONS] = {
-#define X(n, s) [n] = s,
-	EXCEPTIONS
-#undef  X
-};
-
 Simp *
 simp_getvector(Simp obj)
 {
@@ -68,10 +62,10 @@ simp_setenvframe(Simp env, Simp frame)
 	simp_setvector(env, ENVIRONMENT_FRAME, frame);
 }
 
-Simp
-simp_contextnew(void)
+bool
+simp_contextnew(Simp *ctx)
 {
-	return simp_makevector(simp_nil(), NULL, 0, 0, SYMTAB_SIZE);
+	return simp_makevector(simp_nil(), ctx, NULL, 0, 0, SYMTAB_SIZE);
 }
 
 void
@@ -153,12 +147,6 @@ simp_getclosurebody(Simp obj)
 	return simp_getclosure(obj)[CLOSURE_EXPRESSIONS];
 }
 
-const char *
-simp_getexception(Simp obj)
-{
-	return obj.u.errmsg;
-}
-
 static Simp *
 simp_getenvironment(Simp obj)
 {
@@ -233,14 +221,6 @@ simp_getstringmemb(Simp obj, SimpSiz pos)
 	return simp_getstring(obj)[pos];
 }
 
-const char *
-simp_errorstr(int exception)
-{
-	if (exception < 0 || exception >= NEXCEPTIONS)
-		return "unknown error";
-	return errortab[exception];
-}
-
 bool
 simp_isbool(Simp obj)
 {
@@ -283,12 +263,6 @@ bool
 simp_iseof(Simp obj)
 {
 	return simp_gettype(obj) == TYPE_EOF;
-}
-
-bool
-simp_isexception(Simp obj)
-{
-	return simp_gettype(obj) == TYPE_EXCEPTION;
 }
 
 bool
@@ -368,8 +342,6 @@ simp_issame(Simp a, Simp b)
 		return simp_getstring(a) == simp_getstring(b) &&
 			simp_getstart(a) == simp_getstart(b) &&
 			simp_getsize(a) == simp_getsize(b);
-	case TYPE_EXCEPTION:
-		return simp_getexception(a) == simp_getexception(b);
 	case TYPE_BUILTIN:
 		return simp_getbuiltin(a) == simp_getbuiltin(b);
 	case TYPE_EOF:
@@ -445,128 +417,121 @@ simp_true(void)
 	return (Simp){ .type = TYPE_TRUE };
 }
 
-Simp
-simp_makebuiltin(Simp ctx, Builtin *builtin)
+bool
+simp_makebuiltin(Simp ctx, Simp *ret, Builtin *builtin)
 {
 	(void)ctx;
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_BUILTIN,
 		.u.builtin = builtin,
 	};
+	return true;
 }
 
-Simp
-simp_makebyte(Simp ctx, unsigned char byte)
+bool
+simp_makebyte(Simp ctx, Simp *ret, unsigned char byte)
 {
 	(void)ctx;
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_BYTE,
 		.u.byte = byte,
 	};
+	return true;
 }
 
-Simp
-simp_makeenvironment(Simp ctx, Simp parent)
-{
-	Simp env;
-
-	(void)ctx;
-	env = simp_makevector(ctx, NULL, 0, 0, ENVIRONMENT_SIZE);
-	if (simp_isexception(env))
-		return env;
-	simp_setvector(env, ENVIRONMENT_PARENT, parent);
-	simp_setvector(env, ENVIRONMENT_FRAME, simp_nil());
-	env.type = TYPE_ENVIRONMENT;
-	return env;
-}
-
-Simp
-simp_exception(int n)
-{
-	return (Simp){
-		.type = TYPE_EXCEPTION,
-		.u.errmsg = simp_errorstr(n),
-	};
-}
-
-Simp
-simp_makenum(Simp ctx, SimpInt n)
+bool
+simp_makeenvironment(Simp ctx, Simp *env, Simp parent)
 {
 	(void)ctx;
-	return (Simp){
+	if (!simp_makevector(ctx, env, NULL, 0, 0, ENVIRONMENT_SIZE))
+		return false;
+	simp_setvector(*env, ENVIRONMENT_PARENT, parent);
+	simp_setvector(*env, ENVIRONMENT_FRAME, simp_nil());
+	env->type = TYPE_ENVIRONMENT;
+	return true;
+}
+
+bool
+simp_makenum(Simp ctx, Simp *ret, SimpInt n)
+{
+	(void)ctx;
+	*ret = (Simp){
 		.type = TYPE_SIGNUM,
 		.u.num = n,
 	};
+	return true;
 }
 
-Simp
-simp_makeclosure(Simp ctx, Simp src, Simp env, Simp params, Simp varargs, Simp body)
+bool
+simp_makeclosure(Simp ctx, Simp *lambda, Simp src, Simp env, Simp params, Simp varargs, Simp body)
 {
-	Simp lambda;
 	const char *filename = NULL;
 	SimpSiz lineno = 0;
 	SimpSiz column = 0;
 
 	(void)simp_getsource(simp_getgcmemory(src), &filename, &lineno, &column);
-	lambda = simp_makevector(ctx, filename, lineno, column, CLOSURE_SIZE);
-	if (simp_isexception(lambda))
-		return lambda;
-	simp_setvector(lambda, CLOSURE_ENVIRONMENT, env);
-	simp_setvector(lambda, CLOSURE_PARAMETERS, params);
-	simp_setvector(lambda, CLOSURE_VARARGS, varargs);
-	simp_setvector(lambda, CLOSURE_EXPRESSIONS, body);
-	lambda.type = TYPE_CLOSURE;
-	return lambda;
+	if (!simp_makevector(ctx, lambda, filename, lineno, column, CLOSURE_SIZE))
+		return false;
+	simp_setvector(*lambda, CLOSURE_ENVIRONMENT, env);
+	simp_setvector(*lambda, CLOSURE_PARAMETERS, params);
+	simp_setvector(*lambda, CLOSURE_VARARGS, varargs);
+	simp_setvector(*lambda, CLOSURE_EXPRESSIONS, body);
+	lambda->type = TYPE_CLOSURE;
+	return true;
 }
 
-Simp
-simp_makeport(Simp ctx, Heap *p)
+bool
+simp_makeport(Simp ctx, Simp *ret, Heap *p)
 {
 	(void)ctx;
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_PORT,
 		.size = 1,
 		.start = 0,
 		.u.heap = p,
 	};
+	return true;
 }
 
-Simp
-simp_makereal(Simp ctx, double x)
+bool
+simp_makereal(Simp ctx, Simp *ret, double x)
 {
 	(void)ctx;
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_REAL,
 		.u.real = x,
 	};
+	return true;
 }
 
-Simp
-simp_makestring(Simp ctx, const unsigned char *src, SimpSiz size)
+bool
+simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size)
 {
 	Heap *heap;
 	unsigned char *dst = NULL;
 
+	*ret = simp_empty();
 	if (size == 0)
-		return simp_empty();
+		return true;
 	heap = simp_gcnewobj(simp_getgcmemory(ctx), size, 0, NULL, 0, 0);
 	if (heap == NULL)
-		return simp_exception(ERROR_MEMORY);
+		return false;
 	dst = (unsigned char *)simp_getheapdata(heap);
 	if (src != NULL)
 		memcpy(dst, src, size);
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_STRING,
 		.size = size,
 		.start = 0,
 		.u.heap = heap,
 	};
+	return true;
 }
 
-Simp
-simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size)
+bool
+simp_makesymbol(Simp ctx, Simp *sym, const unsigned char *src, SimpSiz size)
 {
-	Simp list, prev, pair, sym;
+	Simp list, prev, pair;
 	SimpSiz i, bucket, len;
 	unsigned char *dst;
 
@@ -579,35 +544,34 @@ simp_makesymbol(Simp ctx, const unsigned char *src, SimpSiz size)
 	list = simp_getvectormemb(ctx, bucket);
 	prev = simp_nil();
 	for (pair = list; !simp_isnil(pair); pair = simp_getvectormemb(pair, 1)) {
-		sym = simp_getvectormemb(pair, 0);
-		dst = simp_getstring(sym);
-		len = simp_getsize(sym);
+		*sym = simp_getvectormemb(pair, 0);
+		dst = simp_getstring(*sym);
+		len = simp_getsize(*sym);
 		if (len == size && memcmp(src, dst, size) == 0)
-			return sym;
+			return true;
 		prev = pair;
 	}
-	sym = simp_makestring(ctx, src, size);
-	if (simp_isexception(sym))
-		return sym;
-	sym.type = TYPE_SYMBOL;
-	pair = simp_makevector(ctx, NULL, 0, 0, 2);
-	if (simp_isexception(pair))
-		return pair;
-	simp_setvector(pair, 0, sym);
+	if (!simp_makestring(ctx, sym, src, size))
+		return false;
+	sym->type = TYPE_SYMBOL;
+	if (!simp_makevector(ctx, &pair, NULL, 0, 0, 2))
+		return false;
+	simp_setvector(pair, 0, *sym);
 	if (simp_isnil(prev))
 		simp_setvector(ctx, bucket, pair);
 	else
 		simp_setvector(prev, 1, pair);
-	return sym;
+	return true;
 }
 
-Simp
-simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size)
+bool
+simp_makevector(Simp ctx, Simp *ret, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size)
 {
 	SimpSiz i;
 	Simp *data;
 	Heap *heap;
 
+	*ret = simp_nil();
 	if (size == 0 && filename == NULL) {
 		/*
 		 * If we are told to make an empty vector with some
@@ -617,7 +581,7 @@ simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, 
 		 * However, if it does not come from a file (eg, it
 		 * comes from an evaluation), return a simple nil.
 		 */
-		return simp_nil();
+		return true;
 	}
 	heap = simp_gcnewobj(
 		simp_getgcmemory(ctx),
@@ -628,16 +592,17 @@ simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, 
 		column
 	);
 	if (heap == NULL)
-		return simp_exception(ERROR_MEMORY);
+		return false;
 	data = simp_getheapdata(heap);
 	for (i = 0; i < size; i++)
 		data[i] = simp_nil();
-	return (Simp){
+	*ret = (Simp){
 		.type = TYPE_VECTOR,
 		.u.heap = heap,
 		.size = size,
 		.start = 0,
 	};
+	return true;
 }
 
 Simp

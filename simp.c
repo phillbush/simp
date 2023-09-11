@@ -44,31 +44,25 @@ main(int argc, char *argv[])
 		mode = MODE_SCRIPT;
 
 	/* first, create context (holds symbol table and garbage context) */
-	ctx = simp_contextnew();
-	if (simp_isexception(ctx))
+	if (!simp_contextnew(&ctx))
 		errx(EXIT_FAILURE, "could not create context");
 
 	/* then, create standard input/output/error ports */
-	iport = simp_openstream(ctx, "<stdin>", stdin, "r");
-	if (simp_isexception(iport))
+	if (!simp_openstream(ctx, &iport, "<stdin>", stdin, "r"))
 		errx(EXIT_FAILURE, "could not open input port");
-	oport = simp_openstream(ctx, "<stdout>", stdout, "w");
-	if (simp_isexception(oport))
+	if (!simp_openstream(ctx, &oport, "<stdout>", stdout, "w"))
 		errx(EXIT_FAILURE, "could not open output port");
-	eport = simp_openstream(ctx, "<stderr>", stderr, "w");
-	if (simp_isexception(eport))
+	if (!simp_openstream(ctx, &eport, "<stderr>", stderr, "w"))
 		errx(EXIT_FAILURE, "could not open error port");
 
 	/* finally, create environment (holds variable bindings) */
-	env = simp_environmentnew(ctx);
-	if (simp_isexception(env))
+	if (!simp_environmentnew(ctx, &env))
 		errx(EXIT_FAILURE, "could not create environment");
 
 	switch (mode) {
 	case MODE_STRING:
 	case MODE_PRINT:
-		port = simp_openstring(ctx, (unsigned char *)expr, strlen(expr), "r");
-		if (simp_isexception(port))
+		if (!simp_openstring(ctx, &port, (unsigned char *)expr, strlen(expr), "r"))
 			goto error;
 		retval = simp_repl(
 			ctx, env, port,
@@ -84,12 +78,11 @@ main(int argc, char *argv[])
 			port = iport;
 			iflag = 0;
 		} else if ((fp = fopen(argv[0], "r")) != NULL) {
-			port = simp_openstream(ctx, argv[0], fp, "r");
+			if (!simp_openstream(ctx, &port, argv[0], fp, "r"))
+				goto error;
 		} else {
 			goto error;
 		}
-		if (simp_isexception(port))
-			goto error;
 		retval = simp_repl(ctx, env, port, iport, oport, eport, 0);
 		if (fp != stdin)
 			(void)fclose(fp);
