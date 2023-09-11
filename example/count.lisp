@@ -1,5 +1,5 @@
 (define count
-  (lambda (n)
+  (lambda n
     (if
       (= n 0) 0
         (count (- n 1)))))

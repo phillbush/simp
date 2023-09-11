@@ -1,7 +1,7 @@
 (define ackermann
-  (lambda (x y)
+  (lambda x y
     (do
-      (display (apply string \('a' 'b' 'c')))
+      (display "compute")
       (newline)
       (if (= y 0) 0
           (= x 0) (* 2 y)
@@ -11,4 +11,4 @@
             (ackermann x (- y 1)))))))
 
 (display
-  (ackermann 1 6))
+  (apply ackermann \(1 6)))

@@ -1,5 +1,5 @@
 (define fact
-  (lambda (x)
+  (lambda x
     (if
       (= x 0) 1
       (* x (fact (- x 1))))))
