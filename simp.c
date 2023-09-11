@@ -71,8 +71,8 @@ main(int argc, char *argv[])
 		if (simp_isexception(port))
 			goto error;
 		retval = simp_repl(
-			ctx, env,
-			port, oport, eport,
+			ctx, env, port,
+			iport, oport, eport,
 			mode == MODE_PRINT ? SIMP_ECHO : 0
 		);
 		if (retval == EXIT_SUCCESS && iflag)
@@ -90,7 +90,7 @@ main(int argc, char *argv[])
 		}
 		if (simp_isexception(port))
 			goto error;
-		retval = simp_repl(ctx, env, port, oport, eport, 0);
+		retval = simp_repl(ctx, env, port, iport, oport, eport, 0);
 		if (fp != stdin)
 			(void)fclose(fp);
 		if (retval == EXIT_SUCCESS && iflag)
@@ -99,7 +99,7 @@ main(int argc, char *argv[])
 	case MODE_INTERACTIVE:
 interactive:
 		retval = simp_repl(
-			ctx, env,
+			ctx, env, iport,
 			iport, oport, eport,
 			SIMP_INTERACTIVE
 		);

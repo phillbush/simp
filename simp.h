@@ -212,7 +212,7 @@ void    simp_printf(Simp port, const char *fmt, ...);
 Simp    simp_read(Simp ctx, Simp port);
 Simp    simp_write(Simp port, Simp obj);
 Simp    simp_display(Simp port, Simp obj);
-int     simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode);
+int     simp_repl(Simp, Simp, Simp, Simp, Simp, Simp, int);
 
 /* environment operations */
 void    simp_setenvframe(Simp env, Simp frame);

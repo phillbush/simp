@@ -58,6 +58,7 @@
 	X("number?",            f_numberp,      1,      false      )\
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
+	X("read",               f_read,         0,      true       )\
 	X("reverse",            f_vectorrevnew, 1,      false      )\
 	X("reverse!",           f_vectorrev,    1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
@@ -87,7 +88,7 @@
 	X("true?",              f_truep,        1,      false      )\
 	X("vector",             f_vector,       0,      true       )\
 	X("vector?",            f_vectorp,      0,      true       )\
-	X("write",              f_write,        2,      false      )
+	X("write",              f_write,        1,      true       )
 
 enum {
 	/*
@@ -766,6 +767,26 @@ f_procedurep(Eval *eval, Simp args)
 	if (simp_isprocedure(obj))
 		return simp_true();
 	return simp_false();
+}
+
+Simp
+f_read(Eval *eval, Simp args)
+{
+	Simp port;
+
+	port = eval->iport;
+	switch (simp_getsize(args)) {
+	case 1:
+		port = simp_getvectormemb(args, 0);
+		/* FALLTHROUGH */
+	case 0:
+		break;
+	default:
+		return simp_exception(ERROR_ARGS);
+	}
+	if (!simp_isport(port))
+		return simp_exception(ERROR_ILLTYPE);
+	return simp_read(eval->ctx, port);
 }
 
 static Simp
@@ -1545,7 +1566,7 @@ simp_environmentnew(Simp ctx)
 	.fun = &p, \
 	.nargs = a, \
 	.variadic = v, \
-	.namelen = sizeof(s) },
+	.namelen = sizeof(s)-1 },
 		BUILTINS
 #undef  X
 	};
@@ -1809,11 +1830,11 @@ apply:
 }
 
 int
-simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode)
+simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, int mode)
 {
 	Simp obj;
 	Simp gcignore[] = {
-		env, iport, oport, eport
+		env, rport, iport, oport, eport
 	};
 	Eval eval = {
 		.ctx = ctx,
@@ -1822,15 +1843,15 @@ simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode)
 		.oport = oport,
 		.eport = eport,
 	};
-	int retval = -1;
+	int retval = 1;
 
 	for (;;) {
 		simp_gc(ctx, gcignore, LEN(gcignore));
-		if (simp_porterr(iport))
+		if (simp_porterr(rport))
 			goto error;
 		if (mode & SIMP_PROMPT)
 			simp_printf(oport, "> ");
-		obj = simp_read(ctx, iport);
+		obj = simp_read(ctx, rport);
 		if (simp_iseof(obj))
 			break;
 		if (!simp_isexception(obj))
@@ -1840,7 +1861,7 @@ simp_repl(Simp ctx, Simp env, Simp iport, Simp oport, Simp eport, int mode)
 			simp_printf(eport, "\n");
 			if (mode & SIMP_CONTINUE)
 				continue;
-			break;
+			goto error;
 		}
 		if ((mode & SIMP_ECHO) && !simp_isvoid(obj)) {
 			simp_write(oport, obj);
