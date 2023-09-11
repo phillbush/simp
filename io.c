@@ -417,8 +417,6 @@ readtok(Simp port)
 	Token tok = { 0 };
 	int c;
 
-	tok.lineno = simp_portlineno(port);
-	tok.column = simp_portcolumn(port);
 loop:
 	do {
 		c = simp_readbyte(port);
@@ -434,6 +432,8 @@ loop:
 		tok.type = TOK_EOF;
 		return tok;
 	}
+	tok.lineno = simp_portlineno(port);
+	tok.column = simp_portcolumn(port);
 	switch (c) {
 	case '\\':
 		tok.type = TOK_QUOTE;

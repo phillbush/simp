@@ -171,3 +171,17 @@ simp_getheapdata(Heap *heap)
 {
 	return heap->data;
 }
+
+bool
+simp_getsource(Heap *heap, const char **filename, SimpSiz *lineno, SimpSiz *column)
+{
+	if (heap == NULL || heap->filename == NULL)
+		return false;
+	if (filename != NULL)
+		*filename = heap->filename;
+	if (lineno != NULL)
+		*lineno = heap->lineno;
+	if (column != NULL)
+		*column = heap->column;
+	return true;
+}

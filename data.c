@@ -36,8 +36,8 @@ enum {
 	CLOSURE_SIZE
 };
 
-static unsigned char *errortab[NEXCEPTIONS] = {
-#define X(n, s) [n] = (unsigned char *)s,
+static const char *errortab[NEXCEPTIONS] = {
+#define X(n, s) [n] = s,
 	EXCEPTIONS
 #undef  X
 };
@@ -45,6 +45,8 @@ static unsigned char *errortab[NEXCEPTIONS] = {
 Simp *
 simp_getvector(Simp obj)
 {
+	if (simp_isnil(obj))
+		return NULL;
 	return (Simp *)simp_getheapdata(obj.u.heap) + obj.start;
 }
 
@@ -151,7 +153,7 @@ simp_getclosurebody(Simp obj)
 	return simp_getclosure(obj)[CLOSURE_EXPRESSIONS];
 }
 
-unsigned char *
+const char *
 simp_getexception(Simp obj)
 {
 	return obj.u.errmsg;
@@ -208,6 +210,8 @@ simp_getsize(Simp obj)
 unsigned char *
 simp_getstring(Simp obj)
 {
+	if (simp_isempty(obj))
+		return NULL;
 	return (unsigned char *)simp_getheapdata(obj.u.heap) + obj.start;
 }
 
@@ -229,11 +233,11 @@ simp_getstringmemb(Simp obj, SimpSiz pos)
 	return simp_getstring(obj)[pos];
 }
 
-unsigned char *
+const char *
 simp_errorstr(int exception)
 {
 	if (exception < 0 || exception >= NEXCEPTIONS)
-		return (unsigned char *)"unknown error";
+		return "unknown error";
 	return errortab[exception];
 }
 
@@ -296,7 +300,13 @@ simp_isfalse(Simp obj)
 bool
 simp_isnil(Simp obj)
 {
-	return simp_isvector(obj) && obj.u.heap == NULL;
+	if (!simp_isvector(obj))
+		return false;
+	if (simp_getgcmemory(obj) == NULL)
+		return true;
+	if (simp_getheapdata(obj.u.heap) == NULL)
+		return true;
+	return false;
 }
 
 bool
@@ -416,7 +426,7 @@ simp_setvector(Simp obj, SimpSiz pos, Simp val)
 Simp
 simp_slicevector(Simp obj, SimpSiz from, SimpSiz size)
 {
-	obj.start = from;
+	obj.start += from;
 	obj.size = size;
 	return obj;
 }
@@ -424,7 +434,7 @@ simp_slicevector(Simp obj, SimpSiz from, SimpSiz size)
 Simp
 simp_slicestring(Simp obj, SimpSiz from, SimpSiz size)
 {
-	obj.start = from;
+	obj.start += from;
 	obj.size = size;
 	return obj;
 }
@@ -490,11 +500,15 @@ simp_makenum(Simp ctx, SimpInt n)
 }
 
 Simp
-simp_makeclosure(Simp ctx, Simp env, Simp params, Simp varargs, Simp body)
+simp_makeclosure(Simp ctx, Simp src, Simp env, Simp params, Simp varargs, Simp body)
 {
 	Simp lambda;
+	const char *filename = NULL;
+	SimpSiz lineno = 0;
+	SimpSiz column = 0;
 
-	lambda = simp_makevector(ctx, NULL, 0, 0, CLOSURE_SIZE);
+	(void)simp_getsource(simp_getgcmemory(src), &filename, &lineno, &column);
+	lambda = simp_makevector(ctx, filename, lineno, column, CLOSURE_SIZE);
 	if (simp_isexception(lambda))
 		return lambda;
 	simp_setvector(lambda, CLOSURE_ENVIRONMENT, env);
@@ -594,8 +608,17 @@ simp_makevector(Simp ctx, const char *filename, SimpSiz lineno, SimpSiz column, 
 	Simp *data;
 	Heap *heap;
 
-	if (size == 0)
+	if (size == 0 && filename == NULL) {
+		/*
+		 * If we are told to make an empty vector with some
+		 * source, we'll allocate a heap entry for it, just
+		 * to keep its origin.
+		 *
+		 * However, if it does not come from a file (eg, it
+		 * comes from an evaluation), return a simple nil.
+		 */
 		return simp_nil();
+	}
 	heap = simp_gcnewobj(
 		simp_getgcmemory(ctx),
 		size * sizeof(Simp),

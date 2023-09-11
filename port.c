@@ -61,6 +61,12 @@ simp_readbyte(Simp obj)
 
 	if (!canread(port))
 		return NOTHING;
+	if (port->count == PORT_NEWLINE) {
+		port->lineno++;
+		port->column = 1;
+	} else if (port->count == PORT_NEWCHAR) {
+		port->column++;
+	}
 	switch (port->type) {
 	case PORT_STRING:
 		if (port->u.str.curr >= port->u.str.size) {
@@ -82,7 +88,9 @@ simp_readbyte(Simp obj)
 		break;
 	}
 	if (byte == '\n')
-		port->lineno++;
+		port->count = PORT_NEWLINE;
+	else
+		port->count = PORT_NEWCHAR;
 	return byte;
 }
 
@@ -96,6 +104,7 @@ simp_unreadbyte(Simp obj, int c)
 	port = simp_getport(obj);
 	if (!canread(port))
 		return;
+	port->count = PORT_NOTHING;
 	switch (port->type) {
 	case PORT_STRING:
 		if (port->u.str.curr > 0)
@@ -142,8 +151,8 @@ simp_openstream(Simp ctx, const char *file, void *p, char *mode)
 	if (simp_isexception(sym))
 		return sym;
 	port->filename = (const char *)simp_getsymbol(sym);
-	port->lineno = 0;
-	port->column = 0;
+	port->lineno = 1;
+	port->column = 1;
 	return simp_makeport(ctx, heap);
 }
 
@@ -168,8 +177,8 @@ simp_openstring(Simp ctx, unsigned char *p, SimpSiz len, char *mode)
 	port->u.str.size = len;
 	port->u.str.curr = 0;
 	port->filename = NULL;
-	port->lineno = 0;
-	port->column = 0;
+	port->lineno = 1;
+	port->column = 1;
 	return simp_makeport(ctx, heap);
 }
 

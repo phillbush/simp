@@ -23,6 +23,7 @@
 	X(ERROR_UNKSYNTAX,  "unknown syntax form"                       )\
 	X(ERROR_ILLTYPE,    "improper type"                             )\
 	X(ERROR_NOTBYTE,    "not a byte"                                )\
+	X(ERROR_NOTVECTOR,  "expected vector"                           )\
 	X(ERROR_NOTSYM,     "not a symbol"                              )\
 	X(ERROR_STREAM,     "stream error"                              )\
 	X(ERROR_RANGE,      "out of range"                              )\
@@ -79,7 +80,7 @@ struct Simp {
 		SimpInt         num;
 		double          real;
 		Heap           *heap;
-		unsigned char  *errmsg;
+		const char     *errmsg;
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
@@ -100,6 +101,11 @@ struct Port {
 		PORT_ERR      = 0x08,
 		PORT_EOF      = 0x10,
 	} mode;
+	enum PortCount {
+		PORT_NOTHING,
+		PORT_NEWLINE,
+		PORT_NEWCHAR,
+	} count;
 	union {
 		void   *fp;
 		struct {
@@ -113,7 +119,7 @@ struct Port {
 };
 
 /* error handling */
-unsigned char *simp_errorstr(int exception);
+const char *simp_errorstr(int exception);
 
 /* data constant utils */
 Simp    simp_nil(void);
@@ -133,7 +139,7 @@ double  simp_getreal(Simp obj);
 SimpSiz simp_getsize(Simp obj);
 unsigned char *simp_getstring(Simp obj);
 unsigned char *simp_getsymbol(Simp obj);
-unsigned char *simp_getexception(Simp obj);
+const char *simp_getexception(Simp obj);
 Simp    simp_getvectormemb(Simp obj, SimpSiz pos);
 unsigned char simp_getstringmemb(Simp obj, SimpSiz pos);
 Type    simp_gettype(Simp obj);
@@ -182,7 +188,7 @@ void    simp_cpystring(Simp dst, Simp src);
 Simp    simp_exception(int n);
 Simp    simp_makebyte(Simp ctx, unsigned char byte);
 Simp    simp_makebuiltin(Simp ctx, Builtin *);
-Simp    simp_makeclosure(Simp ctx, Simp env, Simp params, Simp extras, Simp body);
+Simp    simp_makeclosure(Simp ctx, Simp src, Simp env, Simp params, Simp extras, Simp body);
 Simp    simp_makeenvironment(Simp ctx, Simp parent);
 Simp    simp_makenum(Simp ctx, SimpInt n);
 Simp    simp_makeport(Simp ctx, Heap *p);
@@ -228,3 +234,4 @@ void   *simp_getheapdata(Heap *heap);
 /* context */
 Simp    simp_contextnew(void);
 Simp    simp_environmentnew(Simp ctx);
+bool    simp_getsource(Heap *, const char **, SimpSiz *, SimpSiz *);

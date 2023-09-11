@@ -1,5 +1,5 @@
 #include <limits.h>
-
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,6 +112,7 @@ typedef struct Eval {
 	Simp ctx;
 	Simp env;
 	Simp iport, oport, eport;
+	jmp_buf jmp;
 } Eval;
 
 struct Builtin {
@@ -834,7 +835,7 @@ f_slicevector(Eval *eval, Simp args)
 	}
 	size = capacity - from;
 	if (nargs > 2) {
-		obj = simp_getvectormemb(args, 1);
+		obj = simp_getvectormemb(args, 2);
 		if (!simp_isnum(obj)) {
 			return simp_exception(ERROR_ILLTYPE);
 		}
@@ -875,7 +876,7 @@ f_slicestring(Eval *eval, Simp args)
 		}
 	}
 	if (nargs > 2) {
-		obj = simp_getvectormemb(args, 1);
+		obj = simp_getvectormemb(args, 2);
 		if (!simp_isnum(obj)) {
 			return simp_exception(ERROR_ILLTYPE);
 		}
@@ -1588,13 +1589,45 @@ simp_environmentnew(Simp ctx)
 	return env;
 }
 
+static void
+error(Eval *eval, Simp expr, Simp sym, Simp obj, int errval)
+{
+	Heap *heap;
+	const char *filename;
+	SimpSiz lineno;
+	SimpSiz column;
+
+	heap = simp_getgcmemory(expr);
+	if (simp_getsource(heap, &filename, &lineno, &column)) {
+		simp_printf(
+			eval->eport,
+			"%s:%llu:%llu: ",
+			filename,
+			lineno,
+			column
+		);
+	}
+	if (simp_issymbol(sym)) {
+		simp_printf(eval->eport, "in ");
+		simp_write(eval->eport, sym);
+		simp_printf(eval->eport, ": ");
+	}
+	simp_printf(eval->eport, "%s", simp_errorstr(errval));
+	if (!simp_isvoid(obj)) {
+		simp_printf(eval->eport, "; got ");
+		simp_write(eval->eport, obj);
+	}
+	simp_printf(eval->eport, "\n");
+	longjmp(eval->jmp, 1);
+}
+
 static Simp
 simp_eval(Eval *eval, Simp expr, Simp env)
 {
 	Form form;
 	Builtin *bltin;
 	Simp operator, operands, arguments, extraargs, extraparams;
-	Simp params, var, val;
+	Simp params, proc, body, var, val;
 	SimpSiz noperands, nparams, narguments, nextraargs, i;
 
 loop:
@@ -1603,7 +1636,7 @@ loop:
 	if (!simp_isvector(expr))  /* expression is self-evaluating */
 		return expr;
 	if ((noperands = simp_getsize(expr)) == 0)
-		return simp_exception(ERROR_EMPTY);
+		error(eval, expr, simp_void(), simp_void(), ERROR_EMPTY);
 	noperands--;
 	operator = simp_getvectormemb(expr, 0);
 	operands = simp_slicevector(expr, 1, noperands);
@@ -1611,19 +1644,20 @@ loop:
 	case FORM_APPLY:
 		/* (apply PROC ARG ... ARGS) */
 		if (noperands < 2)
-			return simp_exception(ERROR_ILLFORM);
-		operator = simp_getvectormemb(operands, 0);
+			error(eval, expr, simp_void(), simp_void(), ERROR_ILLFORM);
+		proc = simp_getvectormemb(operands, 0);
 		extraargs = simp_getvectormemb(operands, noperands - 1);
 		extraargs = simp_eval(eval, extraargs, env);
 		if (simp_isexception(extraargs))
 			return extraargs;
 		if (simp_isvoid(extraargs))
-			return simp_exception(ERROR_VOID);
+			error(eval, expr, operator, simp_void(), ERROR_VOID);
 		if (!simp_isvector(extraargs))
-			return simp_exception(ERROR_ILLTYPE);
+			error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
 		nextraargs = simp_getsize(extraargs);
 		operands = simp_slicevector(operands, 1, noperands - 2);
 		noperands -= 2;
+		operator = proc;
 		goto apply;
 	case FORM_AND:
 		/* (and EXPRESSION ...) */
@@ -1715,7 +1749,7 @@ loop:
 		/* (lambda PARAMETER ... BODY) */
 		if (noperands < 1)
 			return simp_exception(ERROR_ILLFORM);
-		expr = simp_getvectormemb(operands, noperands - 1);
+		body = simp_getvectormemb(operands, noperands - 1);
 		params = simp_slicevector(operands, 0, noperands - 1);
 		for (i = 0; i + 1 < noperands; i++) {
 			var = simp_getvectormemb(operands, i);
@@ -1723,12 +1757,12 @@ loop:
 				return simp_exception(ERROR_ILLFORM);
 			}
 		}
-		return simp_makeclosure(eval->ctx, env, params, simp_nil(), expr);
+		return simp_makeclosure(eval->ctx, expr, env, params, simp_nil(), body);
 	case FORM_VARLAMBDA:
 		/* (lambda PARAMETER PARAMETER ... BODY) */
 		if (noperands < 2)
 			return simp_exception(ERROR_ILLFORM);
-		expr = simp_getvectormemb(operands, noperands - 1);
+		body = simp_getvectormemb(operands, noperands - 1);
 		extraparams = simp_getvectormemb(operands, noperands - 2);
 		params = simp_slicevector(operands, 0, noperands - 2);
 		for (i = 0; i + 1 < noperands; i++) {
@@ -1737,7 +1771,7 @@ loop:
 				return simp_exception(ERROR_ILLFORM);
 			}
 		}
-		return simp_makeclosure(eval->ctx, env, params, extraparams, expr);
+		return simp_makeclosure(eval->ctx, expr, env, params, extraparams, body);
 	case FORM_QUOTE:
 		/* (quote OBJ) */
 		if (noperands != 1)
@@ -1845,6 +1879,8 @@ simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, in
 	};
 	int retval = 1;
 
+	if (setjmp(eval.jmp) && !FLAG(mode, SIMP_CONTINUE))
+		goto error;
 	for (;;) {
 		simp_gc(ctx, gcignore, LEN(gcignore));
 		if (simp_porterr(rport))
