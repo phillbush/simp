@@ -33,6 +33,7 @@
 	X(FORM_AND,             "and"                   )\
 	X(FORM_APPLY,           "apply"                 )\
 	X(FORM_DEFINE,          "define"                )\
+	X(FORM_DEFUN,           "defun"                 )\
 	X(FORM_DO,              "do"                    )\
 	X(FORM_EVAL,            "eval"                  )\
 	X(FORM_FALSE,           "false"                 )\
@@ -1671,23 +1672,6 @@ envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 	simp_setenvframe(env, bind);
 }
 
-static void
-define(Eval *eval, Simp expr, Simp env, bool redefine)
-{
-	Simp operator, symbol, value;
-
-	operator = simp_getvectormemb(expr, 0);
-	symbol = simp_getvectormemb(expr, 1);
-	if (!simp_issymbol(symbol))
-		error(eval, expr, operator, symbol, ERROR_NOTSYM);
-	value = simp_getvectormemb(expr, 2);
-	value = simp_eval(eval, value, env);
-	if (redefine)
-		envset(eval, expr, env, symbol, value);
-	else
-		envdef(eval, expr, env, symbol, value);
-}
-
 static Builtin bltins[] = {
 #define X(s, p, a, v) { \
 .name = (unsigned char *)s, \
@@ -1799,7 +1783,12 @@ loop:
 		/* (define VAR VAL) */
 		if (noperands != 2)
 			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		define(eval, expr, env, false);
+		var = simp_getvectormemb(expr, 1);
+		if (!simp_issymbol(var))
+			error(eval, expr, operator, var, ERROR_NOTSYM);
+		val = simp_getvectormemb(expr, 2);
+		val = simp_eval(eval, val, env);
+		envdef(eval, expr, env, var, val);
 		return simp_void();
 	case FORM_DO:
 		/* (do EXPRESSION ...) */
@@ -1849,6 +1838,26 @@ loop:
 		if (simp_isvoid(env))
 			error(eval, expr, operator, simp_void(), ERROR_VOID);
 		goto loop;
+	case FORM_DEFUN:
+		/* (defun SYMBOL PARAMETER ... BODY) */
+		if (noperands < 2)
+			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
+		var = simp_getvectormemb(expr, 1);
+		if (!simp_issymbol(var))
+			error(eval, expr, operator, var, ERROR_NOTSYM);
+		operands = simp_slicevector(operands, 1, --noperands);
+		body = simp_getvectormemb(operands, noperands - 1);
+		params = simp_slicevector(operands, 0, noperands - 1);
+		for (i = 0; i + 1 < noperands; i++) {
+			val = simp_getvectormemb(operands, i);
+			if (!simp_issymbol(val)) {
+				error(eval, expr, operator, val, ERROR_NOTSYM);
+			}
+		}
+		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
+			memerror(eval);
+		envdef(eval, expr, env, var, proc);
+		return simp_void();
 	case FORM_LAMBDA:
 		/* (lambda PARAMETER ... BODY) */
 		if (noperands < 1)
@@ -1889,7 +1898,12 @@ loop:
 		/* (redefine VAR VAL) */
 		if (noperands != 2)
 			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		define(eval, expr, env, true);
+		var = simp_getvectormemb(expr, 1);
+		if (!simp_issymbol(var))
+			error(eval, expr, operator, var, ERROR_NOTSYM);
+		val = simp_getvectormemb(expr, 2);
+		val = simp_eval(eval, val, env);
+		envset(eval, expr, env, var, val);
 		return simp_void();
 	case FORM_FALSE:
 		/* (false) */
