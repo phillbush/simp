@@ -16,6 +16,7 @@
 #define ERROR_NOTBYTE     "expected byte; got "
 #define ERROR_NOTENV      "expected environment; got "
 #define ERROR_NOTFIT      "source object do not fit destination"
+#define ERROR_NOTINT      "expected integer; got "
 #define ERROR_NOTNUM      "expected number; got "
 #define ERROR_NOTPORT     "expected device port; got "
 #define ERROR_NOTPROC     "expected procedure; got "
@@ -39,6 +40,7 @@
 	X(FORM_FALSE,           "false"                 )\
 	X(FORM_IF,              "if"                    )\
 	X(FORM_LAMBDA,          "lambda"                )\
+	X(FORM_LET,             "let"                   )\
 	X(FORM_OR,              "or"                    )\
 	X(FORM_QUOTE,           "quote"                 )\
 	X(FORM_REDEFINE,        "redefine"              )\
@@ -220,31 +222,29 @@ f_abs(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	SimpInt num;
 
 	obj = simp_getvectormemb(args, 0);
-	if (!simp_isnum(obj))
-		error(eval, expr, self, obj, ERROR_NOTNUM);
-	num = simp_getnum(obj);
+	if (!simp_issignum(obj))
+		error(eval, expr, self, obj, ERROR_NOTINT);
+	num = simp_getsignum(obj);
 	num = llabs(num);
-	if (!simp_makenum(eval->ctx, ret, num))
+	if (!simp_makesignum(eval->ctx, ret, num))
 		memerror(eval);
 }
 
 static void
-f_add(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_add(Eval *eval, Simp *sum, Simp self, Simp expr, Simp args)
 {
 	SimpSiz nargs, i;
-	SimpInt sum;
 	Simp obj;
 
 	nargs = simp_getsize(args);
-	sum = 0;
+	if (!simp_makesignum(eval->ctx, sum, 0))
+		memerror(eval);
 	for (i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isnum(obj))
 			error(eval, expr, self, obj, ERROR_NOTNUM);
-		sum += simp_getnum(obj);
-	}
-	if (!simp_makenum(eval->ctx, ret, sum)) {
-		memerror(eval);
+		if (!simp_arithadd(eval->ctx, sum, *sum, obj))
+			memerror(eval);
 	}
 }
 
@@ -275,7 +275,7 @@ f_car(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	(void)eval;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
-		error(eval, expr, self, obj, ERROR_NOTNUM);
+		error(eval, expr, self, obj, ERROR_NOTINT);
 	size = simp_getsize(obj);
 	if (size < 1)
 		error(eval, expr, self, simp_nil(), ERROR_NIL);
@@ -352,29 +352,32 @@ f_display(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_divide(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_divide(Eval *eval, Simp *ratio, Simp self, Simp expr, Simp args)
 {
 	SimpSiz nargs, i;
-	SimpInt ratio, d;
 	Simp obj;
 
 	nargs = simp_getsize(args);
-	ratio = 0;
+	if (!simp_makesignum(eval->ctx, ratio, 1))
+		memerror(eval);
 	for (i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isnum(obj))
 			error(eval, expr, self, obj, ERROR_NOTNUM);
-		d = simp_getnum(obj);
 		if (nargs > 1 && i == 0) {
-			ratio = d;
-		} else if (d != 0) {
-			ratio /= d;
+			*ratio = obj;
+		} else if (!simp_arithzero(obj)) {
+			if (!simp_arithdiv(
+				eval->ctx,
+				ratio,
+				*ratio,
+				obj
+			)) {
+				memerror(eval);
+			}
 		} else {
 			error(eval, expr, self, simp_void(), ERROR_DIVZERO);
 		}
-	}
-	if (!simp_makenum(eval->ctx, ret, ratio)) {
-		memerror(eval);
 	}
 }
 
@@ -432,7 +435,7 @@ f_equal(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, next, ERROR_NOTNUM);
 		if (i == 0)
 			continue;
-		if (simp_getnum(prev) != simp_getnum(next)) {
+		if (simp_arithcmp(prev, next) != 0) {
 			*ret = simp_false();
 			break;
 		}
@@ -546,7 +549,7 @@ f_ge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, next, ERROR_NOTNUM);
 		if (i == 0)
 			continue;
-		if (simp_getnum(prev) < simp_getnum(next)) {
+		if (simp_arithcmp(prev, next) < 0) {
 			*ret = simp_false();
 			break;
 		}
@@ -568,7 +571,7 @@ f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, next, ERROR_NOTNUM);
 		if (i == 0)
 			continue;
-		if (simp_getnum(prev) <= simp_getnum(next)) {
+		if (simp_arithcmp(prev, next) <= 0) {
 			*ret = simp_false();
 			break;
 		}
@@ -590,7 +593,7 @@ f_le(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, next, ERROR_NOTNUM);
 		if (i == 0)
 			continue;
-		if (simp_getnum(prev) > simp_getnum(next)) {
+		if (simp_arithcmp(prev, next) > 0) {
 			*ret = simp_false();
 			break;
 		}
@@ -612,7 +615,7 @@ f_lt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, next, ERROR_NOTNUM);
 		if (i == 0)
 			continue;
-		if (simp_getnum(prev) >= simp_getnum(next)) {
+		if (simp_arithcmp(prev, next) >= 0) {
 			*ret = simp_false();
 			break;
 		}
@@ -626,9 +629,9 @@ f_makestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	Simp obj;
 
 	obj = simp_getvectormemb(args, 0);
-	if (!simp_isnum(obj))
-		error(eval, expr, self, obj, ERROR_NOTNUM);
-	size = simp_getnum(obj);
+	if (!simp_issignum(obj))
+		error(eval, expr, self, obj, ERROR_NOTINT);
+	size = simp_getsignum(obj);
 	if (size < 0)
 		error(eval, expr, self, obj, ERROR_RANGE);
 	if (!simp_makestring(eval->ctx, ret, NULL, size))
@@ -642,9 +645,9 @@ f_makevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	Simp obj;
 
 	obj = simp_getvectormemb(args, 0);
-	if (!simp_isnum(obj))
-		error(eval, expr, self, obj, ERROR_NOTNUM);
-	size = simp_getnum(obj);
+	if (!simp_issignum(obj))
+		error(eval, expr, self, obj, ERROR_NOTINT);
+	size = simp_getsignum(obj);
 	if (size < 0)
 		error(eval, expr, self, obj, ERROR_RANGE);
 	if (!simp_makevector(eval->ctx, ret, size))
@@ -771,22 +774,21 @@ f_member(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_multiply(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_multiply(Eval *eval, Simp *prod, Simp self, Simp expr, Simp args)
 {
 	SimpSiz nargs, i;
-	SimpInt prod;
 	Simp obj;
 
 	nargs = simp_getsize(args);
-	prod = 1;
+	if (!simp_makesignum(eval->ctx, prod, 1))
+		memerror(eval);
 	for (i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isnum(obj))
-			error(eval, expr, self, obj, ERROR_NOTNUM);
-		prod *= simp_getnum(obj);
+			error(eval, expr, self, obj, ERROR_NOTINT);
+		if (!simp_arithmul(eval->ctx, prod, *prod, obj))
+			memerror(eval);
 	}
-	if (!simp_makenum(eval->ctx, ret, prod))
-		memerror(eval);
 }
 
 static void
@@ -840,7 +842,7 @@ f_numberp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	(void)eval;
 	(void)self;
 	(void)expr;
-	typepred(args, ret, simp_isnum);
+	typepred(args, ret, simp_issignum);
 }
 
 static void
@@ -891,15 +893,15 @@ f_remainder(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 
 	a = simp_getvectormemb(args, 0);
 	b = simp_getvectormemb(args, 1);
-	if (!simp_isnum(a))
-		error(eval, expr, self, a, ERROR_NOTNUM);
-	if (!simp_isnum(b))
-		error(eval, expr, self, b, ERROR_NOTNUM);
-	d = simp_getnum(b);
+	if (!simp_issignum(a))
+		error(eval, expr, self, a, ERROR_NOTINT);
+	if (!simp_issignum(b))
+		error(eval, expr, self, b, ERROR_NOTINT);
+	d = simp_getsignum(b);
 	if (d == 0)
 		error(eval, expr, self, simp_void(), ERROR_DIVZERO);
-	d = simp_getnum(a) % d;
-	if (!simp_makenum(eval->ctx, ret, d))
+	d = simp_getsignum(a) % d;
+	if (!simp_makesignum(eval->ctx, ret, d))
 		memerror(eval);
 }
 
@@ -942,10 +944,10 @@ f_slicevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	capacity = simp_getsize(vector);
 	if (nargs > 1) {
 		obj = simp_getvectormemb(args, 1);
-		if (!simp_isnum(obj)) {
-			error(eval, expr, self, obj, ERROR_NOTNUM);
+		if (!simp_issignum(obj)) {
+			error(eval, expr, self, obj, ERROR_NOTINT);
 		}
-		from = simp_getnum(obj);
+		from = simp_getsignum(obj);
 		if (from < 0 || from > capacity) {
 			error(eval, expr, self, obj, ERROR_RANGE);
 		}
@@ -953,10 +955,10 @@ f_slicevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	size = capacity - from;
 	if (nargs > 2) {
 		obj = simp_getvectormemb(args, 2);
-		if (!simp_isnum(obj)) {
-			error(eval, expr, self, obj, ERROR_NOTNUM);
+		if (!simp_issignum(obj)) {
+			error(eval, expr, self, obj, ERROR_NOTINT);
 		}
-		size = simp_getnum(obj);
+		size = simp_getsignum(obj);
 		if (size < 0 || from + size > capacity) {
 			error(eval, expr, self, obj, ERROR_RANGE);
 		}
@@ -985,20 +987,20 @@ f_slicestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	capacity = simp_getsize(string);
 	if (nargs > 1) {
 		obj = simp_getvectormemb(args, 1);
-		if (!simp_isnum(obj)) {
-			error(eval, expr, self, obj, ERROR_NOTNUM);
+		if (!simp_issignum(obj)) {
+			error(eval, expr, self, obj, ERROR_NOTINT);
 		}
-		from = simp_getnum(obj);
+		from = simp_getsignum(obj);
 		if (from < 0 || from > capacity) {
 			error(eval, expr, self, obj, ERROR_RANGE);
 		}
 	}
 	if (nargs > 2) {
 		obj = simp_getvectormemb(args, 2);
-		if (!simp_isnum(obj)) {
-			error(eval, expr, self, obj, ERROR_NOTNUM);
+		if (!simp_issignum(obj)) {
+			error(eval, expr, self, obj, ERROR_NOTINT);
 		}
-		size = simp_getnum(obj);
+		size = simp_getsignum(obj);
 		if (size < 0 || from + size > capacity) {
 			error(eval, expr, self, obj, ERROR_RANGE);
 		}
@@ -1010,26 +1012,26 @@ f_slicestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_subtract(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_subtract(Eval *eval, Simp *diff, Simp self, Simp expr, Simp args)
 {
 	SimpSiz nargs, i;
-	SimpInt diff;
 	Simp obj;
 
 	nargs = simp_getsize(args);
-	diff = 0;
+	if (!simp_makesignum(eval->ctx, diff, 0))
+		memerror(eval);
 	for (i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isnum(obj))
 			error(eval, expr, self, obj, ERROR_NOTNUM);
 		if (nargs == 1 || i > 0) {
-			diff -= simp_getnum(obj);
+			if (!simp_arithdiff(eval->ctx, diff, *diff, obj)) {
+				memerror(eval);
+			}
 		} else {
-			diff = simp_getnum(obj);
+			*diff = obj;
 		}
 	}
-	if (!simp_makenum(eval->ctx, ret, diff))
-		memerror(eval);
 }
 
 static void
@@ -1204,7 +1206,7 @@ f_stringlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	if (!simp_isstring(obj))
 		error(eval, expr, self, obj, ERROR_NOTSTRING);
 	size = simp_getsize(obj);
-	if (!simp_makenum(eval->ctx, ret, size))
+	if (!simp_makesignum(eval->ctx, ret, size))
 		memerror(eval);
 }
 
@@ -1220,10 +1222,10 @@ f_stringref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	b = simp_getvectormemb(args, 1);
 	if (!simp_isstring(a))
 		error(eval, expr, self, a, ERROR_NOTSTRING);
-	if (!simp_isnum(b))
-		error(eval, expr, self, b, ERROR_NOTNUM);
+	if (!simp_issignum(b))
+		error(eval, expr, self, b, ERROR_NOTINT);
 	size = simp_getsize(a);
-	pos = simp_getnum(b);
+	pos = simp_getsignum(b);
 	if (pos < 0 || pos >= (SimpInt)size)
 		error(eval, expr, self, b, ERROR_RANGE);
 	u = simp_getstringmemb(a, pos);
@@ -1275,12 +1277,12 @@ f_stringset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	val = simp_getvectormemb(args, 2);
 	if (!simp_isstring(str))
 		error(eval, expr, self, str, ERROR_NOTSTRING);
-	if (!simp_isnum(pos))
-		error(eval, expr, self, pos, ERROR_NOTNUM);
+	if (!simp_issignum(pos))
+		error(eval, expr, self, pos, ERROR_NOTINT);
 	if (!simp_isbyte(val))
 		error(eval, expr, self, val, ERROR_NOTBYTE);
 	size = simp_getsize(str);
-	n = simp_getnum(pos);
+	n = simp_getsignum(pos);
 	u = simp_getbyte(val);
 	if (n < 0 || n >= (SimpInt)size)
 		error(eval, expr, self, pos, ERROR_RANGE);
@@ -1437,10 +1439,10 @@ f_vectorset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	val = simp_getvectormemb(args, 2);
 	if (!simp_isvector(vector))
 		error(eval, expr, self, vector, ERROR_NOTVECTOR);
-	if (!simp_isnum(pos))
-		error(eval, expr, self, pos, ERROR_NOTNUM);
+	if (!simp_issignum(pos))
+		error(eval, expr, self, pos, ERROR_NOTINT);
 	size = simp_getsize(vector);
-	n = simp_getnum(pos);
+	n = simp_getsignum(pos);
 	if (n < 0 || n >= (SimpInt)size)
 		error(eval, expr, self, pos, ERROR_RANGE);
 	simp_setvector(vector, n, val);
@@ -1456,7 +1458,7 @@ f_vectorlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
 	size = simp_getsize(obj);
-	if (!simp_makenum(eval->ctx, ret, size))
+	if (!simp_makesignum(eval->ctx, ret, size))
 		memerror(eval);
 }
 
@@ -1472,10 +1474,10 @@ f_vectorref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	b = simp_getvectormemb(args, 1);
 	if (!simp_isvector(a))
 		error(eval, expr, self, a, ERROR_NOTVECTOR);
-	if (!simp_isnum(b))
-		error(eval, expr, self, b, ERROR_NOTNUM);
+	if (!simp_issignum(b))
+		error(eval, expr, self, b, ERROR_NOTINT);
 	size = simp_getsize(a);
-	pos = simp_getnum(b);
+	pos = simp_getsignum(b);
 	if (pos < 0 || pos >= (SimpInt)size)
 		error(eval, expr, self, b, ERROR_RANGE);
 	*ret = simp_getvectormemb(a, pos);
@@ -1873,6 +1875,21 @@ loop:
 		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
 			memerror(eval);
 		return proc;
+	case FORM_LET:
+		if (noperands % 2 == 0)
+			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
+		if (!simp_makeenvironment(eval->ctx, &env, env))
+			memerror(eval);
+		for (i = 0; i + 1 < noperands; i += 2) {
+			var = simp_getvectormemb(operands, i);
+			if (!simp_issymbol(var))
+				error(eval, expr, operator, var, ERROR_NOTSYM);
+			val = simp_getvectormemb(operands, i + 1);
+			val = simp_eval(eval, val, env);
+			envdef(eval, expr, env, var, val);
+		}
+		expr = simp_getvectormemb(operands, noperands - 1);
+		goto loop;
 	case FORM_VARLAMBDA:
 		/* (lambda PARAMETER PARAMETER ... BODY) */
 		if (noperands < 2)

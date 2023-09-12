@@ -104,7 +104,7 @@ Simp    simp_void(void);
 /* data type accessors */
 Builtin *simp_getbuiltin(Simp obj);
 unsigned char simp_getbyte(Simp obj);
-SimpInt simp_getnum(Simp obj);
+SimpInt simp_getsignum(Simp obj);
 Port   *simp_getport(Simp obj);
 double  simp_getreal(Simp obj);
 SimpSiz simp_getsize(Simp obj);
@@ -130,14 +130,16 @@ bool    simp_isempty(Simp obj);
 bool    simp_isenvironment(Simp obj);
 bool    simp_iseof(Simp obj);
 bool    simp_isfalse(Simp obj);
-bool    simp_isnum(Simp obj);
+//bool    simp_isnum(Simp obj);
 bool    simp_isnulenv(Simp obj);
 bool    simp_isnil(Simp obj);
 bool    simp_ispair(Simp obj);
 bool    simp_ispair(Simp obj);
 bool    simp_isport(Simp obj);
+bool    simp_isnum(Simp obj);
 bool    simp_isprocedure(Simp obj);
 bool    simp_isreal(Simp obj);
+bool    simp_issignum(Simp obj);
 bool    simp_isstring(Simp obj);
 bool    simp_issymbol(Simp obj);
 bool    simp_istrue(Simp obj);
@@ -158,7 +160,7 @@ bool    simp_makebyte(Simp ctx, Simp *ret, unsigned char byte);
 bool    simp_makebuiltin(Simp ctx, Simp *ret, Builtin *);
 bool    simp_makeclosure(Simp ctx, Simp *ret, Simp src, Simp env, Simp params, Simp extras, Simp body);
 bool    simp_makeenvironment(Simp ctx, Simp *ret, Simp parent);
-bool    simp_makenum(Simp ctx, Simp *ret, SimpInt n);
+bool    simp_makesignum(Simp ctx, Simp *ret, SimpInt n);
 bool    simp_makeport(Simp ctx, Simp *ret, Heap *p);
 bool    simp_makereal(Simp ctx, Simp *ret, double x);
 bool    simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size);
@@ -198,6 +200,14 @@ Heap   *simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);
 void   *simp_getheapdata(Heap *heap);
+
+/* arithmetic */
+bool    simp_arithadd(Simp ctx, Simp *ret, Simp a, Simp b);
+bool    simp_arithdiff(Simp ctx, Simp *ret, Simp a, Simp b);
+bool    simp_arithmul(Simp ctx, Simp *ret, Simp a, Simp b);
+bool    simp_arithdiv(Simp ctx, Simp *ret, Simp a, Simp b);
+bool    simp_arithzero(Simp n);
+int     simp_arithcmp(Simp a, Simp b);
 
 /* context */
 bool    simp_contextnew(Simp *ctx);

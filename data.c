@@ -160,7 +160,7 @@ simp_getenvparent(Simp obj)
 }
 
 SimpInt
-simp_getnum(Simp obj)
+simp_getsignum(Simp obj)
 {
 	return obj.u.num;
 }
@@ -284,9 +284,15 @@ simp_isnulenv(Simp obj)
 }
 
 bool
-simp_isnum(Simp obj)
+simp_issignum(Simp obj)
 {
 	return simp_gettype(obj) == TYPE_SIGNUM;
+}
+
+bool
+simp_isnum(Simp obj)
+{
+	return simp_issignum(obj) || simp_isreal(obj);
 }
 
 bool
@@ -323,7 +329,7 @@ simp_issame(Simp a, Simp b)
 			simp_getstart(a) == simp_getstart(b) &&
 			simp_getsize(a) == simp_getsize(b);
 	case TYPE_SIGNUM:
-		return simp_getnum(a) == simp_getnum(b);
+		return simp_getsignum(a) == simp_getsignum(b);
 	case TYPE_REAL:
 		return simp_getreal(a) == simp_getreal(b);
 	case TYPE_PORT:
@@ -448,7 +454,7 @@ simp_makeenvironment(Simp ctx, Simp *env, Simp parent)
 }
 
 bool
-simp_makenum(Simp ctx, Simp *ret, SimpInt n)
+simp_makesignum(Simp ctx, Simp *ret, SimpInt n)
 {
 	(void)ctx;
 	*ret = (Simp){

@@ -672,7 +672,7 @@ toktoobj(Simp ctx, Simp *obj, Simp port, Token tok)
 	case TOK_REAL:
 		return simp_makereal(ctx, obj, tok.u.real);
 	case TOK_FIXNUM:
-		return simp_makenum(ctx, obj, tok.u.fixnum);
+		return simp_makesignum(ctx, obj, tok.u.fixnum);
 	case TOK_CHAR:
 		return simp_makebyte(ctx, obj, (unsigned char)tok.u.fixnum);
 	case TOK_EOF:
@@ -720,7 +720,7 @@ dowrite(Simp port, Simp obj, bool display)
 			simp_printf(port, "\'");
 		break;
 	case TYPE_SIGNUM:
-		simp_printf(port, "%ld", simp_getnum(obj));
+		simp_printf(port, "%ld", simp_getsignum(obj));
 		break;
 	case TYPE_REAL:
 		simp_printf(port, "%g", simp_getreal(obj));

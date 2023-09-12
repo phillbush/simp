@@ -1,5 +1,5 @@
 PROG = simp
-SRCS = simp.c data.c port.c eval.c gc.c io.c
+SRCS = simp.c data.c port.c eval.c gc.c io.c arith.c
 OBJS = ${SRCS:.c=.o}
 MANS = simp.1
 HEDS = simp.h

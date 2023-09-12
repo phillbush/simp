@@ -212,9 +212,9 @@ If all condition-then pairs have been tested, return the optional
 condition, if it exists.
 .It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" VOID
 Return a closure in which the given symbols are bound to the actual arguments in the given body expression.
-.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" VOID
-Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
-The last symbol is bound to a vector containing the remaining actual arguments.
+.It Ic ( let Ar [SYMBOL EXPRESSION] ... EXPRESSION ) "⇒" OBJECT
+Evaluate the final given expression in an environment in which each given symbol is
+bound to the given expression after it.
 .It Ic ( or Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
@@ -225,6 +225,9 @@ Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
+.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" VOID
+Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
+The last symbol is bound to a vector containing the remaining actual arguments.
 .El
 .Ss Values
 There are two means of comparing objects.
@@ -904,7 +907,7 @@ I have no idea what a formal semantics is or does.
 The
 .Nm
 programming language is compliant with nothing, as it has not been standardised.
-It was influenced by the Scheme and Kernel LISP dialects.
+It was influenced by the Scheme LISP dialect.
 .Pp
 The syntax for comments and number literals breaks the usual LISP tradition,
 and are influenced by shell script comments and C constants, respectively.
@@ -920,7 +923,7 @@ The
 .Nm
 programming language was developed as a personal playground for
 programming language theory, motivated by the reading of the Wizard Book
-(Abelson & Sussman).  It first appeared as a C library in 2022.
+(Abelson & Sussman).  It first appeared as a C implementation in 2022.
 .Sh AUTHORS
 The
 .Nm
