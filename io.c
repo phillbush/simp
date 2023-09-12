@@ -497,14 +497,8 @@ fillvector(Simp ctx, Simp *vect, struct List *list, SimpSiz nitems, SimpSiz line
 	struct List *tmp;
 	SimpSiz i = 0;
 
-	if (!simp_makevector(
-		ctx,
-		vect,
-		filename,
-		lineno,
-		column,
-		nitems
-	)) {
+	if (!simp_makevector(ctx, vect, nitems) ||
+	    !simp_setsource(ctx, vect, filename, lineno, column)) {
 		cleanvector(list);
 		return false;
 	}
@@ -635,28 +629,27 @@ toktoobj(Simp ctx, Simp *obj, Simp port, Token tok)
 {
 	bool success;
 	Simp quote, literal;
+	const char *filename;
+	SimpSiz lineno, column;
 
+	filename = simp_portfilename(port);
+	lineno = tok.lineno;
+	column = tok.column;
 	switch (tok.type) {
 	case TOK_LPAREN:
-		return readvector(ctx, obj, port, tok.lineno, tok.column);
+		return readvector(ctx, obj, port, lineno, column);
 	case TOK_IDENTIFIER:
 		success = simp_makesymbol(
 			ctx,
 			obj,
 			tok.u.str.str,
 			tok.u.str.len
-		);
+		) && simp_setsource(ctx, obj, filename, lineno, column);
 		free(tok.u.str.str);
 		return success;
 	case TOK_QUOTE:
-		if (!simp_makevector(
-			ctx,
-			obj,
-			simp_portfilename(port),
-			simp_portlineno(port),
-			simp_portcolumn(port),
-			2
-		)) {
+		if (!simp_makevector(ctx, obj, 2) ||
+		    !simp_setsource(ctx, obj, filename, lineno, column)) {
 			return false;
 		}
 		tok = readtok(port);

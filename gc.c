@@ -43,9 +43,6 @@ struct Heap {
 	struct Heap    *p[2];
 	void           *data;
 	int             mark;
-	const char     *filename;
-	SimpSiz         lineno;
-	SimpSiz         column;
 	SimpSiz         size;
 };
 
@@ -55,17 +52,13 @@ static bool isheap[] = {
 #undef  X
 };
 
-static void
-mark(Heap *gc, Simp obj)
-{
-	Heap *heap;
-	SimpSiz i;
-	enum Type type;
+static void reach(Heap *gc, Simp obj);
 
-	type = simp_gettype(obj);
-	if (!isheap[type])
-		return;
-	heap = simp_getgcmemory(obj);
+static void
+mark(Heap *gc, Heap *heap)
+{
+	SimpSiz i;
+
 	if (heap == NULL)
 		return;
 	if (heap->mark == gc->mark)
@@ -82,11 +75,18 @@ mark(Heap *gc, Simp obj)
 	if (gc->p[REACHED] != NULL)
 		gc->p[REACHED]->p[PREV] = heap;
 	gc->p[REACHED] = heap;
-	if (heap->size == 0)
-		return;
 	for (i = 0; i < heap->size; i++) {
-		mark(gc, ((Simp *)heap->data)[i]);
+		reach(gc, ((Simp *)heap->data)[i]);
 	}
+}
+
+static void
+reach(Heap *gc, Simp obj)
+{
+	mark(gc, simp_getsourcep(obj));
+	if (!isheap[simp_gettype(obj)])
+		return;
+	mark(gc, simp_getgcmemory(obj));
 }
 
 static void
@@ -112,9 +112,9 @@ simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs)
 	gc->p[GARBAGE] = gc->p[REACHED];
 	gc->p[REACHED] = NULL;
 	for (i = 0; i < nobjs; i++)
-		mark(gc, objs[i]);
+		reach(gc, objs[i]);
 	for (i = 0; i < gc->size; i++)
-		mark(gc, ((Simp *)gc->data)[i]);
+		reach(gc, ((Simp *)gc->data)[i]);
 	sweep(gc);
 	gc->mark *= MARK_MUL;
 	gc->p[GARBAGE] = NULL;
@@ -132,7 +132,7 @@ simp_gcfree(Simp ctx)
 }
 
 Heap *
-simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs, const char *filename, SimpSiz lineno, SimpSiz column)
+simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs)
 {
 	Heap *heap = NULL;
 	void *data = NULL;
@@ -145,9 +145,6 @@ simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs, const char *filename, SimpS
 		.mark = MARK_ZERO,
 		.p = { NULL, NULL },
 		.data = data,
-		.filename = filename,
-		.lineno = lineno,
-		.column = column,
 		.size = nobjs,
 	};
 	if (gc == NULL) {
@@ -170,18 +167,4 @@ void *
 simp_getheapdata(Heap *heap)
 {
 	return heap->data;
-}
-
-bool
-simp_getsource(Heap *heap, const char **filename, SimpSiz *lineno, SimpSiz *column)
-{
-	if (heap == NULL || heap->filename == NULL)
-		return false;
-	if (filename != NULL)
-		*filename = heap->filename;
-	if (lineno != NULL)
-		*lineno = heap->lineno;
-	if (column != NULL)
-		*column = heap->column;
-	return true;
 }

@@ -49,13 +49,13 @@ struct Simp {
 		SimpInt         num;
 		double          real;
 		Heap           *heap;
-		const char     *errmsg;
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
-	SimpSiz start;
-	SimpSiz size;
-	Type type;
+	Heap                   *source;
+	SimpSiz                 start;
+	SimpSiz                 size;
+	Type                    type;
 };
 
 struct Port {
@@ -87,8 +87,10 @@ struct Port {
 	SimpSiz column;
 };
 
-/* error handling */
-const char *simp_errorstr(int exception);
+/* object source */
+bool    simp_setsource(Simp ctx, Simp *obj, const char *filename, SimpSiz lineno, SimpSiz column);
+bool    simp_getsource(Simp obj, const char **, SimpSiz *, SimpSiz *);
+Heap   *simp_getsourcep(Simp obj);
 
 /* data constant utils */
 Simp    simp_nil(void);
@@ -161,7 +163,7 @@ bool    simp_makeport(Simp ctx, Simp *ret, Heap *p);
 bool    simp_makereal(Simp ctx, Simp *ret, double x);
 bool    simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size);
 bool    simp_makesymbol(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size);
-bool    simp_makevector(Simp ctx, Simp *ret, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size);
+bool    simp_makevector(Simp ctx, Simp *ret, SimpSiz size);
 
 /* slicers */
 Simp    simp_slicevector(Simp obj, SimpSiz from, SimpSiz size);
@@ -192,7 +194,7 @@ Simp    simp_getenvframe(Simp obj);
 Simp    simp_getenvparent(Simp obj);
 
 /* gc */
-Heap   *simp_gcnewobj(Heap *gc, SimpSiz nmembs, SimpSiz membsiz, const char *filename, SimpSiz lineno, SimpSiz column);
+Heap   *simp_gcnewobj(Heap *gc, SimpSiz size, SimpSiz nobjs);
 void    simp_gc(Simp ctx, Simp *objs, SimpSiz nobjs);
 void    simp_gcfree(Simp ctx);
 void   *simp_getheapdata(Heap *heap);
@@ -200,4 +202,3 @@ void   *simp_getheapdata(Heap *heap);
 /* context */
 bool    simp_contextnew(Simp *ctx);
 bool    simp_environmentnew(Simp ctx, Simp *env);
-bool    simp_getsource(Heap *, const char **, SimpSiz *, SimpSiz *);

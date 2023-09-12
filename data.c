@@ -24,6 +24,12 @@ enum {
 	CLOSURE_SIZE
 };
 
+struct Source {
+	const char             *filename;
+	SimpSiz                 lineno;
+	SimpSiz                 column;
+};
+
 Simp *
 simp_getvector(Simp obj)
 {
@@ -53,7 +59,7 @@ simp_setenvframe(Simp env, Simp frame)
 bool
 simp_contextnew(Simp *ctx)
 {
-	return simp_makevector(simp_nil(), ctx, NULL, 0, 0, SYMTAB_SIZE);
+	return simp_makevector(simp_nil(), ctx, SYMTAB_SIZE);
 }
 
 void
@@ -412,6 +418,7 @@ simp_makebuiltin(Simp ctx, Simp *ret, Builtin *builtin)
 	*ret = (Simp){
 		.type = TYPE_BUILTIN,
 		.u.builtin = builtin,
+		.source = NULL,
 	};
 	return true;
 }
@@ -423,6 +430,7 @@ simp_makebyte(Simp ctx, Simp *ret, unsigned char byte)
 	*ret = (Simp){
 		.type = TYPE_BYTE,
 		.u.byte = byte,
+		.source = NULL,
 	};
 	return true;
 }
@@ -431,7 +439,7 @@ bool
 simp_makeenvironment(Simp ctx, Simp *env, Simp parent)
 {
 	(void)ctx;
-	if (!simp_makevector(ctx, env, NULL, 0, 0, ENVIRONMENT_SIZE))
+	if (!simp_makevector(ctx, env, ENVIRONMENT_SIZE))
 		return false;
 	simp_setvector(*env, ENVIRONMENT_PARENT, parent);
 	simp_setvector(*env, ENVIRONMENT_FRAME, simp_nil());
@@ -446,6 +454,7 @@ simp_makenum(Simp ctx, Simp *ret, SimpInt n)
 	*ret = (Simp){
 		.type = TYPE_SIGNUM,
 		.u.num = n,
+		.source = NULL,
 	};
 	return true;
 }
@@ -457,14 +466,15 @@ simp_makeclosure(Simp ctx, Simp *lambda, Simp src, Simp env, Simp params, Simp v
 	SimpSiz lineno = 0;
 	SimpSiz column = 0;
 
-	(void)simp_getsource(simp_getgcmemory(src), &filename, &lineno, &column);
-	if (!simp_makevector(ctx, lambda, filename, lineno, column, CLOSURE_SIZE))
+	if (!simp_makevector(ctx, lambda, CLOSURE_SIZE))
 		return false;
 	simp_setvector(*lambda, CLOSURE_ENVIRONMENT, env);
 	simp_setvector(*lambda, CLOSURE_PARAMETERS, params);
 	simp_setvector(*lambda, CLOSURE_VARARGS, varargs);
 	simp_setvector(*lambda, CLOSURE_EXPRESSIONS, body);
 	lambda->type = TYPE_CLOSURE;
+	if (simp_getsource(src, &filename, &lineno, &column))
+		return simp_setsource(ctx, lambda, filename, lineno, column);
 	return true;
 }
 
@@ -476,6 +486,7 @@ simp_makeport(Simp ctx, Simp *ret, Heap *p)
 		.type = TYPE_PORT,
 		.size = 1,
 		.start = 0,
+		.source = NULL,
 		.u.heap = p,
 	};
 	return true;
@@ -488,6 +499,7 @@ simp_makereal(Simp ctx, Simp *ret, double x)
 	*ret = (Simp){
 		.type = TYPE_REAL,
 		.u.real = x,
+		.source = NULL,
 	};
 	return true;
 }
@@ -501,7 +513,7 @@ simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size)
 	*ret = simp_empty();
 	if (size == 0)
 		return true;
-	heap = simp_gcnewobj(simp_getgcmemory(ctx), size, 0, NULL, 0, 0);
+	heap = simp_gcnewobj(simp_getgcmemory(ctx), size, 0);
 	if (heap == NULL)
 		return false;
 	dst = (unsigned char *)simp_getheapdata(heap);
@@ -512,6 +524,7 @@ simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size)
 		.size = size,
 		.start = 0,
 		.u.heap = heap,
+		.source = NULL,
 	};
 	return true;
 }
@@ -542,7 +555,7 @@ simp_makesymbol(Simp ctx, Simp *sym, const unsigned char *src, SimpSiz size)
 	if (!simp_makestring(ctx, sym, src, size))
 		return false;
 	sym->type = TYPE_SYMBOL;
-	if (!simp_makevector(ctx, &pair, NULL, 0, 0, 2))
+	if (!simp_makevector(ctx, &pair, 2))
 		return false;
 	simp_setvector(pair, 0, *sym);
 	if (simp_isnil(prev))
@@ -553,31 +566,19 @@ simp_makesymbol(Simp ctx, Simp *sym, const unsigned char *src, SimpSiz size)
 }
 
 bool
-simp_makevector(Simp ctx, Simp *ret, const char *filename, SimpSiz lineno, SimpSiz column, SimpSiz size)
+simp_makevector(Simp ctx, Simp *ret, SimpSiz size)
 {
 	SimpSiz i;
 	Simp *data;
 	Heap *heap;
 
 	*ret = simp_nil();
-	if (size == 0 && filename == NULL) {
-		/*
-		 * If we are told to make an empty vector with some
-		 * source, we'll allocate a heap entry for it, just
-		 * to keep its origin.
-		 *
-		 * However, if it does not come from a file (eg, it
-		 * comes from an evaluation), return a simple nil.
-		 */
+	if (size == 0)
 		return true;
-	}
 	heap = simp_gcnewobj(
 		simp_getgcmemory(ctx),
 		size * sizeof(Simp),
-		size,
-		filename,
-		lineno,
-		column
+		size
 	);
 	if (heap == NULL)
 		return false;
@@ -589,6 +590,7 @@ simp_makevector(Simp ctx, Simp *ret, const char *filename, SimpSiz lineno, SimpS
 		.u.heap = heap,
 		.size = size,
 		.start = 0,
+		.source = NULL,
 	};
 	return true;
 }
@@ -625,4 +627,43 @@ Heap *
 simp_getgcmemory(Simp obj)
 {
 	return obj.u.heap;
+}
+
+bool
+simp_setsource(Simp ctx, Simp *obj, const char *filename, SimpSiz lineno, SimpSiz column)
+{
+	struct Source *src;
+
+	obj->source = simp_gcnewobj(simp_getgcmemory(ctx), sizeof(*src), 0);
+	if (obj->source == NULL)
+		return false;
+	src = simp_getheapdata(obj->source);
+	src->filename = filename;
+	src->lineno = lineno;
+	src->column = column;
+	return true;
+}
+
+bool
+simp_getsource(Simp obj, const char **filename, SimpSiz *lineno, SimpSiz *column)
+{
+	struct Source *src;
+
+	if (obj.source == NULL)
+		return false;
+	if ((src = simp_getheapdata(obj.source)) == NULL)
+		return false;
+	if (filename != NULL)
+		*filename = src->filename;
+	if (lineno != NULL)
+		*lineno = src->lineno;
+	if (column != NULL)
+		*column = src->column;
+	return true;
+}
+
+Heap *
+simp_getsourcep(Simp obj)
+{
+	return(obj.source);
 }

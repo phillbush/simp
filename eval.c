@@ -155,13 +155,11 @@ static Simp simp_eval(Eval *eval, Simp expr, Simp env);
 static void
 error(Eval *eval, Simp expr, Simp sym, Simp obj, const char *errmsg)
 {
-	Heap *heap;
 	const char *filename;
 	SimpSiz lineno;
 	SimpSiz column;
 
-	heap = simp_getgcmemory(expr);
-	if (simp_getsource(heap, &filename, &lineno, &column)) {
+	if (simp_getsource(expr, &filename, &lineno, &column)) {
 		simp_printf(
 			eval->eport,
 			"%s:%llu:%llu: ",
@@ -176,7 +174,8 @@ error(Eval *eval, Simp expr, Simp sym, Simp obj, const char *errmsg)
 		simp_printf(eval->eport, ": ");
 	}
 	simp_printf(eval->eport, "%s", errmsg);
-	simp_write(eval->eport, obj);
+	if (!simp_isvoid(obj))
+		simp_write(eval->eport, obj);
 	simp_printf(eval->eport, "\n");
 	longjmp(eval->jmp, 1);
 	abort();
@@ -474,7 +473,7 @@ f_foreach(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, simp_void(), ERROR_MAP);
 		}
 	}
-	if (!simp_makevector(eval->ctx, &expr, NULL, 0, 0, nargs))
+	if (!simp_makevector(eval->ctx, &expr, nargs))
 		memerror(eval);
 	simp_setvector(expr, 0, prod);
 	for (i = 0; i < size; i++) {
@@ -515,7 +514,7 @@ f_foreachstring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, simp_void(), ERROR_MAP);
 		}
 	}
-	if (!simp_makevector(eval->ctx, &expr, NULL, 0, 0, nargs))
+	if (!simp_makevector(eval->ctx, &expr, nargs))
 		memerror(eval);
 	simp_setvector(expr, 0, prod);
 	for (i = 0; i < size; i++) {
@@ -646,7 +645,7 @@ f_makevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	size = simp_getnum(obj);
 	if (size < 0)
 		error(eval, expr, self, obj, ERROR_RANGE);
-	if (!simp_makevector(eval->ctx, ret, NULL, 0, 0, size))
+	if (!simp_makevector(eval->ctx, ret, size))
 		memerror(eval);
 }
 
@@ -676,9 +675,9 @@ f_map(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, simp_void(), ERROR_MAP);
 		}
 	}
-	if (!simp_makevector(eval->ctx, &expr, NULL, 0, 0, nargs))
+	if (!simp_makevector(eval->ctx, &expr, nargs))
 		memerror(eval);
-	if (!simp_makevector(eval->ctx, vector, NULL, 0, 0, size))
+	if (!simp_makevector(eval->ctx, vector, size))
 		memerror(eval);
 	simp_setvector(expr, 0, prod);
 	for (i = 0; i < size; i++) {
@@ -719,7 +718,7 @@ f_mapstring(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, simp_void(), ERROR_MAP);
 		}
 	}
-	if (!simp_makevector(eval->ctx, &newexpr, NULL, 0, 0, nargs))
+	if (!simp_makevector(eval->ctx, &newexpr, nargs))
 		memerror(eval);
 	if (!simp_makestring(eval->ctx, string, NULL, size))
 		memerror(eval);
@@ -754,7 +753,7 @@ f_member(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	if (!simp_isvector(vector))
 		error(eval, expr, self, vector, ERROR_NOTVECTOR);
 	size = simp_getsize(vector);
-	if (!simp_makevector(eval->ctx, &newexpr, NULL, 0, 0, 3))
+	if (!simp_makevector(eval->ctx, &newexpr, 3))
 		memerror(eval);
 	simp_setvector(newexpr, 0, pred);
 	simp_setvector(newexpr, 1, ref);
@@ -1230,7 +1229,7 @@ f_stringvector(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 	if (!simp_isstring(str))
 		error(eval, expr, self, str, ERROR_NOTSTRING);
 	size = simp_getsize(str);
-	if (!simp_makevector(eval->ctx, vector, NULL, 0, 0, size))
+	if (!simp_makevector(eval->ctx, vector, size))
 		memerror(eval);
 	for (i = 0; i < size; i++) {
 		u = simp_getstringmemb(str, i);
@@ -1308,7 +1307,7 @@ f_vectorcat(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 			error(eval, expr, self, obj, ERROR_NOTVECTOR);
 		size += simp_getsize(obj);
 	}
-	if (!simp_makevector(eval->ctx, vector, NULL, 0, 0, size))
+	if (!simp_makevector(eval->ctx, vector, size))
 		memerror(eval);
 	for (size = i = 0; i < nargs; i++) {
 		obj = simp_getvectormemb(args, i);
@@ -1351,7 +1350,7 @@ f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp args)
 	if (!simp_isvector(src))
 		error(eval, expr, self, src, ERROR_NOTVECTOR);
 	len = simp_getsize(src);
-	if (!simp_makevector(eval->ctx, dst, NULL, 0, 0, len))
+	if (!simp_makevector(eval->ctx, dst, len))
 		memerror(eval);
 	for (i = 0; i < len; i++) {
 		simp_setvector(
@@ -1491,7 +1490,7 @@ f_vectorrevnew(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
 	size = simp_getsize(obj);
-	if (!simp_makevector(eval->ctx, vector, NULL, 0, 0, size))
+	if (!simp_makevector(eval->ctx, vector, size))
 		memerror(eval);
 	for (i = 0; i < size / 2; i++) {
 		n = size - i - 1;
@@ -1643,7 +1642,7 @@ envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 	if (xenvset(env, var, val))
 		return;
 	frame = simp_getenvframe(env);
-	if (!simp_makevector(eval->ctx, &bind, NULL, 0, 0, BINDING_SIZE))
+	if (!simp_makevector(eval->ctx, &bind, BINDING_SIZE))
 		memerror(eval);
 	simp_setvector(bind, BINDING_VARIABLE, var);
 	simp_setvector(bind, BINDING_VALUE, val);
@@ -1685,7 +1684,7 @@ initialdef(Simp ctx, Simp env, Simp var, Simp val)
 	Simp frame, bind;
 
 	frame = simp_getenvframe(env);
-	if (!simp_makevector(ctx, &bind, NULL, 0, 0, BINDING_SIZE))
+	if (!simp_makevector(ctx, &bind, BINDING_SIZE))
 		return false;
 	simp_setvector(bind, BINDING_VARIABLE, var);
 	simp_setvector(bind, BINDING_VALUE, val);
@@ -1890,7 +1889,7 @@ apply:
 	if (simp_isvoid(operator))
 		error(eval, expr, operator, simp_void(), ERROR_VOID);
 	narguments = noperands + nextraargs;
-	if (!simp_makevector(eval->ctx, &arguments, NULL, 0, 0, narguments))
+	if (!simp_makevector(eval->ctx, &arguments, narguments))
 		memerror(eval);
 	for (i = 0; i < noperands; i++) {
 		/* evaluate arguments */
