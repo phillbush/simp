@@ -26,11 +26,14 @@ Example:
             (- x 1)
             (ackermann x (- y 1)))))))
 
+(defun ack-of-one y
+  (ackermann 1 y))
+
 (define val
   (apply ackermann \(1 2)))
 
 (redefine val
-  (apply ackermann \(1 6))
+  (ack-of-one 6))
 ```
 
 The first expression defines the ackermann function; the second
@@ -41,10 +44,6 @@ The following can be observed:
 * The `quote` syntactic sugar is expressed with a backslash rather than
   with a apostrophe like in scheme.  Apostrophes are used to represent
   literal characters like in C.
-
-* There is no `defun` form or a `define` form with embedded lambda.
-  Defining a procedure must be done with both `define` and `lambda`
-  forms.
 
 * The `lambda` form does not get its formal parameters between
   parentheses in a vector.  It gets a sequence of symbols right
