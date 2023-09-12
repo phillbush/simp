@@ -8,10 +8,7 @@
 
 #define ERROR_DIVZERO     "division by zero"
 #define ERROR_EMPTY       "empty operation"
-#define ERROR_ENVIRON     "symbol for environment not supplied"
-#define ERROR_ILLEXPR     "ill expression"
 #define ERROR_ILLFORM     "ill-formed syntactical form"
-#define ERROR_ILLTYPE     "improper type"
 #define ERROR_MAP         "map over vectors of different sizes"
 #define ERROR_MEMORY      "allocation error"
 #define ERROR_NARGS       "wrong number of arguments"
@@ -25,11 +22,11 @@
 #define ERROR_NOTSTRING   "expected string; got "
 #define ERROR_NOTSYM      "expected symbol; got "
 #define ERROR_NOTVECTOR   "expected vector; got "
-#define ERROR_RANGE       "out of range"
+#define ERROR_RANGE       "out of range: "
 #define ERROR_READ        "read error"
 #define ERROR_STREAM      "stream error"
 #define ERROR_UNBOUND     "unbound variable: "
-#define ERROR_VARFORM     "macro used as variable"
+#define ERROR_VARFORM     "macro used as variable: "
 #define ERROR_VOID        "expression evaluated to nothing; expected value"
 
 #define FORMS                                            \
