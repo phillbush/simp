@@ -17,18 +17,6 @@ enum {
 };
 
 enum {
-	/*
-	 * An environment frame is a linked-list of triplets containing
-	 * a symbol of the variable, its value, and a pointer to the
-	 * next triplet.
-	 */
-	BINDING_VARIABLE,
-	BINDING_VALUE,
-	BINDING_NEXT,
-	BINDING_SIZE,
-};
-
-enum {
 	CLOSURE_ENVIRONMENT,
 	CLOSURE_PARAMETERS,
 	CLOSURE_VARARGS,

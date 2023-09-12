@@ -16,20 +16,19 @@
 #define ERROR_MEMORY      "allocation error"
 #define ERROR_NARGS       "wrong number of arguments"
 #define ERROR_NIL         "expected non-nil vector"
-#define ERROR_NOTBYTE     "expected byte"
-#define ERROR_NOTENV      "expected environment"
+#define ERROR_NOTBYTE     "expected byte; got "
+#define ERROR_NOTENV      "expected environment; got "
 #define ERROR_NOTFIT      "source object do not fit destination"
-#define ERROR_NOTNUM      "expected number"
-#define ERROR_NOTPORT     "expected device port"
-#define ERROR_NOTPROC     "expected procedure"
-#define ERROR_NOTSTRING   "expected string"
-#define ERROR_NOTSYM      "expected symbol"
-#define ERROR_NOTVECTOR   "expected vector"
+#define ERROR_NOTNUM      "expected number; got "
+#define ERROR_NOTPORT     "expected device port; got "
+#define ERROR_NOTPROC     "expected procedure; got "
+#define ERROR_NOTSTRING   "expected string; got "
+#define ERROR_NOTSYM      "expected symbol; got "
+#define ERROR_NOTVECTOR   "expected vector; got "
 #define ERROR_RANGE       "out of range"
 #define ERROR_READ        "read error"
 #define ERROR_STREAM      "stream error"
-#define ERROR_UNBOUND     "unbound variable"
-#define ERROR_UNKSYNTAX   "unknown syntax form"
+#define ERROR_UNBOUND     "unbound variable: "
 #define ERROR_VARFORM     "macro used as variable"
 #define ERROR_VOID        "expression evaluated to nothing; expected value"
 
@@ -177,10 +176,7 @@ error(Eval *eval, Simp expr, Simp sym, Simp obj, const char *errmsg)
 		simp_printf(eval->eport, ": ");
 	}
 	simp_printf(eval->eport, "%s", errmsg);
-	if (!simp_isvoid(obj)) {
-		simp_printf(eval->eport, "; got ");
-		simp_write(eval->eport, obj);
-	}
+	simp_write(eval->eport, obj);
 	simp_printf(eval->eport, "\n");
 	longjmp(eval->jmp, 1);
 	abort();
