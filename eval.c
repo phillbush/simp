@@ -82,6 +82,7 @@
 	X("port?",              f_portp,        1,      false      )\
 	X("procedure?",         f_procedurep,   1,      false      )\
 	X("read",               f_read,         0,      true       )\
+	X("remainder",          f_remainder,    2,      false      )\
 	X("reverse",            f_vectorrevnew, 1,      false      )\
 	X("reverse!",           f_vectorrev,    1,      false      )\
 	X("same?",              f_samep,        1,      true       )\
@@ -353,7 +354,7 @@ static void
 f_divide(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 {
 	SimpSiz nargs, i;
-	SimpInt ratio;
+	SimpInt ratio, d;
 	Simp obj;
 
 	nargs = simp_getsize(args);
@@ -362,10 +363,13 @@ f_divide(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 		obj = simp_getvectormemb(args, i);
 		if (!simp_isnum(obj))
 			error(eval, expr, self, obj, ERROR_NOTNUM);
-		if (nargs == 1 || i > 0) {
-			ratio /= simp_getnum(obj);
+		d = simp_getnum(obj);
+		if (nargs > 1 && i == 0) {
+			ratio = d;
+		} else if (d != 0) {
+			ratio /= d;
 		} else {
-			ratio = simp_getnum(obj);
+			error(eval, expr, self, simp_void(), ERROR_DIVZERO);
 		}
 	}
 	if (!simp_makenum(eval->ctx, ret, ratio)) {
@@ -876,6 +880,26 @@ f_read(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 		error(eval, expr, self, port, ERROR_NOTPORT);
 	if (!simp_read(eval->ctx, ret, port))
 		error(eval, expr, self, simp_void(), ERROR_READ);
+}
+
+static void
+f_remainder(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+{
+	SimpInt d;
+	Simp a, b;
+
+	a = simp_getvectormemb(args, 0);
+	b = simp_getvectormemb(args, 1);
+	if (!simp_isnum(a))
+		error(eval, expr, self, a, ERROR_NOTNUM);
+	if (!simp_isnum(b))
+		error(eval, expr, self, b, ERROR_NOTNUM);
+	d = simp_getnum(b);
+	if (d == 0)
+		error(eval, expr, self, simp_void(), ERROR_DIVZERO);
+	d = simp_getnum(a) % d;
+	if (!simp_makenum(eval->ctx, ret, d))
+		memerror(eval);
 }
 
 static void
