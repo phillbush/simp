@@ -182,12 +182,17 @@ Each
 .Ar ARGUMENT
 must be an expression that evaluates to a single value;
 otherwise an error is signaled.
-.It Ic ( define Ar SYMBOL EXPRESSION Ic ) "⇒" VOID
+.It Ic ( define Ar SYMBOL EXPRESSION ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
-.Ar SYMBOL
-must be a symbol;
-otherwise an error is signaled.
-.It Ic ( do Ar EXPRESSION ... Ic ) "⇒" OBJECT
+.It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION) "⇒" VOID
+Bind the given first symbol to the closure in which the given following symbols
+are bound to the actual arguments in the given body expression.
+This is a combination of the
+.Ic define
+and
+.Ic lambda
+syntactical forms.
+.It Ic ( do Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each given expression and return the result of the last evaluation.
 .It Ic ( eval Ar EXPRESSION ENVIRONMENT ) "⇒" OBJECT
 Evaluate the give expression in the given environment and return the result of the evaluation.
@@ -196,7 +201,7 @@ must be evaluate to an environment;
 otherwise an error is signaled.
 .It Ic ( false )
 Return the false boolean constant.
-.It Ic ( if Ar CONDITION ... THEN ... Op Ar ELSE ) "⇒" OBJECT
+.It Ic ( if Ar CONDITION ... THEN ... Ar [ELSE]
 Evaluate each
 .Ar CONDITION
 expression in turn and, if it returns a true value, return the immediatelly following
