@@ -16,7 +16,7 @@
 .Op Ar arg ...
 .Nm simp
 .Op Fl i
-.Ar file
+.Ar ile
 .Op Ar arg ...
 .Sh DESCRIPTION
 The
@@ -185,7 +185,7 @@ otherwise an error is signaled.
 .It Ic ( define Ar SYMBOL EXPRESSION ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
 .It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION) "⇒" VOID
-Bind the given first symbol to the closure in which the given following symbols
+Bind, in the current environment, the given first symbol to the closure in which the given following symbols
 are bound to the actual arguments in the given body expression.
 This is a combination of the
 .Ic define
@@ -201,7 +201,15 @@ must be evaluate to an environment;
 otherwise an error is signaled.
 .It Ic ( false )
 Return the false boolean constant.
-.It Ic ( if Ar CONDITION ... THEN ... Ar [ELSE]
+.It Ic ( fix Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" PROCEDURE
+Bind, in a new environment, the given first symbol to the closure in which the given following symbols
+are bound to the actual arguments in the given body expression and pass it the new environment.
+This is a combination of the
+.Ic let
+and
+.Ic lambda
+syntactical forms.
+.It Ic ( if Ar CONDITION ... THEN ... Ar [ELSE] ) "⇒" OBJECT
 Evaluate each
 .Ar CONDITION
 expression in turn and, if it returns a true value, return the immediatelly following
@@ -210,7 +218,7 @@ expression.
 If all condition-then pairs have been tested, return the optional
 .Ar ELSE
 condition, if it exists.
-.It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" VOID
+.It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" PROCEDURE
 Return a closure in which the given symbols are bound to the actual arguments in the given body expression.
 .It Ic ( let Ar [SYMBOL EXPRESSION] ... EXPRESSION ) "⇒" OBJECT
 Evaluate the final given expression in an environment in which each given symbol is
@@ -225,7 +233,7 @@ Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
-.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" VOID
+.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" PROCEDURE
 Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
 The last symbol is bound to a vector containing the remaining actual arguments.
 .El

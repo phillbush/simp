@@ -38,6 +38,7 @@
 	X(FORM_DO,              "do"                    )\
 	X(FORM_EVAL,            "eval"                  )\
 	X(FORM_FALSE,           "false"                 )\
+	X(FORM_FIX,             "fix"                   )\
 	X(FORM_IF,              "if"                    )\
 	X(FORM_LAMBDA,          "lambda"                )\
 	X(FORM_LET,             "let"                   )\
@@ -1652,8 +1653,10 @@ envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 {
 	if (isform(var, NULL))
 		error(eval, expr, simp_void(), var, ERROR_VARFORM);
-	if (!xenvset(env, var, val))
-		error(eval, expr, simp_void(), var, ERROR_UNBOUND);
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env))
+		if (xenvset(env, var, val))
+			return;
+	error(eval, expr, simp_void(), var, ERROR_UNBOUND);
 }
 
 static void
@@ -1860,6 +1863,25 @@ loop:
 			memerror(eval);
 		envdef(eval, expr, env, var, proc);
 		return simp_void();
+	case FORM_FIX:
+		/* (FIX SELF PARAMETER ... BODY) */
+		if (noperands < 2)
+			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
+		body = simp_getvectormemb(operands, noperands - 1);
+		params = simp_slicevector(operands, 1, noperands - 2);
+		for (i = 0; i + 1 < noperands; i++) {
+			var = simp_getvectormemb(operands, i);
+			if (!simp_issymbol(var)) {
+				error(eval, expr, operator, var, ERROR_NOTSYM);
+			}
+		}
+		if (!simp_makeenvironment(eval->ctx, &env, env))
+			memerror(eval);
+		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
+			memerror(eval);
+		var = simp_getvectormemb(operands, 0);
+		envdef(eval, expr, env, var, proc);
+		return proc;
 	case FORM_LAMBDA:
 		/* (lambda PARAMETER ... BODY) */
 		if (noperands < 1)
