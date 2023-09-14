@@ -72,7 +72,8 @@
 	X("empty?",             f_emptyp,       1,      false      )\
 	X("environment",        f_envnew,       0,      true       )\
 	X("environment?",       f_envp,         1,      false      )\
-	X("equiv?" ,            f_vectoreqv,    0,      true       )\
+	X("eof?",               f_eofp,         1,      false      )\
+	X("equiv?",             f_vectoreqv,    0,      true       )\
 	X("false?",             f_falsep,       1,      false      )\
 	X("for-each",           f_foreach,      1,      true       )\
 	X("get",                f_vectorref,    2,      false      )\
@@ -416,6 +417,15 @@ f_envnew(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 		error(eval, expr, self, env, ERROR_NOTENV);
 	if (!simp_makeenvironment(eval->ctx, ret, env))
 		memerror(eval);
+}
+
+static void
+f_eofp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+{
+	(void)eval;
+	(void)self;
+	(void)expr;
+	typepred(args, ret, simp_iseof);
 }
 
 static void
