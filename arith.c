@@ -1,4 +1,24 @@
+#include <limits.h>
+#include <stdlib.h>
+#include <math.h>
+
 #include "simp.h"
+
+bool
+simp_arithabs(Simp ctx, Simp *ret, Simp n)
+{
+	if (simp_issignum(n)) return simp_makesignum(
+		ctx,
+		ret,
+		llabs(simp_getsignum(n))
+	);
+	if (simp_isreal(n)) return simp_makereal(
+		ctx,
+		ret,
+		fabs(simp_getreal(n))
+	);
+	return false;
+}
 
 bool
 simp_arithadd(Simp ctx, Simp *ret, Simp a, Simp b)
@@ -21,7 +41,7 @@ simp_arithadd(Simp ctx, Simp *ret, Simp a, Simp b)
 	if (simp_isreal(a) && simp_isreal(b)) return simp_makereal(
 		ctx,
 		ret,
-		simp_getreal(b) + simp_getreal(b)
+		simp_getreal(a) + simp_getreal(b)
 	);
 	return false;
 }
@@ -47,7 +67,7 @@ simp_arithdiff(Simp ctx, Simp *ret, Simp a, Simp b)
 	if (simp_isreal(a) && simp_isreal(b)) return simp_makereal(
 		ctx,
 		ret,
-		simp_getreal(b) - simp_getreal(b)
+		simp_getreal(a) - simp_getreal(b)
 	);
 	return false;
 }
@@ -73,7 +93,7 @@ simp_arithmul(Simp ctx, Simp *ret, Simp a, Simp b)
 	if (simp_isreal(a) && simp_isreal(b)) return simp_makereal(
 		ctx,
 		ret,
-		simp_getreal(b) * simp_getreal(b)
+		simp_getreal(a) * simp_getreal(b)
 	);
 	return false;
 }
@@ -99,7 +119,7 @@ simp_arithdiv(Simp ctx, Simp *ret, Simp a, Simp b)
 	if (simp_isreal(a) && simp_isreal(b)) return simp_makereal(
 		ctx,
 		ret,
-		simp_getreal(b) / simp_getreal(b)
+		simp_getreal(a) / simp_getreal(b)
 	);
 	return false;
 }

@@ -202,6 +202,7 @@ void    simp_gcfree(Simp ctx);
 void   *simp_getheapdata(Heap *heap);
 
 /* arithmetic */
+bool    simp_arithabs(Simp ctx, Simp *ret, Simp n);
 bool    simp_arithadd(Simp ctx, Simp *ret, Simp a, Simp b);
 bool    simp_arithdiff(Simp ctx, Simp *ret, Simp a, Simp b);
 bool    simp_arithmul(Simp ctx, Simp *ret, Simp a, Simp b);

@@ -220,14 +220,11 @@ static void
 f_abs(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 {
 	Simp obj;
-	SimpInt num;
 
 	obj = simp_getvectormemb(args, 0);
-	if (!simp_issignum(obj))
-		error(eval, expr, self, obj, ERROR_NOTINT);
-	num = simp_getsignum(obj);
-	num = llabs(num);
-	if (!simp_makesignum(eval->ctx, ret, num))
+	if (!simp_isnum(obj))
+		error(eval, expr, self, obj, ERROR_NOTNUM);
+	if (!simp_arithabs(eval->ctx, ret, obj))
 		memerror(eval);
 }
 
