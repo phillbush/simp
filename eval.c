@@ -8,7 +8,7 @@
 
 #define ERROR_DIVZERO     "division by zero"
 #define ERROR_EMPTY       "empty operation"
-#define ERROR_ILLMACRO     "ill-formed syntactical form"
+#define ERROR_ILLMACRO    "ill-formed syntactical form"
 #define ERROR_MAP         "map over vectors of different sizes"
 #define ERROR_MEMORY      "allocation error"
 #define ERROR_NARGS       "wrong number of arguments"
@@ -244,7 +244,7 @@ syntax_error:
 static void
 envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val, bool syntax)
 {
-	if (syntaxget(NULL, env, var))
+	if (!syntax && syntaxget(NULL, env, var))
 		error(eval, expr, simp_void(), var, ERROR_VARMACRO);
 	for (; !simp_isnulenv(env); env = simp_getenvparent(env))
 		if (simp_envredefine(env, var, val, syntax))
@@ -255,7 +255,7 @@ envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val, bool syntax)
 static void
 envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val, bool syntax)
 {
-	if (syntaxget(NULL, env, var))
+	if (!syntax && syntaxget(NULL, env, var))
 		error(eval, expr, simp_void(), var, ERROR_VARMACRO);
 	if (simp_envredefine(env, var, val, syntax))
 		return;
@@ -2012,7 +2012,7 @@ simp_eval(Eval *eval, Simp expr, Simp env)
 {
 	Builtin *bltin;
 	Simp operator, operands, arguments, extraargs, extraparams;
-	Simp macro, params, var, val;
+	Simp proc, macro, params, var, val;
 	SimpSiz noperands, nparams, narguments, nextraargs, i;
 	bool ismacro;
 
@@ -2031,16 +2031,16 @@ loop:
 	nextraargs = 0;
 	ismacro = syntaxget(&macro, env, operator);
 	if (ismacro) {
-		/* operator is a macro; do not evaluate operators */
-		operator = macro;
+		/* operator is a macro; do not evaluate operands */
+		proc = macro;
 		arguments = operands;
 		narguments = noperands;
 	} else {
-		/* operator is a not a macro; evaluate the operators */
-		operator = simp_eval(eval, operator, env);
-		if (simp_isvoid(operator))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
+		/* operator is a not a macro; evaluate the operands */
+		proc = simp_eval(eval, operator, env);
 apply:
+		if (simp_isvoid(proc))
+			error(eval, expr, operator, simp_void(), ERROR_VOID);
 		narguments = noperands + nextraargs;
 		if (!simp_makevector(eval->ctx, &arguments, narguments))
 			memerror(eval);
@@ -2061,14 +2061,14 @@ apply:
 			simp_setvector(arguments, i + noperands, val);
 		}
 	}
-	if (simp_isclosure(operator)) {
-		expr = simp_getclosurebody(operator);
+	if (simp_isclosure(proc)) {
+		expr = simp_getclosurebody(proc);
 		if (!ismacro &&
-		    !simp_makeenvironment(eval->ctx, &env, simp_getclosureenv(operator)))
+		    !simp_makeenvironment(eval->ctx, &env, simp_getclosureenv(proc)))
 			memerror(eval);
-		params = simp_getclosureparam(operator);
+		params = simp_getclosureparam(proc);
 		nparams = simp_getsize(params);
-		extraparams = simp_getclosurevarargs(operator);
+		extraparams = simp_getclosurevarargs(proc);
 		if (narguments < nparams)
 			error(eval, expr, operator, simp_void(), ERROR_NARGS);
 		if (narguments > nparams && simp_isnil(extraparams))
@@ -2086,9 +2086,9 @@ apply:
 			expr = simp_eval(eval, expr, env);
 		goto loop;
 	}
-	if (!simp_isbuiltin(operator))
+	if (!simp_isbuiltin(proc))
 		error(eval, expr, simp_void(), operator, ERROR_NOTPROC);
-	bltin = simp_getbuiltin(operator);
+	bltin = simp_getbuiltin(proc);
 	if (bltin->variadic && narguments < bltin->nargs)
 		error(eval, expr, operator, simp_void(), ERROR_NARGS);
 	if (!bltin->variadic && narguments != bltin->nargs)
@@ -2098,7 +2098,7 @@ apply:
 		extraargs = simp_getvectormemb(arguments, narguments - 1);
 		if (!simp_isvector(extraargs))
 			error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
-		operator = simp_getvectormemb(arguments, 0);
+		proc = simp_getvectormemb(arguments, 0);
 		nextraargs = simp_getsize(extraargs);
 		operands = simp_slicevector(arguments, 1, narguments - 2);
 		noperands = narguments - 2;
