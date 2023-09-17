@@ -434,7 +434,7 @@ f_define(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 
 	(void)ret;
 	var = simp_getvectormemb(args, 0);
-	val = simp_getvectormemb(expr, 1);
+	val = simp_getvectormemb(args, 1);
 	if (!simp_issymbol(var))
 		error(eval, expr, self, var, ERROR_NOTSYM);
 	val = simp_eval(eval, val, env);
@@ -1146,7 +1146,7 @@ f_redefine(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 
 	(void)ret;
 	var = simp_getvectormemb(args, 0);
-	val = simp_getvectormemb(expr, 1);
+	val = simp_getvectormemb(args, 1);
 	if (!simp_issymbol(var))
 		error(eval, expr, self, var, ERROR_NOTSYM);
 	val = simp_eval(eval, val, env);
