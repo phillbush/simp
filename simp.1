@@ -172,16 +172,6 @@ can be any expression, except a symbol or a vector.
 .It Ic ( and Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return false when one evaluate to false;
 return a true value otherwise.
-.It Ic ( apply Ar PROCEDURE OBJECT ... ) "⇒" OBJECT
-Return the result of the application of the given
-procedure to all the given arguments.
-.Ar PROCEDURE
-must be an expression that evaluates to a procedure;
-otherwise an error is signaled.
-Each
-.Ar ARGUMENT
-must be an expression that evaluates to a single value;
-otherwise an error is signaled.
 .It Ic ( define Ar SYMBOL EXPRESSION ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
 .It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION) "⇒" VOID
@@ -194,11 +184,6 @@ and
 syntactical forms.
 .It Ic ( do Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each given expression and return the result of the last evaluation.
-.It Ic ( eval Ar EXPRESSION ENVIRONMENT ) "⇒" OBJECT
-Evaluate the give expression in the given environment and return the result of the evaluation.
-.Ar ENVIRONMENT
-must be evaluate to an environment;
-otherwise an error is signaled.
 .It Ic ( false )
 Return the false boolean constant.
 .It Ic ( fix Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" PROCEDURE
@@ -220,6 +205,12 @@ If all condition-then pairs have been tested, return the optional
 condition, if it exists.
 .It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" PROCEDURE
 Return a closure in which the given symbols are bound to the actual arguments in the given body expression.
+.It Ic ( "lambda..." Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" PROCEDURE
+(The form is literally
+.Qq lambda
+three dots).
+Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
+The last symbol is bound to a vector containing the remaining actual arguments.
 .It Ic ( let Ar [SYMBOL EXPRESSION] ... EXPRESSION ) "⇒" OBJECT
 Evaluate the final given expression in an environment in which each given symbol is
 bound to the given expression after it.
@@ -233,9 +224,6 @@ Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
-.It Ic ( varlambda Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" PROCEDURE
-Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
-The last symbol is bound to a vector containing the remaining actual arguments.
 .El
 .Ss Values
 There are two means of comparing objects.
@@ -463,6 +451,9 @@ a closure created with the
 .Ic lambda
 syntactical form.
 .Bl -tag -width Ds -compact
+.It Ic ( apply Ar PROCEDURE OBJECT ... VECTOR ) "⇒" OBJECT
+Return the result of the application of the given
+procedure to all the given objects and the objects in the given vector.
 .It Ic ( for-each Ar PROCEDURE VECTOR VECTOR ... ) "⇒" VOID
 Apply the given procedure element-wise to the elements of the given vectors, in order.
 It is an error if the given procedure does not accept as many arguments as there are vectors.
@@ -617,6 +608,8 @@ Return a newly allocated environment using the given environment as parent envir
 If no environment is given, return the empty environment.
 .It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is an environment object.
+.It Ic ( eval Ar OBJECT ENVIRONMENT ) "⇒" OBJECT
+Evaluate the given object in the given environment and return the result of the evaluation.
 .El
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for

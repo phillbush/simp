@@ -537,12 +537,10 @@ readvector(Simp ctx, Simp *vect, Simp port, SimpSiz lineno, SimpSiz column)
 			);
 		default:
 			pair = malloc(sizeof(*pair));
-			if (pair == NULL) {
-				cleanvector(list);
-				return false;
-			}
+			if (pair == NULL)
+				goto error;
 			if (!toktoobj(ctx, &pair->obj, port, tok))
-				return false;
+				goto error;
 			pair->next = NULL;
 			if (last == NULL)
 				list = pair;
@@ -553,8 +551,9 @@ readvector(Simp ctx, Simp *vect, Simp port, SimpSiz lineno, SimpSiz column)
 			break;
 		}
 	}
-	/* UNREACHABLE */
-	abort();
+error:
+	cleanvector(list);
+	return false;
 }
 
 static void

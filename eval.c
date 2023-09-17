@@ -32,13 +32,10 @@
 
 #define FORMS                                            \
 	X(FORM_AND,             "and"                   )\
-	X(FORM_APPLY,           "apply"                 )\
 	X(FORM_DEFINE,          "define"                )\
 	X(FORM_DEFUN,           "defun"                 )\
 	X(FORM_DO,              "do"                    )\
-	X(FORM_EVAL,            "eval"                  )\
 	X(FORM_FALSE,           "false"                 )\
-	X(FORM_FIX,             "fix"                   )\
 	X(FORM_IF,              "if"                    )\
 	X(FORM_LAMBDA,          "lambda"                )\
 	X(FORM_LET,             "let"                   )\
@@ -46,9 +43,14 @@
 	X(FORM_QUOTE,           "quote"                 )\
 	X(FORM_REDEFINE,        "redefine"              )\
 	X(FORM_TRUE,            "true"                  )\
-	X(FORM_VARLAMBDA,       "varlambda"             )
+	X(FORM_VARLAMBDA,       "lambda..."             )
 
-#define BUILTINS                                                    \
+#define BUILTIN_LABELS                                              \
+	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
+	X("apply",              BLTIN_APPLY,    2,      true       )\
+	X("eval",               BLTIN_EVAL,     2,      false      )
+
+#define BUILTIN_ROUTINES                                            \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
 	X("*",                  f_multiply,     0,      true       )\
 	X("+",                  f_add,          0,      true       )\
@@ -116,20 +118,8 @@
 	X("symbol?",            f_symbolp,      1,      false      )\
 	X("true?",              f_truep,        1,      false      )\
 	X("vector",             f_vector,       0,      true       )\
-	X("vector?",            f_vectorp,      0,      true       )\
+	X("vector?",            f_vectorp,      1,      false      )\
 	X("write",              f_write,        1,      true       )
-
-enum {
-	/*
-	 * An environment frame is a linked-list of triplets containing
-	 * a symbol of the variable, its value, and a pointer to the
-	 * next triplet.
-	 */
-	BINDING_VARIABLE,
-	BINDING_VALUE,
-	BINDING_NEXT,
-	BINDING_SIZE,
-};
 
 typedef enum Form {
 #define X(n, s) n,
@@ -146,11 +136,17 @@ typedef struct Eval {
 
 struct Builtin {
 	unsigned char *name;
+	enum {
+		BLTIN_NORMAL,
+#define X(s, e, a, v) e,
+		BUILTIN_LABELS
+#undef  X
+	} type;
 	bool variadic;
-	void (*fun)(Eval *, Simp *, Simp, Simp, Simp);
 	SimpSiz nargs;
 	SimpSiz namelen;
 	Simp self;
+	void (*fun)(Eval *, Simp *, Simp, Simp, Simp);
 };
 
 static Simp simp_eval(Eval *eval, Simp expr, Simp env);
@@ -1593,47 +1589,6 @@ isform(Simp obj, Form *form)
 	return false;
 }
 
-static Simp *
-getbind(Simp obj)
-{
-	return simp_getvector(obj);
-}
-
-static Simp
-getbindvariable(Simp obj)
-{
-	return getbind(obj)[BINDING_VARIABLE];
-}
-
-static Simp
-getbindvalue(Simp obj)
-{
-	return getbind(obj)[BINDING_VALUE];
-}
-
-static Simp
-getnextbind(Simp obj)
-{
-	return getbind(obj)[BINDING_NEXT];
-}
-
-static bool
-xenvset(Simp env, Simp var, Simp val)
-{
-	Simp bind, sym;
-
-	for (bind = simp_getenvframe(env);
-	     !simp_isnil(bind);
-	     bind = getnextbind(bind)) {
-		sym = getbindvariable(bind);
-		if (simp_issame(var, sym)) {
-			simp_setvector(bind, BINDING_VALUE, val);
-			return true;
-		}
-	}
-	return false;
-}
-
 static Simp
 envget(Eval *eval, Simp expr, Simp env, Simp sym)
 {
@@ -1644,10 +1599,10 @@ envget(Eval *eval, Simp expr, Simp env, Simp sym)
 	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
 		for (bind = simp_getenvframe(env);
 		     !simp_isnil(bind);
-		     bind = getnextbind(bind)) {
-			var = getbindvariable(bind);
+		     bind = simp_getnextbind(bind)) {
+			var = simp_getbindvariable(bind);
 			if (simp_issame(var, sym)) {
-				return getbindvalue(bind);
+				return simp_getbindvalue(bind);
 			}
 		}
 	}
@@ -1661,7 +1616,7 @@ envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 	if (isform(var, NULL))
 		error(eval, expr, simp_void(), var, ERROR_VARFORM);
 	for (; !simp_isnulenv(env); env = simp_getenvparent(env))
-		if (xenvset(env, var, val))
+		if (simp_envredefine(env, var, val))
 			return;
 	error(eval, expr, simp_void(), var, ERROR_UNBOUND);
 }
@@ -1669,46 +1624,35 @@ envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 static void
 envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
 {
-	Simp frame, bind;
-
 	if (isform(var, NULL))
 		error(eval, expr, simp_void(), var, ERROR_VARFORM);
-	if (xenvset(env, var, val))
+	if (simp_envredefine(env, var, val))
 		return;
-	frame = simp_getenvframe(env);
-	if (!simp_makevector(eval->ctx, &bind, BINDING_SIZE))
+	if (!simp_envdefine(eval->ctx, env, var, val))
 		memerror(eval);
-	simp_setvector(bind, BINDING_VARIABLE, var);
-	simp_setvector(bind, BINDING_VALUE, val);
-	simp_setvector(bind, BINDING_NEXT, frame);
-	simp_setenvframe(env, bind);
 }
 
 static Builtin bltins[] = {
 #define X(s, p, a, v) { \
+.type = BLTIN_NORMAL, \
 .name = (unsigned char *)s, \
 .fun = &p, \
 .nargs = a, \
 .variadic = v, \
 .namelen = sizeof(s)-1 },
-	BUILTINS
+	BUILTIN_ROUTINES
+#undef  X
+
+#define X(s, e, a, v) { \
+.type = e, \
+.name = (unsigned char *)s, \
+.fun = NULL, \
+.nargs = a, \
+.variadic = v, \
+.namelen = sizeof(s)-1 },
+	BUILTIN_LABELS
 #undef  X
 };
-
-static bool
-initialdef(Simp ctx, Simp env, Simp var, Simp val)
-{
-	Simp frame, bind;
-
-	frame = simp_getenvframe(env);
-	if (!simp_makevector(ctx, &bind, BINDING_SIZE))
-		return false;
-	simp_setvector(bind, BINDING_VARIABLE, var);
-	simp_setvector(bind, BINDING_VALUE, val);
-	simp_setvector(bind, BINDING_NEXT, frame);
-	simp_setenvframe(env, bind);
-	return true;
-}
 
 bool
 simp_environmentnew(Simp ctx, Simp *env)
@@ -1723,7 +1667,7 @@ simp_environmentnew(Simp ctx, Simp *env)
 			return false;
 		if (!simp_makebuiltin(ctx, &val, &bltins[i]))
 			return false;
-		if (!initialdef(ctx, *env, bltins[i].self, val))
+		if (!simp_envdefine(ctx, *env, bltins[i].self, val))
 			return false;
 	}
 	return true;
@@ -1749,22 +1693,6 @@ loop:
 	operator = simp_getvectormemb(expr, 0);
 	operands = simp_slicevector(expr, 1, noperands);
 	if (isform(operator, &form)) switch (form) {
-	case FORM_APPLY:
-		/* (apply PROC ARG ... ARGS) */
-		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		proc = simp_getvectormemb(operands, 0);
-		extraargs = simp_getvectormemb(operands, noperands - 1);
-		extraargs = simp_eval(eval, extraargs, env);
-		if (simp_isvoid(extraargs))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		if (!simp_isvector(extraargs))
-			error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
-		nextraargs = simp_getsize(extraargs);
-		operands = simp_slicevector(operands, 1, noperands - 2);
-		noperands -= 2;
-		operator = proc;
-		goto apply;
 	case FORM_AND:
 		/* (and EXPRESSION ...) */
 		val = simp_true();
@@ -1831,25 +1759,6 @@ loop:
 			goto loop;
 		}
 		return simp_void();
-	case FORM_EVAL:
-		/* (eval EXPRESSION ENVIRONMENT) */
-		if (noperands != 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		expr = simp_eval(
-			eval,
-			simp_getvectormemb(operands, 0),
-			env
-		);
-		if (simp_isvoid(expr))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		env = simp_eval(
-			eval,
-			simp_getvectormemb(operands, 1),
-			env
-		);
-		if (simp_isvoid(env))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		goto loop;
 	case FORM_DEFUN:
 		/* (defun SYMBOL PARAMETER ... BODY) */
 		if (noperands < 2)
@@ -1870,25 +1779,6 @@ loop:
 			memerror(eval);
 		envdef(eval, expr, env, var, proc);
 		return simp_void();
-	case FORM_FIX:
-		/* (FIX SELF PARAMETER ... BODY) */
-		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		body = simp_getvectormemb(operands, noperands - 1);
-		params = simp_slicevector(operands, 1, noperands - 2);
-		for (i = 0; i + 1 < noperands; i++) {
-			var = simp_getvectormemb(operands, i);
-			if (!simp_issymbol(var)) {
-				error(eval, expr, operator, var, ERROR_NOTSYM);
-			}
-		}
-		if (!simp_makeenvironment(eval->ctx, &env, env))
-			memerror(eval);
-		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
-			memerror(eval);
-		var = simp_getvectormemb(operands, 0);
-		envdef(eval, expr, env, var, proc);
-		return proc;
 	case FORM_LAMBDA:
 		/* (lambda PARAMETER ... BODY) */
 		if (noperands < 1)
@@ -1964,11 +1854,11 @@ loop:
 	}
 	extraargs = simp_nil();
 	nextraargs = 0;
-apply:
 	/* procedure application */
 	operator = simp_eval(eval, operator, env);
 	if (simp_isvoid(operator))
 		error(eval, expr, operator, simp_void(), ERROR_VOID);
+apply:
 	narguments = noperands + nextraargs;
 	if (!simp_makevector(eval->ctx, &arguments, narguments))
 		memerror(eval);
@@ -1995,8 +1885,26 @@ apply:
 			error(eval, expr, operator, simp_void(), ERROR_NARGS);
 		if (!bltin->variadic && narguments != bltin->nargs)
 			error(eval, expr, operator, simp_void(), ERROR_NARGS);
-		(*bltin->fun)(eval, &val, bltin->self, expr, arguments);
-		return val;
+		switch (bltin->type) {
+		case BLTIN_APPLY:
+			extraargs = simp_getvectormemb(arguments, narguments - 1);
+			if (!simp_isvector(extraargs))
+				error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
+			operator = simp_getvectormemb(arguments, 0);
+			nextraargs = simp_getsize(extraargs);
+			operands = simp_slicevector(arguments, 1, narguments - 2);
+			noperands = narguments - 2;
+			goto apply;
+		case BLTIN_EVAL:
+			expr = simp_getvectormemb(arguments, 0);
+			env = simp_getvectormemb(arguments, 1);
+			goto loop;
+		case BLTIN_NORMAL:
+			(*bltin->fun)(eval, &val, bltin->self, expr, arguments);
+			return val;
+		}
+		/* UNREACHABLE */
+		abort();
 	}
 	if (!simp_isclosure(operator))
 		error(eval, expr, simp_void(), operator, ERROR_NOTPROC);

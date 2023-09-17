@@ -8,11 +8,24 @@
 
 enum {
 	/*
+	 * An environment frame is a linked-list of triplets containing
+	 * a symbol of the variable, its value, and a pointer to the
+	 * next triplet.
+	 */
+	BINDING_VARIABLE,
+	BINDING_VALUE,
+	BINDING_NEXT,
+	BINDING_SIZE,
+};
+
+enum {
+	/*
 	 * An environment is a pair of a pointer to its parent and a
 	 * pointer to the environment's frame
 	 */
 	ENVIRONMENT_PARENT,
 	ENVIRONMENT_FRAME,
+	ENVIRONMENT_SYMFRAME,
 	ENVIRONMENT_SIZE,
 };
 
@@ -29,6 +42,30 @@ struct Source {
 	SimpSiz                 lineno;
 	SimpSiz                 column;
 };
+
+static Simp *
+getbind(Simp obj)
+{
+	return simp_getvector(obj);
+}
+
+Simp
+simp_getbindvariable(Simp obj)
+{
+	return getbind(obj)[BINDING_VARIABLE];
+}
+
+Simp
+simp_getbindvalue(Simp obj)
+{
+	return getbind(obj)[BINDING_VALUE];
+}
+
+Simp
+simp_getnextbind(Simp obj)
+{
+	return getbind(obj)[BINDING_NEXT];
+}
 
 Simp *
 simp_getvector(Simp obj)
@@ -50,10 +87,36 @@ simp_gettype(Simp obj)
 	return obj.type;
 }
 
-void
-simp_setenvframe(Simp env, Simp frame)
+bool
+simp_envredefine(Simp env, Simp var, Simp val)
 {
-	simp_setvector(env, ENVIRONMENT_FRAME, frame);
+	Simp bind, sym;
+
+	for (bind = simp_getenvframe(env);
+	     !simp_isnil(bind);
+	     bind = simp_getnextbind(bind)) {
+		sym = simp_getbindvariable(bind);
+		if (simp_issame(var, sym)) {
+			simp_setvector(bind, BINDING_VALUE, val);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool
+simp_envdefine(Simp ctx, Simp env, Simp var, Simp val)
+{
+	Simp frame, bind;
+
+	frame = simp_getenvframe(env);
+	if (!simp_makevector(ctx, &bind, BINDING_SIZE))
+		return false;
+	simp_setvector(bind, BINDING_VARIABLE, var);
+	simp_setvector(bind, BINDING_VALUE, val);
+	simp_setvector(bind, BINDING_NEXT, frame);
+	simp_setvector(env, ENVIRONMENT_FRAME, bind);
+	return true;
 }
 
 bool
@@ -151,6 +214,12 @@ Simp
 simp_getenvframe(Simp obj)
 {
 	return simp_getenvironment(obj)[ENVIRONMENT_FRAME];
+}
+
+Simp
+simp_getenvsymframe(Simp obj)
+{
+	return simp_getenvironment(obj)[ENVIRONMENT_SYMFRAME];
 }
 
 Simp

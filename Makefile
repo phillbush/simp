@@ -30,7 +30,8 @@ tags: ${SRCS}
 
 lint: ${SRCS}
 	-mandoc -T lint -W warning ${MANS}
-	-clang-tidy ${SRCS} -- -std=c99 ${DEFS} ${CPPFLAGS}
+	-cppcheck --enable=portability --std=c99 ${DEFS} ${SRCS}
+	#-clang-tidy ${SRCS} -- -std=c99 ${DEFS} ${CPPFLAGS}
 
 loc:
 	cat ${SRCS} ${HEDS} | egrep -v '^([[:blank:]]|/\*.*\*/)*$$' | wc -l
