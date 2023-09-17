@@ -8,7 +8,7 @@
 
 #define ERROR_DIVZERO     "division by zero"
 #define ERROR_EMPTY       "empty operation"
-#define ERROR_ILLFORM     "ill-formed syntactical form"
+#define ERROR_ILLMACRO     "ill-formed syntactical form"
 #define ERROR_MAP         "map over vectors of different sizes"
 #define ERROR_MEMORY      "allocation error"
 #define ERROR_NARGS       "wrong number of arguments"
@@ -27,30 +27,37 @@
 #define ERROR_READ        "read error"
 #define ERROR_STREAM      "stream error"
 #define ERROR_UNBOUND     "unbound variable: "
-#define ERROR_VARFORM     "macro used as variable: "
+#define ERROR_VARMACRO    "macro used as variable: "
 #define ERROR_VOID        "expression evaluated to nothing; expected value"
 
-#define FORMS                                            \
-	X(FORM_AND,             "and"                   )\
-	X(FORM_DEFINE,          "define"                )\
-	X(FORM_DEFUN,           "defun"                 )\
-	X(FORM_DO,              "do"                    )\
-	X(FORM_FALSE,           "false"                 )\
-	X(FORM_IF,              "if"                    )\
-	X(FORM_LAMBDA,          "lambda"                )\
-	X(FORM_LET,             "let"                   )\
-	X(FORM_OR,              "or"                    )\
-	X(FORM_QUOTE,           "quote"                 )\
-	X(FORM_REDEFINE,        "redefine"              )\
-	X(FORM_TRUE,            "true"                  )\
-	X(FORM_VARLAMBDA,       "lambda..."             )
+#define MACRO_SPECIALS                                              \
+	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
+	X("do",                 BLTIN_DO,       0,      true       )\
+	X("if",                 BLTIN_IF,       2,      true       )\
+	X("let",                BLTIN_LET,      1,      true       )
 
-#define BUILTIN_LABELS                                              \
+#define PROCEDURE_SPECIALS                                            \
 	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
 	X("apply",              BLTIN_APPLY,    2,      true       )\
 	X("eval",               BLTIN_EVAL,     2,      false      )
 
-#define BUILTIN_ROUTINES                                            \
+#define MACRO_ROUTINES                                              \
+	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
+	X("and",                f_and,          0,      true       )\
+	X("define",             f_define,       2,      false      )\
+	X("defmacro",           f_defmacro,     2,      true       )\
+	X("defmacro...",        f_vardefmacro,  3,      true       )\
+	X("defun",              f_defun,        2,      true       )\
+	X("defun...",           f_vardefun,     3,      true       )\
+	X("false",              f_false,        0,      false      )\
+	X("lambda",             f_lambda,       1,      true       )\
+	X("lambda...",          f_varlambda,    2,      true       )\
+	X("or",                 f_or,           0,      true       )\
+	X("quote",              f_quote,        1,      false      )\
+	X("redefine",           f_redefine,     2,      false      )\
+	X("true",               f_true,         0,      false      )
+
+#define PROCEDURE_ROUTINES                                            \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
 	X("*",                  f_multiply,     0,      true       )\
 	X("+",                  f_add,          0,      true       )\
@@ -121,12 +128,6 @@
 	X("vector?",            f_vectorp,      1,      false      )\
 	X("write",              f_write,        1,      true       )
 
-typedef enum Form {
-#define X(n, s) n,
-	FORMS
-#undef  X
-} Form;
-
 typedef struct Eval {
 	Simp ctx;
 	Simp env;
@@ -139,14 +140,15 @@ struct Builtin {
 	enum {
 		BLTIN_NORMAL,
 #define X(s, e, a, v) e,
-		BUILTIN_LABELS
+		PROCEDURE_SPECIALS
+		MACRO_SPECIALS
 #undef  X
 	} type;
 	bool variadic;
 	SimpSiz nargs;
 	SimpSiz namelen;
 	Simp self;
-	void (*fun)(Eval *, Simp *, Simp, Simp, Simp);
+	void (*fun)(Eval *, Simp *, Simp, Simp, Simp, Simp);
 };
 
 static Simp simp_eval(Eval *eval, Simp expr, Simp env);
@@ -181,6 +183,87 @@ error(Eval *eval, Simp expr, Simp sym, Simp obj, const char *errmsg)
 }
 
 static void
+memerror(Eval *eval)
+{
+	error(eval, simp_nil(), simp_void(), simp_void(), ERROR_MEMORY);
+}
+
+static bool
+syntaxget(Simp *macro, Simp env, Simp sym)
+{
+	Simp bind, var;
+
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
+		for (bind = simp_getenvsynframe(env);
+		     !simp_isnil(bind);
+		     bind = simp_getnextbind(bind)) {
+			var = simp_getbindvariable(bind);
+			if (!simp_issame(var, sym))
+				continue;
+			if (macro != NULL)
+				*macro = simp_getbindvalue(bind);
+			return true;
+		}
+	}
+	return false;
+}
+
+static Simp
+envget(Eval *eval, Simp expr, Simp mainenv, Simp sym)
+{
+	enum { SYNTAX_ENV, NORMAL_ENV, LAST_ENV } i;
+	Simp bind, var, env;
+	const char *errstr = ERROR_VARMACRO;
+
+	for (i = 0; i < LAST_ENV; i++) {
+		for (env = mainenv;
+		     !simp_isnulenv(env);
+		     env = simp_getenvparent(env)) {
+			if (i == SYNTAX_ENV)
+				bind = simp_getenvsynframe(env);
+			else
+				bind = simp_getenvframe(env);
+			for (;
+			     !simp_isnil(bind);
+			     bind = simp_getnextbind(bind)) {
+				var = simp_getbindvariable(bind);
+				if (!simp_issame(var, sym))
+					continue;
+				if (i == SYNTAX_ENV)
+					goto syntax_error;
+				return simp_getbindvalue(bind);
+			}
+		}
+	}
+	errstr = ERROR_UNBOUND;
+syntax_error:
+	error(eval, expr, simp_void(), sym, errstr);
+	abort();
+}
+
+static void
+envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val, bool syntax)
+{
+	if (syntaxget(NULL, env, var))
+		error(eval, expr, simp_void(), var, ERROR_VARMACRO);
+	for (; !simp_isnulenv(env); env = simp_getenvparent(env))
+		if (simp_envredefine(env, var, val, syntax))
+			return;
+	error(eval, expr, simp_void(), var, ERROR_UNBOUND);
+}
+
+static void
+envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val, bool syntax)
+{
+	if (syntaxget(NULL, env, var))
+		error(eval, expr, simp_void(), var, ERROR_VARMACRO);
+	if (simp_envredefine(env, var, val, syntax))
+		return;
+	if (!simp_envdefine(eval->ctx, env, var, val, syntax))
+		memerror(eval);
+}
+
+static void
 typepred(Simp args, Simp *ret, bool (*pred)(Simp))
 {
 	Simp obj;
@@ -208,16 +291,11 @@ stringcmp(Simp a, Simp b)
 }
 
 static void
-memerror(Eval *eval)
-{
-	error(eval, simp_nil(), simp_void(), simp_void(), ERROR_MEMORY);
-}
-
-static void
-f_abs(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_abs(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isnum(obj))
 		error(eval, expr, self, obj, ERROR_NOTNUM);
@@ -226,11 +304,12 @@ f_abs(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_add(Eval *eval, Simp *sum, Simp self, Simp expr, Simp args)
+f_add(Eval *eval, Simp *sum, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp obj;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (!simp_makesignum(eval->ctx, sum, 0))
 		memerror(eval);
@@ -244,30 +323,51 @@ f_add(Eval *eval, Simp *sum, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_bytep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_and(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	SimpSiz nargs, i;
+
+	nargs = simp_getsize(args);
+	*ret = simp_true();
+	for (i = 0; i < nargs; i++) {
+		*ret = simp_getvectormemb(args, i);
+		*ret = simp_eval(eval, *ret, env);
+		if (simp_isvoid(*ret))
+			error(eval, expr, self, simp_void(), ERROR_VOID);
+		if (simp_isfalse(*ret)) {
+			break;
+		}
+	}
+}
+
+static void
+f_bytep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)expr;
 	(void)self;
+	(void)env;
 	typepred(args, ret, simp_isbyte);
 }
 
 static void
-f_booleanp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_booleanp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)expr;
 	(void)self;
+	(void)env;
 	typepred(args, ret, simp_isbool);
 }
 
 static void
-f_car(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_car(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz size;
 	Simp obj;
 
 	(void)eval;
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTINT);
@@ -278,12 +378,13 @@ f_car(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_cdr(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_cdr(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz size;
 	Simp obj;
 
 	(void)eval;
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
@@ -294,40 +395,108 @@ f_cdr(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stdin(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stdin(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)ret;
 	(void)self;
 	(void)expr;
 	(void)args;
+	(void)env;
 	*ret = eval->iport;
 }
 
 static void
-f_stdout(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stdout(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)ret;
 	(void)self;
 	(void)expr;
 	(void)args;
+	(void)env;
 	*ret = eval->oport;
 }
 
 static void
-f_stderr(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stderr(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)ret;
 	(void)self;
 	(void)expr;
 	(void)args;
+	(void)env;
 	*ret = eval->eport;
 }
 
 static void
-f_display(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_define(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val;
+
+	(void)ret;
+	var = simp_getvectormemb(args, 0);
+	val = simp_getvectormemb(expr, 1);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	val = simp_eval(eval, val, env);
+	envdef(eval, expr, env, var, val, false);
+}
+
+static void
+f_defmacro(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val, body;
+	SimpSiz nargs, i;
+
+	(void)ret;
+	nargs = simp_getsize(args);
+	var = simp_getvectormemb(args, 0);
+	body = simp_getvectormemb(args, nargs - 1);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	nargs -= 2;
+	args = simp_slicevector(args, 1, nargs);
+	for (i = 0; i < nargs; i++) {
+		val = simp_getvectormemb(args, i);
+		if (!simp_issymbol(val)) {
+			error(eval, expr, self, val, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, simp_nil(), body))
+		memerror(eval);
+	envdef(eval, expr, env, var, val, true);
+}
+
+static void
+f_defun(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val, body;
+	SimpSiz nargs, i;
+
+	(void)ret;
+	nargs = simp_getsize(args);
+	var = simp_getvectormemb(args, 0);
+	body = simp_getvectormemb(args, nargs - 1);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	nargs -= 2;
+	args = simp_slicevector(args, 1, nargs);
+	for (i = 0; i < nargs; i++) {
+		val = simp_getvectormemb(args, i);
+		if (!simp_issymbol(val)) {
+			error(eval, expr, self, val, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, simp_nil(), body))
+		memerror(eval);
+	envdef(eval, expr, env, var, val, false);
+}
+
+static void
+f_display(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj, port;
 
+	(void)env;
 	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 2:
@@ -347,11 +516,12 @@ f_display(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_divide(Eval *eval, Simp *ratio, Simp self, Simp expr, Simp args)
+f_divide(Eval *eval, Simp *ratio, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp obj;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (!simp_makesignum(eval->ctx, ratio, 1))
 		memerror(eval);
@@ -377,28 +547,28 @@ f_divide(Eval *eval, Simp *ratio, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_emptyp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_emptyp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)expr;
 	(void)self;
+	(void)env;
 	typepred(args, ret, simp_isempty);
 }
 
 static void
-f_envp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_envp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)expr;
 	(void)self;
+	(void)env;
 	typepred(args, ret, simp_isenvironment);
 }
 
 static void
-f_envnew(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_envnew(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
-	Simp env;
-
 	env = simp_nulenv();
 	switch (simp_getsize(args)) {
 	case 1:
@@ -416,21 +586,23 @@ f_envnew(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_eofp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_eofp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_iseof);
 }
 
 static void
-f_equal(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_equal(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
 	(void)eval;
+	(void)env;
 	nargs = simp_getsize(args);
 	*ret = simp_true();
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -447,20 +619,33 @@ f_equal(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_falsep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_false(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
+	(void)args;
+	*ret = simp_false();
+}
+
+static void
+f_falsep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)eval;
+	(void)self;
+	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isfalse);
 }
 
 static void
-f_foreach(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_foreach(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp prod, obj;
 	SimpSiz i, j, n, size, nargs;
 
+	(void)env;
 	*ret = simp_void();
 	nargs = simp_getsize(args);
 	if (nargs < 2)
@@ -496,12 +681,13 @@ f_foreach(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_foreachstring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_foreachstring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp prod, obj;
 	SimpSiz i, j, n, size, nargs;
 	unsigned char byte;
 
+	(void)env;
 	*ret = simp_void();
 	nargs = simp_getsize(args);
 	if (nargs < 2)
@@ -539,11 +725,12 @@ f_foreachstring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_ge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_ge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
+	(void)env;
 	(void)eval;
 	nargs = simp_getsize(args);
 	*ret = simp_true();
@@ -561,11 +748,12 @@ f_ge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
+	(void)env;
 	(void)eval;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
@@ -583,12 +771,32 @@ f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_le(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_lambda(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp body, var;
+
+	nargs = simp_getsize(args);
+	body = simp_getvectormemb(args, nargs - 1);
+	args = simp_slicevector(args, 0, --nargs);
+	for (i = 0; i < nargs; i++) {
+		var = simp_getvectormemb(args, i);
+		if (!simp_issymbol(var)) {
+			error(eval, expr, self, var, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, ret, expr, env, args, simp_nil(), body))
+		memerror(eval);
+}
+
+static void
+f_le(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
 	(void)eval;
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -605,12 +813,13 @@ f_le(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_lt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_lt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
 	(void)eval;
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -627,11 +836,12 @@ f_lt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_makestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_makestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpInt size;
 	Simp obj;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_issignum(obj))
 		error(eval, expr, self, obj, ERROR_NOTINT);
@@ -643,11 +853,12 @@ f_makestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_makevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_makevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpInt size;
 	Simp obj;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_issignum(obj))
 		error(eval, expr, self, obj, ERROR_NOTINT);
@@ -659,11 +870,12 @@ f_makevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_map(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
+f_map(Eval *eval, Simp *vector, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp prod, obj;
 	SimpSiz i, j, n, size, nargs;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (nargs < 2)
 		error(eval, expr, self, simp_void(), ERROR_NARGS);
@@ -701,12 +913,13 @@ f_map(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_mapstring(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
+f_mapstring(Eval *eval, Simp *string, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp newexpr, prod, obj;
 	SimpSiz i, j, n, size, nargs;
 	unsigned char byte;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (nargs < 2)
 		error(eval, expr, self, simp_void(), ERROR_NARGS);
@@ -748,11 +961,12 @@ f_mapstring(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_member(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_member(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp newexpr, pred, ref, obj, vector;
 	SimpSiz i, size;
 
+	(void)env;
 	*ret = simp_false();
 	pred = simp_getvectormemb(args, 0);
 	ref = simp_getvectormemb(args, 1);
@@ -778,11 +992,12 @@ f_member(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_multiply(Eval *eval, Simp *prod, Simp self, Simp expr, Simp args)
+f_multiply(Eval *eval, Simp *prod, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp obj;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (!simp_makesignum(eval->ctx, prod, 1))
 		memerror(eval);
@@ -796,11 +1011,12 @@ f_multiply(Eval *eval, Simp *prod, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_newline(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_newline(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp port;
 
 	(void)ret;
+	(void)env;
 	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 1:
@@ -818,13 +1034,14 @@ f_newline(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_not(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_not(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	*ret = simp_false();
 	obj = simp_getvectormemb(args, 0);
 	if (simp_isfalse(obj))
@@ -832,46 +1049,79 @@ f_not(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_nullp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_nullp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isnil);
 }
 
 static void
-f_numberp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_numberp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_issignum);
 }
 
 static void
-f_portp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_or(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	SimpSiz nargs, i;
+
+	nargs = simp_getsize(args);
+	*ret = simp_true();
+	for (i = 0; i < nargs; i++) {
+		*ret = simp_getvectormemb(args, i);
+		*ret = simp_eval(eval, *ret, env);
+		if (simp_isvoid(*ret))
+			error(eval, expr, self, simp_void(), ERROR_VOID);
+		if (simp_istrue(*ret)) {
+			break;
+		}
+	}
+}
+
+static void
+f_portp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isport);
 }
 
 static void
-f_procedurep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_procedurep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isprocedure);
 }
 
 static void
-f_read(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_quote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)eval;
+	(void)self;
+	(void)expr;
+	(void)env;
+	*ret = simp_getvectormemb(args, 0);
+}
+
+static void
+f_read(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp port;
 
+	(void)env;
 	port = eval->iport;
 	switch (simp_getsize(args)) {
 	case 1:
@@ -890,11 +1140,26 @@ f_read(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_remainder(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_redefine(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val;
+
+	(void)ret;
+	var = simp_getvectormemb(args, 0);
+	val = simp_getvectormemb(expr, 1);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	val = simp_eval(eval, val, env);
+	envset(eval, expr, env, var, val, false);
+}
+
+static void
+f_remainder(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpInt d;
 	Simp a, b;
 
+	(void)env;
 	a = simp_getvectormemb(args, 0);
 	b = simp_getvectormemb(args, 1);
 	if (!simp_issignum(a))
@@ -910,7 +1175,7 @@ f_remainder(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_samep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_samep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
@@ -918,6 +1183,7 @@ f_samep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -932,12 +1198,13 @@ f_samep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_slicevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_slicevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp vector, obj;
 	SimpSiz nargs, from, size, capacity;
 
 	(void)eval;
+	(void)env;
 	nargs = simp_getsize(args);
 	if (nargs < 1 || nargs > 3)
 		error(eval, expr, self, simp_void(), ERROR_NARGS);
@@ -974,12 +1241,13 @@ f_slicevector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_slicestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_slicestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp string, obj;
 	SimpSiz nargs, from, size, capacity;
 
 	(void)eval;
+	(void)env;
 	nargs = simp_getsize(args);
 	if (nargs < 1 || nargs > 3)
 		error(eval, expr, self, simp_void(), ERROR_NARGS);
@@ -1016,11 +1284,12 @@ f_slicestring(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_subtract(Eval *eval, Simp *diff, Simp self, Simp expr, Simp args)
+f_subtract(Eval *eval, Simp *diff, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp obj;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (!simp_makesignum(eval->ctx, diff, 0))
 		memerror(eval);
@@ -1039,11 +1308,12 @@ f_subtract(Eval *eval, Simp *diff, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_string(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
+f_string(Eval *eval, Simp *string, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 	SimpSiz nargs, i;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	if (!simp_makestring(eval->ctx, string, NULL, nargs))
 		memerror(eval);
@@ -1056,11 +1326,12 @@ f_string(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringcat(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
+f_stringcat(Eval *eval, Simp *string, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 	SimpSiz nargs, size, n, i;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	size = 0;
 	for (i = 0; i < nargs; i++) {
@@ -1083,12 +1354,13 @@ f_stringcat(Eval *eval, Simp *string, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp dst, src;
 	SimpSiz dstsiz, srcsiz;
 
 	(void)ret;
+	(void)env;
 	dst = simp_getvectormemb(args, 0);
 	src = simp_getvectormemb(args, 1);
 	if (!simp_isstring(dst))
@@ -1103,11 +1375,12 @@ f_stringcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringdup(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringdup(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 	SimpSiz len;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isstring(obj))
 		error(eval, expr, self, obj, ERROR_NOTSTRING);
@@ -1117,12 +1390,13 @@ f_stringdup(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
 	*ret = simp_true();
+	(void)env;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
 		next = simp_getvectormemb(args, i);
@@ -1138,11 +1412,12 @@ f_stringge(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringgt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringgt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -1159,11 +1434,12 @@ f_stringgt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringle(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringle(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -1180,11 +1456,12 @@ f_stringle(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringlt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringlt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
 	Simp next, prev;
 
+	(void)env;
 	*ret = simp_true();
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next) {
@@ -1201,11 +1478,12 @@ f_stringlt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpInt size;
 	Simp obj;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isstring(obj))
 		error(eval, expr, self, obj, ERROR_NOTSTRING);
@@ -1215,13 +1493,14 @@ f_stringlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz size;
 	SimpInt pos;
 	Simp a, b;
 	unsigned u;
 
+	(void)env;
 	a = simp_getvectormemb(args, 0);
 	b = simp_getvectormemb(args, 1);
 	if (!simp_isstring(a))
@@ -1238,21 +1517,23 @@ f_stringref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isstring);
 }
 
 static void
-f_stringvector(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
+f_stringvector(Eval *eval, Simp *vector, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp str, byte;
 	SimpSiz i, size;
 	unsigned char u;
 
+	(void)env;
 	str = simp_getvectormemb(args, 0);
 	if (!simp_isstring(str))
 		error(eval, expr, self, str, ERROR_NOTSTRING);
@@ -1268,7 +1549,7 @@ f_stringvector(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_stringset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_stringset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp str, pos, val;
 	SimpSiz size;
@@ -1276,6 +1557,7 @@ f_stringset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	unsigned char u;
 
 	(void)ret;
+	(void)env;
 	str = simp_getvectormemb(args, 0);
 	pos = simp_getvectormemb(args, 1);
 	val = simp_getvectormemb(args, 2);
@@ -1294,39 +1576,127 @@ f_stringset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_truep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_true(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
+	(void)args;
+	*ret = simp_true();
+}
+
+static void
+f_truep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)eval;
+	(void)self;
+	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_istrue);
 }
 
 static void
-f_symbolp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_symbolp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_issymbol);
 }
 
 static void
-f_vector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vardefmacro(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val, body, extra;
+	SimpSiz nargs, i;
+
+	(void)ret;
+	nargs = simp_getsize(args);
+	var = simp_getvectormemb(args, 0);
+	body = simp_getvectormemb(args, nargs - 1);
+	extra = simp_getvectormemb(args, nargs - 2);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	args = simp_slicevector(args, 1, nargs - 3);
+	nargs -= 2;
+	for (i = 0; i < nargs; i++) {
+		val = simp_getvectormemb(args, i);
+		if (!simp_issymbol(val)) {
+			error(eval, expr, self, val, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, extra, body))
+		memerror(eval);
+	envdef(eval, expr, env, var, val, true);
+}
+
+static void
+f_vardefun(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp var, val, body, extra;
+	SimpSiz nargs, i;
+
+	(void)ret;
+	nargs = simp_getsize(args);
+	var = simp_getvectormemb(args, 0);
+	body = simp_getvectormemb(args, nargs - 1);
+	extra = simp_getvectormemb(args, nargs - 2);
+	if (!simp_issymbol(var))
+		error(eval, expr, self, var, ERROR_NOTSYM);
+	args = simp_slicevector(args, 1, nargs - 3);
+	nargs -= 2;
+	for (i = 0; i < nargs; i++) {
+		val = simp_getvectormemb(args, i);
+		if (!simp_issymbol(val)) {
+			error(eval, expr, self, val, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, extra, body))
+		memerror(eval);
+	envdef(eval, expr, env, var, val, false);
+}
+
+static void
+f_varlambda(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	SimpSiz nargs, i;
+	Simp extra, body, var;
+
+	nargs = simp_getsize(args);
+	body = simp_getvectormemb(args, nargs - 1);
+	extra = simp_getvectormemb(args, nargs - 2);
+	args = simp_slicevector(args, 0, nargs - 2);
+	nargs--;
+	for (i = 0; i < nargs; i++) {
+		var = simp_getvectormemb(args, i);
+		if (!simp_issymbol(var)) {
+			error(eval, expr, self, var, ERROR_NOTSYM);
+		}
+	}
+	if (!simp_makeclosure(eval->ctx, ret, expr, env, args, extra, body))
+		memerror(eval);
+}
+
+static void
+f_vector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
 	(void)ret;
+	(void)env;
 	*ret = args;
 }
 
 static void
-f_vectorcat(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
+f_vectorcat(Eval *eval, Simp *vector, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj;
 	SimpSiz nargs, size, n, i;
 
+	(void)env;
 	nargs = simp_getsize(args);
 	size = 0;
 	for (i = 0; i < nargs; i++) {
@@ -1349,12 +1719,13 @@ f_vectorcat(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp dst, src;
 	SimpSiz dstsiz, srcsiz;
 
 	(void)ret;
+	(void)env;
 	dst = simp_getvectormemb(args, 0);
 	src = simp_getvectormemb(args, 1);
 	if (!simp_isvector(dst))
@@ -1369,11 +1740,12 @@ f_vectorcpy(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp args)
+f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp src;
 	SimpSiz i, len;
 
+	(void)env;
 	src = simp_getvectormemb(args, 0);
 	if (!simp_isvector(src))
 		error(eval, expr, self, src, ERROR_NOTVECTOR);
@@ -1390,13 +1762,14 @@ f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectoreqv(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectoreqv(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp a, b;
 	Simp next, prev;
 	SimpSiz nargs, newsize, oldsize, i, j;
 
 	(void)eval;
+	(void)env;
 	nargs = simp_getsize(args);
 	for (i = 0; i < nargs; i++, prev = next, oldsize = newsize) {
 		next = simp_getvectormemb(args, i);
@@ -1422,22 +1795,24 @@ f_vectoreqv(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
 	(void)self;
 	(void)expr;
+	(void)env;
 	typepred(args, ret, simp_isvector);
 }
 
 static void
-f_vectorset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp vector, pos, val;
 	SimpSiz size;
 	SimpInt n;
 
 	(void)ret;
+	(void)env;
 	vector = simp_getvectormemb(args, 0);
 	pos = simp_getvectormemb(args, 1);
 	val = simp_getvectormemb(args, 2);
@@ -1453,11 +1828,12 @@ f_vectorset(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpInt size;
 	Simp obj;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
@@ -1467,13 +1843,14 @@ f_vectorlen(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz size;
 	SimpInt pos;
 	Simp a, b;
 
 	(void)eval;
+	(void)env;
 	a = simp_getvectormemb(args, 0);
 	b = simp_getvectormemb(args, 1);
 	if (!simp_isvector(a))
@@ -1488,12 +1865,13 @@ f_vectorref(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorrev(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_vectorrev(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz i, n, size;
 	Simp obj, beg, end;
 
 	(void)eval;
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
@@ -1509,11 +1887,12 @@ f_vectorrev(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_vectorrevnew(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
+f_vectorrevnew(Eval *eval, Simp *vector, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz i, n, size;
 	Simp obj, beg, end;
 
+	(void)env;
 	obj = simp_getvectormemb(args, 0);
 	if (!simp_isvector(obj))
 		error(eval, expr, self, obj, ERROR_NOTVECTOR);
@@ -1534,11 +1913,12 @@ f_vectorrevnew(Eval *eval, Simp *vector, Simp self, Simp expr, Simp args)
 }
 
 static void
-f_write(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
+f_write(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj, port;
 
 	(void)ret;
+	(void)env;
 	port = eval->oport;
 	switch (simp_getsize(args)) {
 	case 2:
@@ -1556,118 +1936,72 @@ f_write(Eval *eval, Simp *ret, Simp self, Simp expr, Simp args)
 	simp_write(port, obj);
 }
 
-static bool
-isform(Simp obj, Form *form)
-{
-	SimpSiz i;
-	int cmp;
-	static struct {
-		const char *name;
-		size_t size;
-	} forms[] = {
-#define X(n, s) [n] = { .name = s, .size = sizeof(s)-1, },
-		FORMS
-#undef  X
-	};
-
-	if (!simp_issymbol(obj))
-		return false;
-	for (i = 0; i < LEN(forms); i++) {
-		if (simp_getsize(obj) != forms[i].size)
-			continue;
-		cmp = memcmp(
-			simp_getsymbol(obj),
-			forms[i].name,
-			forms[i].size
-		);
-		if (cmp == 0) {
-			if (form != NULL)
-				*form = i;
-			return true;
-		}
-	}
-	return false;
-}
-
-static Simp
-envget(Eval *eval, Simp expr, Simp env, Simp sym)
-{
-	Simp bind, var;
-
-	if (isform(sym, NULL))
-		error(eval, expr, simp_void(), sym, ERROR_VARFORM);
-	for (; !simp_isnulenv(env); env = simp_getenvparent(env)) {
-		for (bind = simp_getenvframe(env);
-		     !simp_isnil(bind);
-		     bind = simp_getnextbind(bind)) {
-			var = simp_getbindvariable(bind);
-			if (simp_issame(var, sym)) {
-				return simp_getbindvalue(bind);
-			}
-		}
-	}
-	error(eval, expr, simp_void(), sym, ERROR_UNBOUND);
-	abort();
-}
-
-static void
-envset(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
-{
-	if (isform(var, NULL))
-		error(eval, expr, simp_void(), var, ERROR_VARFORM);
-	for (; !simp_isnulenv(env); env = simp_getenvparent(env))
-		if (simp_envredefine(env, var, val))
-			return;
-	error(eval, expr, simp_void(), var, ERROR_UNBOUND);
-}
-
-static void
-envdef(Eval *eval, Simp expr, Simp env, Simp var, Simp val)
-{
-	if (isform(var, NULL))
-		error(eval, expr, simp_void(), var, ERROR_VARFORM);
-	if (simp_envredefine(env, var, val))
-		return;
-	if (!simp_envdefine(eval->ctx, env, var, val))
-		memerror(eval);
-}
-
-static Builtin bltins[] = {
-#define X(s, p, a, v) { \
-.type = BLTIN_NORMAL, \
-.name = (unsigned char *)s, \
-.fun = &p, \
-.nargs = a, \
-.variadic = v, \
-.namelen = sizeof(s)-1 },
-	BUILTIN_ROUTINES
-#undef  X
-
-#define X(s, e, a, v) { \
-.type = e, \
-.name = (unsigned char *)s, \
-.fun = NULL, \
-.nargs = a, \
-.variadic = v, \
-.namelen = sizeof(s)-1 },
-	BUILTIN_LABELS
-#undef  X
-};
-
 bool
 simp_environmentnew(Simp ctx, Simp *env)
 {
+	static Builtin funcs[] = {
+#define X(s, p, a, v) { \
+	.type = BLTIN_NORMAL, \
+	.name = (unsigned char *)s, \
+	.fun = &p, \
+	.nargs = a, \
+	.variadic = v, \
+	.namelen = sizeof(s)-1 },
+		PROCEDURE_ROUTINES
+#undef  X
+
+#define X(s, e, a, v) { \
+	.type = e, \
+	.name = (unsigned char *)s, \
+	.fun = NULL, \
+	.nargs = a, \
+	.variadic = v, \
+	.namelen = sizeof(s)-1 },
+		PROCEDURE_SPECIALS
+#undef  X
+	};
+	static Builtin macros[] = {
+#define X(s, p, a, v) { \
+	.type = BLTIN_NORMAL, \
+	.name = (unsigned char *)s, \
+	.fun = &p, \
+	.nargs = a, \
+	.variadic = v, \
+	.namelen = sizeof(s)-1 },
+		MACRO_ROUTINES
+#undef  X
+
+#define X(s, e, a, v) { \
+	.type = e, \
+	.name = (unsigned char *)s, \
+	.fun = NULL, \
+	.nargs = a, \
+	.variadic = v, \
+	.namelen = sizeof(s)-1 },
+		MACRO_SPECIALS
+#undef  X
+	};
 	Simp val;
 	SimpSiz i;
 
 	if (!simp_makeenvironment(ctx, env, simp_nulenv()))
 		return false;
-	for (i = 0; i < LEN(bltins); i++) {
-		if (!simp_makesymbol(ctx, &bltins[i].self, bltins[i].name, bltins[i].namelen))
+	for (i = 0; i < LEN(macros); i++) {
+		/* fill initial environment with builtin macros */
+		if (!simp_makesymbol(ctx, &macros[i].self, macros[i].name, macros[i].namelen))
 			return false;
-		if (!simp_makebuiltin(ctx, &val, &bltins[i]))
+		if (!simp_makebuiltin(ctx, &val, &macros[i]))
 			return false;
-		if (!simp_envdefine(ctx, *env, bltins[i].self, val))
+		if (!simp_envdefine(ctx, *env, macros[i].self, val, true))
+			return false;
+	}
+	for (i = 0; i < LEN(funcs); i++) {
+		/* fill initial environment with builtin procedures */
+		if (!simp_makesymbol(ctx, &funcs[i].self, funcs[i].name, funcs[i].namelen))
+			return false;
+		if (!simp_makebuiltin(ctx, &val, &funcs[i]))
+			return false;
+		if (!simp_envdefine(ctx, *env, funcs[i].self, val, false))
 			return false;
 	}
 	return true;
@@ -1676,13 +2010,14 @@ simp_environmentnew(Simp ctx, Simp *env)
 static Simp
 simp_eval(Eval *eval, Simp expr, Simp env)
 {
-	Form form;
 	Builtin *bltin;
 	Simp operator, operands, arguments, extraargs, extraparams;
-	Simp params, proc, body, var, val;
+	Simp macro, params, var, val;
 	SimpSiz noperands, nparams, narguments, nextraargs, i;
+	bool ismacro;
 
 loop:
+	ismacro = false;
 	if (simp_issymbol(expr))   /* expression is variable */
 		return envget(eval, expr, env, expr);
 	if (!simp_isvector(expr))  /* expression is self-evaluating */
@@ -1692,45 +2027,83 @@ loop:
 	noperands--;
 	operator = simp_getvectormemb(expr, 0);
 	operands = simp_slicevector(expr, 1, noperands);
-	if (isform(operator, &form)) switch (form) {
-	case FORM_AND:
-		/* (and EXPRESSION ...) */
-		val = simp_true();
+	extraargs = simp_nil();
+	nextraargs = 0;
+	ismacro = syntaxget(&macro, env, operator);
+	if (ismacro) {
+		/* operator is a macro; do not evaluate operators */
+		operator = macro;
+		arguments = operands;
+		narguments = noperands;
+	} else {
+		/* operator is a not a macro; evaluate the operators */
+		operator = simp_eval(eval, operator, env);
+		if (simp_isvoid(operator))
+			error(eval, expr, operator, simp_void(), ERROR_VOID);
+apply:
+		narguments = noperands + nextraargs;
+		if (!simp_makevector(eval->ctx, &arguments, narguments))
+			memerror(eval);
 		for (i = 0; i < noperands; i++) {
+			/* evaluate arguments */
 			val = simp_getvectormemb(operands, i);
 			val = simp_eval(eval, val, env);
 			if (simp_isvoid(val))
 				error(eval, expr, operator, simp_void(), ERROR_VOID);
-			if (simp_isfalse(val)) {
-				break;
-			}
+			simp_setvector(arguments, i, val);
 		}
-		return val;
-	case FORM_OR:
-		/* (or EXPRESSION ...) */
-		val = simp_false();
-		for (i = 0; i < noperands; i++) {
-			val = simp_getvectormemb(operands, i);
+		for (i = 0; i < nextraargs; i++) {
+			/* evaluate extra arguments */
+			val = simp_getvectormemb(extraargs, i);
 			val = simp_eval(eval, val, env);
 			if (simp_isvoid(val))
 				error(eval, expr, operator, simp_void(), ERROR_VOID);
-			if (simp_istrue(val)) {
-				break;
-			}
+			simp_setvector(arguments, i + noperands, val);
 		}
-		return val;
-	case FORM_DEFINE:
-		/* (define VAR VAL) */
-		if (noperands != 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		var = simp_getvectormemb(expr, 1);
-		if (!simp_issymbol(var))
-			error(eval, expr, operator, var, ERROR_NOTSYM);
-		val = simp_getvectormemb(expr, 2);
-		val = simp_eval(eval, val, env);
-		envdef(eval, expr, env, var, val);
-		return simp_void();
-	case FORM_DO:
+	}
+	if (simp_isclosure(operator)) {
+		expr = simp_getclosurebody(operator);
+		if (!ismacro &&
+		    !simp_makeenvironment(eval->ctx, &env, simp_getclosureenv(operator)))
+			memerror(eval);
+		params = simp_getclosureparam(operator);
+		nparams = simp_getsize(params);
+		extraparams = simp_getclosurevarargs(operator);
+		if (narguments < nparams)
+			error(eval, expr, operator, simp_void(), ERROR_NARGS);
+		if (narguments > nparams && simp_isnil(extraparams))
+			error(eval, expr, operator, simp_void(), ERROR_NARGS);
+		for (i = 0; i < nparams; i++) {
+			var = simp_getvectormemb(params, i);
+			val = simp_getvectormemb(arguments, i);
+			envdef(eval, expr, env, var, val, false);
+		}
+		if (simp_issymbol(extraparams)) {
+			val = simp_slicevector(arguments, i, narguments - i);
+			envdef(eval, expr, env, extraparams, val, false);
+		}
+		if (ismacro)
+			expr = simp_eval(eval, expr, env);
+		goto loop;
+	}
+	if (!simp_isbuiltin(operator))
+		error(eval, expr, simp_void(), operator, ERROR_NOTPROC);
+	bltin = simp_getbuiltin(operator);
+	if (bltin->variadic && narguments < bltin->nargs)
+		error(eval, expr, operator, simp_void(), ERROR_NARGS);
+	if (!bltin->variadic && narguments != bltin->nargs)
+		error(eval, expr, operator, simp_void(), ERROR_NARGS);
+	switch (bltin->type) {
+	case BLTIN_APPLY:
+		extraargs = simp_getvectormemb(arguments, narguments - 1);
+		if (!simp_isvector(extraargs))
+			error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
+		operator = simp_getvectormemb(arguments, 0);
+		nextraargs = simp_getsize(extraargs);
+		operands = simp_slicevector(arguments, 1, narguments - 2);
+		noperands = narguments - 2;
+		goto apply;
+	case BLTIN_DO:
 		/* (do EXPRESSION ...) */
 		if (noperands == 0)
 			return simp_void();
@@ -1740,10 +2113,14 @@ loop:
 		}
 		expr = simp_getvectormemb(operands, i);
 		goto loop;
-	case FORM_IF:
+	case BLTIN_EVAL:
+		expr = simp_getvectormemb(arguments, 0);
+		env = simp_getvectormemb(arguments, 1);
+		goto loop;
+	case BLTIN_IF:
 		/* (if [COND THEN]... [ELSE]) */
 		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
+			error(eval, expr, operator, simp_void(), ERROR_ILLMACRO);
 		for (i = 0; i + 1 < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
 			val = simp_eval(eval, val, env);
@@ -1759,44 +2136,9 @@ loop:
 			goto loop;
 		}
 		return simp_void();
-	case FORM_DEFUN:
-		/* (defun SYMBOL PARAMETER ... BODY) */
-		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		var = simp_getvectormemb(expr, 1);
-		if (!simp_issymbol(var))
-			error(eval, expr, operator, var, ERROR_NOTSYM);
-		operands = simp_slicevector(operands, 1, --noperands);
-		body = simp_getvectormemb(operands, noperands - 1);
-		params = simp_slicevector(operands, 0, noperands - 1);
-		for (i = 0; i + 1 < noperands; i++) {
-			val = simp_getvectormemb(operands, i);
-			if (!simp_issymbol(val)) {
-				error(eval, expr, operator, val, ERROR_NOTSYM);
-			}
-		}
-		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
-			memerror(eval);
-		envdef(eval, expr, env, var, proc);
-		return simp_void();
-	case FORM_LAMBDA:
-		/* (lambda PARAMETER ... BODY) */
-		if (noperands < 1)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		body = simp_getvectormemb(operands, noperands - 1);
-		params = simp_slicevector(operands, 0, noperands - 1);
-		for (i = 0; i + 1 < noperands; i++) {
-			var = simp_getvectormemb(operands, i);
-			if (!simp_issymbol(var)) {
-				error(eval, expr, operator, var, ERROR_NOTSYM);
-			}
-		}
-		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, simp_nil(), body))
-			memerror(eval);
-		return proc;
-	case FORM_LET:
+	case BLTIN_LET:
 		if (noperands % 2 == 0)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
+			error(eval, expr, operator, simp_void(), ERROR_ILLMACRO);
 		if (!simp_makeenvironment(eval->ctx, &env, env))
 			memerror(eval);
 		for (i = 0; i + 1 < noperands; i += 2) {
@@ -1805,129 +2147,17 @@ loop:
 				error(eval, expr, operator, var, ERROR_NOTSYM);
 			val = simp_getvectormemb(operands, i + 1);
 			val = simp_eval(eval, val, env);
-			envdef(eval, expr, env, var, val);
+			envdef(eval, expr, env, var, val, false);
 		}
 		expr = simp_getvectormemb(operands, noperands - 1);
 		goto loop;
-	case FORM_VARLAMBDA:
-		/* (lambda PARAMETER PARAMETER ... BODY) */
-		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		body = simp_getvectormemb(operands, noperands - 1);
-		extraparams = simp_getvectormemb(operands, noperands - 2);
-		params = simp_slicevector(operands, 0, noperands - 2);
-		for (i = 0; i + 1 < noperands; i++) {
-			var = simp_getvectormemb(operands, i);
-			if (!simp_issymbol(var)) {
-				error(eval, expr, operator, var, ERROR_NOTSYM);
-			}
-		}
-		if (!simp_makeclosure(eval->ctx, &proc, expr, env, params, extraparams, body))
-			memerror(eval);
-		return proc;
-	case FORM_QUOTE:
-		/* (quote OBJ) */
-		if (noperands != 1)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		return simp_getvectormemb(operands, 0);
-	case FORM_REDEFINE:
-		/* (redefine VAR VAL) */
-		if (noperands != 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		var = simp_getvectormemb(expr, 1);
-		if (!simp_issymbol(var))
-			error(eval, expr, operator, var, ERROR_NOTSYM);
-		val = simp_getvectormemb(expr, 2);
-		val = simp_eval(eval, val, env);
-		envset(eval, expr, env, var, val);
-		return simp_void();
-	case FORM_FALSE:
-		/* (false) */
-		if (noperands != 0)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		return simp_false();
-	case FORM_TRUE:
-		/* (true) */
-		if (noperands != 0)
-			error(eval, expr, operator, simp_void(), ERROR_ILLFORM);
-		return simp_true();
-	}
-	extraargs = simp_nil();
-	nextraargs = 0;
-	/* procedure application */
-	operator = simp_eval(eval, operator, env);
-	if (simp_isvoid(operator))
-		error(eval, expr, operator, simp_void(), ERROR_VOID);
-apply:
-	narguments = noperands + nextraargs;
-	if (!simp_makevector(eval->ctx, &arguments, narguments))
-		memerror(eval);
-	for (i = 0; i < noperands; i++) {
-		/* evaluate arguments */
-		val = simp_getvectormemb(operands, i);
-		val = simp_eval(eval, val, env);
-		if (simp_isvoid(val))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		simp_setvector(arguments, i, val);
-	}
-	for (i = 0; i < nextraargs; i++) {
-		/* evaluate extra arguments */
-		val = simp_getvectormemb(extraargs, i);
-		val = simp_eval(eval, val, env);
-		if (simp_isvoid(val))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		simp_setvector(arguments, i + noperands, val);
-	}
-	if (simp_isbuiltin(operator)) {
+	case BLTIN_NORMAL:
 		val = simp_void();
-		bltin = simp_getbuiltin(operator);
-		if (bltin->variadic && narguments < bltin->nargs)
-			error(eval, expr, operator, simp_void(), ERROR_NARGS);
-		if (!bltin->variadic && narguments != bltin->nargs)
-			error(eval, expr, operator, simp_void(), ERROR_NARGS);
-		switch (bltin->type) {
-		case BLTIN_APPLY:
-			extraargs = simp_getvectormemb(arguments, narguments - 1);
-			if (!simp_isvector(extraargs))
-				error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
-			operator = simp_getvectormemb(arguments, 0);
-			nextraargs = simp_getsize(extraargs);
-			operands = simp_slicevector(arguments, 1, narguments - 2);
-			noperands = narguments - 2;
-			goto apply;
-		case BLTIN_EVAL:
-			expr = simp_getvectormemb(arguments, 0);
-			env = simp_getvectormemb(arguments, 1);
-			goto loop;
-		case BLTIN_NORMAL:
-			(*bltin->fun)(eval, &val, bltin->self, expr, arguments);
-			return val;
-		}
-		/* UNREACHABLE */
-		abort();
+		(*bltin->fun)(eval, &val, bltin->self, expr, env, arguments);
+		return val;
 	}
-	if (!simp_isclosure(operator))
-		error(eval, expr, simp_void(), operator, ERROR_NOTPROC);
-	expr = simp_getclosurebody(operator);
-	if (!simp_makeenvironment(eval->ctx, &env, simp_getclosureenv(operator)))
-		memerror(eval);
-	params = simp_getclosureparam(operator);
-	nparams = simp_getsize(params);
-	extraparams = simp_getclosurevarargs(operator);
-	if (narguments < nparams)
-		error(eval, expr, operator, simp_void(), ERROR_NARGS);
-	if (narguments > nparams && simp_isnil(extraparams))
-		error(eval, expr, operator, simp_void(), ERROR_NARGS);
-	for (i = 0; i < nparams; i++) {
-		var = simp_getvectormemb(params, i);
-		val = simp_getvectormemb(arguments, i);
-		envdef(eval, expr, env, var, val);
-	}
-	if (simp_issymbol(extraparams)) {
-		val = simp_slicevector(arguments, i, narguments - i);
-		envdef(eval, expr, env, extraparams, val);
-	}
-	goto loop;
+	/* UNREACHABLE */
+	abort();
 }
 
 int

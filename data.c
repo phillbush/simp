@@ -25,7 +25,7 @@ enum {
 	 */
 	ENVIRONMENT_PARENT,
 	ENVIRONMENT_FRAME,
-	ENVIRONMENT_SYMFRAME,
+	ENVIRONMENT_SYNFRAME,
 	ENVIRONMENT_SIZE,
 };
 
@@ -88,13 +88,15 @@ simp_gettype(Simp obj)
 }
 
 bool
-simp_envredefine(Simp env, Simp var, Simp val)
+simp_envredefine(Simp env, Simp var, Simp val, bool syntax)
 {
 	Simp bind, sym;
 
-	for (bind = simp_getenvframe(env);
-	     !simp_isnil(bind);
-	     bind = simp_getnextbind(bind)) {
+	if (syntax)
+		bind = simp_getenvsynframe(env);
+	else
+		bind = simp_getenvframe(env);
+	for (; !simp_isnil(bind); bind = simp_getnextbind(bind)) {
 		sym = simp_getbindvariable(bind);
 		if (simp_issame(var, sym)) {
 			simp_setvector(bind, BINDING_VALUE, val);
@@ -105,17 +107,24 @@ simp_envredefine(Simp env, Simp var, Simp val)
 }
 
 bool
-simp_envdefine(Simp ctx, Simp env, Simp var, Simp val)
+simp_envdefine(Simp ctx, Simp env, Simp var, Simp val, bool syntax)
 {
 	Simp frame, bind;
+	int memb;
 
-	frame = simp_getenvframe(env);
+	if (syntax) {
+		frame = simp_getenvsynframe(env);
+		memb = ENVIRONMENT_SYNFRAME;
+	} else {
+		frame = simp_getenvframe(env);
+		memb = ENVIRONMENT_FRAME;
+	}
 	if (!simp_makevector(ctx, &bind, BINDING_SIZE))
 		return false;
 	simp_setvector(bind, BINDING_VARIABLE, var);
 	simp_setvector(bind, BINDING_VALUE, val);
 	simp_setvector(bind, BINDING_NEXT, frame);
-	simp_setvector(env, ENVIRONMENT_FRAME, bind);
+	simp_setvector(env, memb, bind);
 	return true;
 }
 
@@ -217,9 +226,9 @@ simp_getenvframe(Simp obj)
 }
 
 Simp
-simp_getenvsymframe(Simp obj)
+simp_getenvsynframe(Simp obj)
 {
-	return simp_getenvironment(obj)[ENVIRONMENT_SYMFRAME];
+	return simp_getenvironment(obj)[ENVIRONMENT_SYNFRAME];
 }
 
 Simp
@@ -518,6 +527,7 @@ simp_makeenvironment(Simp ctx, Simp *env, Simp parent)
 		return false;
 	simp_setvector(*env, ENVIRONMENT_PARENT, parent);
 	simp_setvector(*env, ENVIRONMENT_FRAME, simp_nil());
+	simp_setvector(*env, ENVIRONMENT_SYNFRAME, simp_nil());
 	env->type = TYPE_ENVIRONMENT;
 	return true;
 }

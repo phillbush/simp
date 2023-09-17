@@ -1,4 +1,4 @@
-.Dd September 4, 2023
+.Dd September 17, 2023
 .Dt SIMP 1
 .Os
 .Sh NAME
@@ -112,8 +112,9 @@ The kind of value that an expression returns is specified below after the
 An expression can be a special form, a symbol, a literal or a procedure combination.
 The initial
 .Nm
-environment starts out with a number of variables bound to builtin procedures,
-which are listed below (after the special forms).
+syntax environment starts out with a few builtin syntactical forms;
+and its regular environment starts out with a number of variables bound to builtin procedures.
+They are listed below.
 .Pp
 .Nm
 (like most Lisps)
@@ -174,7 +175,14 @@ Evaluate each expression in turn and return false when one evaluate to false;
 return a true value otherwise.
 .It Ic ( define Ar SYMBOL EXPRESSION ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
-.It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION) "⇒" VOID
+.It Ic ( defmacro Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" VOID
+Bind the given symbol to the given expression in the current syntax environment.
+.It Ic ( "defmacro...\)" Ar SYMBOL SYMBOL ... Ar SYMBOL Ar EXPRESSION ) "⇒" VOID
+Same as
+.Ic defmacro ,
+but creates a variadic argument macro,
+in which the last given symbol is bound to the remaining actual unevaluated arguments.
+.It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" VOID
 Bind, in the current environment, the given first symbol to the closure in which the given following symbols
 are bound to the actual arguments in the given body expression.
 This is a combination of the
@@ -182,18 +190,19 @@ This is a combination of the
 and
 .Ic lambda
 syntactical forms.
+.It Ic ( "defun...\)" Ar SYMBL Ar SYMBOL ... Ar SYMBOL Ar EXPRESSION ) "⇒" VOID
+Same as
+.Ic defun ,
+but in the closure, the last symbol is bound to a vector containing the remaining actual arguments.
+This is a combination of the
+.Ic define
+and
+.Ic "lambda...\)"
+syntactical forms.
 .It Ic ( do Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each given expression and return the result of the last evaluation.
 .It Ic ( false )
 Return the false boolean constant.
-.It Ic ( fix Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" PROCEDURE
-Bind, in a new environment, the given first symbol to the closure in which the given following symbols
-are bound to the actual arguments in the given body expression and pass it the new environment.
-This is a combination of the
-.Ic let
-and
-.Ic lambda
-syntactical forms.
 .It Ic ( if Ar CONDITION ... THEN ... Ar [ELSE] ) "⇒" OBJECT
 Evaluate each
 .Ar CONDITION

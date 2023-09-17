@@ -191,9 +191,10 @@ void    simp_display(Simp port, Simp obj);
 int     simp_repl(Simp, Simp, Simp, Simp, Simp, Simp, int);
 
 /* environment operations */
-bool    simp_envdefine(Simp ctx, Simp env, Simp var, Simp val);
-bool    simp_envredefine(Simp env, Simp var, Simp val);
+bool    simp_envdefine(Simp ctx, Simp env, Simp var, Simp val, bool syntax);
+bool    simp_envredefine(Simp env, Simp var, Simp val, bool syntax);
 Simp    simp_getenvframe(Simp obj);
+Simp    simp_getenvsynframe(Simp obj);
 Simp    simp_getenvparent(Simp obj);
 Simp    simp_getbindvariable(Simp obj);
 Simp    simp_getbindvalue(Simp obj);
