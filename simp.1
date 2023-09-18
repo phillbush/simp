@@ -184,7 +184,7 @@ Splicing should only occur inside a quasi-quotation.
 For example,
 .Ic "$(a @(b c) d)"
 is expanded to the special form
-.Ic "(quasiquotation (a (splice (b c)) d))"
+.Ic "(quasiquote (a (splice (b c)) d))"
 while parsing, which evaluates to the quasi-quoted vector
 expanded with the contents of the spliced vector; that is,
 .Ic "(a b c d)" .
@@ -269,11 +269,11 @@ Return the given expression itself, without evaluating it.
 Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
 .It Ic ( splice Ar VECTOR ) "⇒" OBJECT
-Splice the given vector inside a quasiquotation.
+Splice the given vector inside a quasi-quotation.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
 .It Ic ( unquote Ar EXPRESSION ) "⇒" OBJECT
-Evaluate the given expression inside a quasiquotation.
+Evaluate the given expression inside a quasi-quotation.
 .El
 .Ss Values
 There are two means of comparing objects.
