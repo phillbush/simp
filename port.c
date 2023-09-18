@@ -152,10 +152,11 @@ simp_openstream(Simp ctx, Simp *ret, const char *file, void *p, char *mode)
 }
 
 bool
-simp_openstring(Simp ctx, Simp *ret, unsigned char *p, SimpSiz len, char *mode)
+simp_openstring(Simp ctx, Simp *ret, const char *name, unsigned char *p, SimpSiz len, char *mode)
 {
 	Port *port;
 	Heap *heap;
+	Simp sym;
 
 	heap = simp_gcnewobj(simp_getgcmemory(ctx), sizeof(*port), 0);
 	if (heap == NULL)
@@ -166,7 +167,9 @@ simp_openstring(Simp ctx, Simp *ret, unsigned char *p, SimpSiz len, char *mode)
 	port->u.str.arr = p;
 	port->u.str.size = len;
 	port->u.str.curr = 0;
-	port->filename = NULL;
+	if (!simp_makesymbol(ctx, &sym, (unsigned char *)name, strlen(name) + 1))
+		return false;
+	port->filename = (const char *)simp_getsymbol(sym);
 	port->lineno = 1;
 	port->column = 1;
 	return simp_makeport(ctx, ret, heap);

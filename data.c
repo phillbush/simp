@@ -750,5 +750,5 @@ simp_getsource(Simp obj, const char **filename, SimpSiz *lineno, SimpSiz *column
 Heap *
 simp_getsourcep(Simp obj)
 {
-	return(obj.source);
+	return obj.source;
 }

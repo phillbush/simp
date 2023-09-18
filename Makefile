@@ -9,8 +9,6 @@ LIBS = -lm
 
 PDFS = simp.pdf
 
-LDEMULATION ?= elf_x86_64
-
 all: ${PROG}
 
 ${PROG}: ${OBJS}

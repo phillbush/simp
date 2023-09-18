@@ -26,6 +26,9 @@ struct Token {
 		TOK_IDENTIFIER,
 		TOK_LPAREN,
 		TOK_QUOTE,
+		TOK_QUASIQUOTE,
+		TOK_UNQUOTE,
+		TOK_SPLICE,
 		TOK_REAL,
 		TOK_RPAREN,
 		TOK_STRING,
@@ -435,6 +438,15 @@ loop:
 	tok.lineno = simp_portlineno(port);
 	tok.column = simp_portcolumn(port);
 	switch (c) {
+	case '!':
+		tok.type = TOK_UNQUOTE;
+		return tok;
+	case '?':
+		tok.type = TOK_QUASIQUOTE;
+		return tok;
+	case '@':
+		tok.type = TOK_SPLICE;
+		return tok;
 	case '\\':
 		tok.type = TOK_QUOTE;
 		return tok;
@@ -624,10 +636,29 @@ simp_printstr(Simp port, unsigned char *str, SimpSiz len)
 }
 
 static bool
+sugar(Simp ctx, Simp *obj, Simp port, const char *str, const char *filename, SimpSiz lineno, SimpSiz column)
+{
+	Simp quote, literal;
+	Token tok;
+
+	if (!simp_makevector(ctx, obj, 2) ||
+	    !simp_setsource(ctx, obj, filename, lineno, column)) {
+		return false;
+	}
+	tok = readtok(port);
+	if (!simp_makesymbol(ctx, &quote, (unsigned char *)str, strlen(str)))
+		return false;
+	if (!toktoobj(ctx, &literal, port, tok))
+		return false;
+	simp_setvector(*obj, 0, quote);
+	simp_setvector(*obj, 1, literal);
+	return true;
+}
+
+static bool
 toktoobj(Simp ctx, Simp *obj, Simp port, Token tok)
 {
 	bool success;
-	Simp quote, literal;
 	const char *filename;
 	SimpSiz lineno, column;
 
@@ -647,18 +678,13 @@ toktoobj(Simp ctx, Simp *obj, Simp port, Token tok)
 		free(tok.u.str.str);
 		return success;
 	case TOK_QUOTE:
-		if (!simp_makevector(ctx, obj, 2) ||
-		    !simp_setsource(ctx, obj, filename, lineno, column)) {
-			return false;
-		}
-		tok = readtok(port);
-		if (!simp_makesymbol(ctx, &quote, (unsigned char *)"quote", 5))
-			return false;
-		if (!toktoobj(ctx, &literal, port, tok))
-			return false;
-		simp_setvector(*obj, 0, quote);
-		simp_setvector(*obj, 1, literal);
-		return true;
+		return sugar(ctx, obj, port, "quote", filename, lineno, column);
+	case TOK_QUASIQUOTE:
+		return sugar(ctx, obj, port, "quasiquote", filename, lineno, column);
+	case TOK_UNQUOTE:
+		return sugar(ctx, obj, port, "unquote", filename, lineno, column);
+	case TOK_SPLICE:
+		return sugar(ctx, obj, port, "splice", filename, lineno, column);
 	case TOK_STRING:
 		success = simp_makestring(
 			ctx,

@@ -148,13 +148,46 @@ in which case the evaluation algorithm is interrupted,
 even when at a deep level of recursion.
 .Ss Syntax Sugars
 .Bl -tag -width Ds -compact
-.It Ar "\eOBJECT" "⇒" OBJECT
+.It Ic "\e\)" Ns Ar OBJECT "⇒" OBJECT
 Any object prefixed with a backslash is equivalent to quoting the object.
 For example,
 .Ic "\e()"
 is expanded to the special form
 .Ic "(quote ())"
-while parsing.
+while parsing, which evaluates to the empty vector
+.Ic "()" .
+.It Ic "$\)" Ns Ar OBJECT "⇒" OBJECT
+Any object prefixed with a dollar sign is equivalent to quasi-quoting the object.
+For example,
+.Ic "$(a b c d)"
+is expanded to the special form
+.Ic "(quasiquote (a b c d))"
+while parsing, which evaluates to the inner vector
+.Ic "(a b c d)" .
+.It Ic "!\)" Ns Ar OBJECT "⇒" OBJECT
+Any object prefixed with an exclamation point is equivalent to unquoting the object.
+Unquoting should only occur inside a quasi-quotation.
+For example,
+.Ic "$(a b !two d)"
+is expanded to the special form
+.Ic "(quasiquote (a b (unquote two) d))"
+while parsing, which evaluates to the inner vector,
+except that the symbol
+.Ic two
+is evaluated with the value
+.Ic 2
+(supposing it is bound to that number in the current environment); that is,
+.Ic "(a b 2 d)" .
+.It Ic "@\)" Ns Ar OBJECT "⇒" OBJECT
+Any object prefixed with an at sign is equivalent to splicing the object.
+Splicing should only occur inside a quasi-quotation.
+For example,
+.Ic "$(a @(b c) d)"
+is expanded to the special form
+.Ic "(quasiquotation (a (splice (b c)) d))"
+while parsing, which evaluates to the quasi-quoted vector
+expanded with the contents of the spliced vector; that is,
+.Ic "(a b c d)" .
 .El
 .Ss Non-vector Forms
 .Bl -tag -width Ds -compact
@@ -226,13 +259,21 @@ bound to the given expression after it.
 .It Ic ( or Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each expression in turn and return true when one evaluate to true;
 return a false value otherwise.
+.It Ic ( quasiquote Ar EXPRESSION ) "⇒" OBJECT
+Return the given expression itself, without evaluating it,
+except that inner elements can be evaluated when unquoted,
+and inner vectors can be spliced.
 .It Ic ( quote Ar EXPRESSION ) "⇒" OBJECT
 Return the given expression itself, without evaluating it.
 .It Ic ( redefine Ar SYMBOL OBJECT ) "⇒" VOID
 Rebound the given symbol to the given object in the current environment.
 It is an error if the symbol is not already bound in the current environment.
+.It Ic ( splice Ar VECTOR ) "⇒" OBJECT
+Splice the given vector inside a quasiquotation.
 .It Ic ( true ) Ar "⇒" TRUE
 Return the true boolean constant.
+.It Ic ( unquote Ar EXPRESSION ) "⇒" OBJECT
+Evaluate the given expression inside a quasiquotation.
 .El
 .Ss Values
 There are two means of comparing objects.

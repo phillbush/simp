@@ -6,6 +6,10 @@
 
 #include "simp.h"
 
+#define UNQUOTE           "unquote"
+#define SPLICE            "splice"
+
+#define ERROR_AUXILIARY   "invalid use of auxiliary syntax: "
 #define ERROR_DIVZERO     "division by zero"
 #define ERROR_EMPTY       "empty operation"
 #define ERROR_ILLMACRO    "ill-formed syntactical form"
@@ -54,8 +58,11 @@
 	X("lambda...",          f_varlambda,    2,      true       )\
 	X("or",                 f_or,           0,      true       )\
 	X("quote",              f_quote,        1,      false      )\
+	X("quasiquote",         f_quasiquote,   1,      false      )\
 	X("redefine",           f_redefine,     2,      false      )\
-	X("true",               f_true,         0,      false      )
+	X("splice",             f_unquote,      0,      true       )\
+	X("true",               f_true,         0,      false      )\
+	X("unquote",            f_unquote,      0,      true       )
 
 #define PROCEDURE_ROUTINES                                            \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
@@ -131,6 +138,7 @@
 typedef struct Eval {
 	Simp ctx;
 	Simp env;
+	Simp unquote, splice;
 	Simp iport, oport, eport;
 	jmp_buf jmp;
 } Eval;
@@ -1117,6 +1125,59 @@ f_quote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 }
 
 static void
+f_quasiquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	Simp vect, fst, obj, oldvect;
+	SimpSiz size, n, i, j;
+
+	(void)eval;
+	(void)self;
+	(void)expr;
+	(void)env;
+	vect = simp_getvectormemb(args, 0);
+	if (!simp_isvector(vect) || simp_isnil(vect)) {
+		*ret = vect;
+		return;
+	}
+	fst = simp_getvectormemb(vect, 0);
+	size = simp_getsize(vect);
+	if (simp_issame(fst, eval->unquote)) {
+		if (size != 2)
+			error(eval, expr, self, simp_void(), ERROR_NARGS);
+		obj = simp_getvectormemb(vect, 1);
+		*ret = simp_eval(eval, obj, env);
+		return;
+	}
+	if (!simp_makevector(eval->ctx, ret, size))
+		memerror(eval);
+	for (i = j = 0; i < size; j++) {
+		obj = simp_getvectormemb(vect, j);
+		if (simp_isvector(obj) && (n = simp_getsize(obj)) > 0 &&
+		    simp_issame((fst = simp_getvectormemb(obj, 0)), eval->splice)) {
+			if (n != 2)
+				error(eval, expr, fst, simp_void(), ERROR_NARGS);
+			args = simp_slicevector(obj, i, 1);
+			f_quasiquote(eval, &obj, self, expr, env, args);
+			if (!simp_isvector(obj))
+				error(eval, expr, fst, simp_void(), ERROR_NOTVECTOR);
+			n = simp_getsize(obj);
+			oldvect = *ret;
+			size--;
+			if (!simp_makevector(eval->ctx, ret, size + n))
+				memerror(eval);
+			simp_cpyvector(*ret, oldvect);
+			simp_cpyvector(simp_slicevector(*ret, i, n), obj);
+			size += n;
+			i += n;
+		} else {
+			args = simp_slicevector(vect, j, 1);
+			f_quasiquote(eval, &obj, self, expr, env, args);
+			simp_setvector(*ret, i++, obj);
+		}
+	}
+}
+
+static void
 f_read(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp port;
@@ -1594,6 +1655,15 @@ f_truep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 	(void)expr;
 	(void)env;
 	typepred(args, ret, simp_istrue);
+}
+
+static void
+f_unquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)env;
+	(void)ret;
+	(void)args;
+	error(eval, expr, simp_void(), self, ERROR_AUXILIARY);
 }
 
 static void
@@ -2160,7 +2230,7 @@ apply:
 	abort();
 }
 
-int
+bool
 simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, int mode)
 {
 	Simp obj;
@@ -2174,8 +2244,12 @@ simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, in
 		.oport = oport,
 		.eport = eport,
 	};
-	int retval = 1;
+	bool retval = false;
 
+	if (!simp_makesymbol(ctx, &eval.unquote, (unsigned char *)UNQUOTE, sizeof(UNQUOTE)-1))
+		goto error;
+	if (!simp_makesymbol(ctx, &eval.splice, (unsigned char *)SPLICE, sizeof(SPLICE)-1))
+		goto error;
 	if (setjmp(eval.jmp) && !FLAG(mode, SIMP_CONTINUE))
 		goto error;
 	for (;;) {
@@ -2204,7 +2278,7 @@ simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, in
 			simp_printf(oport, "\n");
 		}
 	}
-	retval = 0;
+	retval = true;
 error:
 	simp_gc(ctx, gcignore, LEN(gcignore));
 	return retval;

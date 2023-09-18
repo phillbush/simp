@@ -18,9 +18,10 @@ main(int argc, char *argv[])
 	enum { MODE_INTERACTIVE, MODE_STRING, MODE_PRINT, MODE_SCRIPT } mode;
 	FILE *fp;
 	Simp ctx, env, iport, oport, eport, port;
-	int ch, retval = EXIT_FAILURE;
+	int ch;
 	int iflag = 0;
 	char *expr = NULL;
+	bool success = false;
 
 	mode = MODE_INTERACTIVE;
 	while ((ch = getopt(argc, argv, "e:ip:")) != -1) switch (ch) {
@@ -62,14 +63,18 @@ main(int argc, char *argv[])
 	switch (mode) {
 	case MODE_STRING:
 	case MODE_PRINT:
-		if (!simp_openstring(ctx, &port, (unsigned char *)expr, strlen(expr), "r"))
-			goto error;
-		retval = simp_repl(
+		if (!simp_openstring(
+			ctx, &port,
+			"cmdline string",
+			(unsigned char *)expr,
+			strlen(expr), "r"
+		)) goto error;
+		success = simp_repl(
 			ctx, env, port,
 			iport, oport, eport,
 			mode == MODE_PRINT ? SIMP_ECHO : 0
 		);
-		if (retval == EXIT_SUCCESS && iflag)
+		if (success && iflag)
 			goto interactive;
 		break;
 	case MODE_SCRIPT:
@@ -83,15 +88,15 @@ main(int argc, char *argv[])
 		} else {
 			goto error;
 		}
-		retval = simp_repl(ctx, env, port, iport, oport, eport, 0);
+		success = simp_repl(ctx, env, port, iport, oport, eport, 0);
 		if (fp != stdin)
 			(void)fclose(fp);
-		if (retval == EXIT_SUCCESS && iflag)
+		if (success && iflag)
 			goto interactive;
 		break;
 	case MODE_INTERACTIVE:
 interactive:
-		retval = simp_repl(
+		success = simp_repl(
 			ctx, env, iport,
 			iport, oport, eport,
 			SIMP_INTERACTIVE
@@ -100,5 +105,5 @@ interactive:
 	}
 error:
 	simp_gcfree(ctx);
-	return retval;
+	return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

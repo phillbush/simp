@@ -7,7 +7,8 @@ Garbage collection and tail-call optimization are implemented.
 See `./simp.1` for documentation.
 
 TODO:
-* Add quasi-quote and unquote.
+* Explain about the two environments in the manual (the regular
+  environment, for variables; and the syntax environment, for macros).
 * Multiple values?
 * Arbitrary precision arithmetic.
 

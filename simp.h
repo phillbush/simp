@@ -173,7 +173,7 @@ Simp    simp_slicestring(Simp obj, SimpSiz from, SimpSiz size);
 
 /* port operations */
 bool    simp_openstream(Simp ctx, Simp *ret, const char *filename, void *p, char *mode);
-bool    simp_openstring(Simp ctx, Simp *ret, unsigned char *p, SimpSiz len, char *mode);
+bool    simp_openstring(Simp ctx, Simp *ret, const char *name, unsigned char *p, SimpSiz len, char *mode);
 int     simp_porteof(Simp obj);
 int     simp_porterr(Simp obj);
 SimpSiz simp_portlineno(Simp obj);
@@ -188,7 +188,7 @@ void    simp_printf(Simp port, const char *fmt, ...);
 bool    simp_read(Simp ctx, Simp *obj, Simp port);
 void    simp_write(Simp port, Simp obj);
 void    simp_display(Simp port, Simp obj);
-int     simp_repl(Simp, Simp, Simp, Simp, Simp, Simp, int);
+bool    simp_repl(Simp, Simp, Simp, Simp, Simp, Simp, int);
 
 /* environment operations */
 bool    simp_envdefine(Simp ctx, Simp env, Simp var, Simp val, bool syntax);
