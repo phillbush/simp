@@ -1156,10 +1156,10 @@ f_quasiquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 		    simp_issame((fst = simp_getvectormemb(obj, 0)), eval->splice)) {
 			if (n != 2)
 				error(eval, expr, fst, simp_void(), ERROR_NARGS);
-			args = simp_slicevector(obj, i, 1);
+			args = simp_slicevector(obj, 1, 1);
 			f_quasiquote(eval, &obj, self, expr, env, args);
 			if (!simp_isvector(obj))
-				error(eval, expr, fst, simp_void(), ERROR_NOTVECTOR);
+				error(eval, expr, fst, obj, ERROR_NOTVECTOR);
 			n = simp_getsize(obj);
 			oldvect = *ret;
 			size--;
