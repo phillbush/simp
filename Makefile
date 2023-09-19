@@ -32,9 +32,16 @@ lint: ${SRCS}
 	#-clang-tidy ${SRCS} -- -std=c99 ${DEFS} ${CPPFLAGS}
 
 loc:
-	cat ${SRCS} ${HEDS} | egrep -v '^([[:blank:]]|/\*.*\*/)*$$' | wc -l
+	@echo "Lines of code:"
+	@cat ${SRCS} ${HEDS} | egrep -v '^([[:blank:]]|/\*.*\*/)*$$' | wc -l
 
 clean:
 	rm -f ${OBJS} ${PROG} ${PROG:=.core} tags
 
-.PHONY: all clean lint loc
+stage: Makefile README.md ${SRCS} ${MANS} ${HEDS} ${PDFS}
+	git add Makefile README.md ${SRCS} ${MANS} ${HEDS} ${PDFS}
+
+commit:
+	git commit
+
+.PHONY: all clean lint loc stage commit
