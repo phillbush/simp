@@ -6,9 +6,6 @@
 
 #include "simp.h"
 
-#define UNQUOTE           "unquote"
-#define SPLICE            "splice"
-
 #define ERROR_AUXILIARY   "invalid use of auxiliary syntax: "
 #define ERROR_DIVZERO     "division by zero"
 #define ERROR_EMPTY       "empty operation"
@@ -60,9 +57,7 @@
 	X("quote",              f_quote,        1,      false      )\
 	X("quasiquote",         f_quasiquote,   1,      false      )\
 	X("redefine",           f_redefine,     2,      false      )\
-	X("splice",             f_unquote,      0,      true       )\
-	X("true",               f_true,         0,      false      )\
-	X("unquote",            f_unquote,      0,      true       )
+	X("true",               f_true,         0,      false      )
 
 #define PROCEDURE_ROUTINES                                          \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
@@ -136,10 +131,22 @@
 	X("vector?",            f_vectorp,      1,      false      )\
 	X("write",              f_write,        1,      true       )
 
+#define AUXILIARY_SYNTAX                                            \
+	/* SYMBOL               ENUM                             */ \
+	X("splice",             AUX_SPLICE                         )\
+	X("unquote",            AUX_UNQUOTE                        )
+
+enum {
+#define X(s, e) e,
+	AUXILIARY_SYNTAX
+#undef  X
+	NAUXILIARIES
+};
+
 typedef struct Eval {
 	Simp ctx;
 	Simp env;
-	Simp unquote, splice;
+	Simp aux[NAUXILIARIES];
 	Simp iport, oport, eport;
 	jmp_buf jmp;
 } Eval;
@@ -157,7 +164,6 @@ struct Builtin {
 	bool variadic;
 	SimpSiz nargs;
 	SimpSiz namelen;
-	Simp self;              /* symbol containing builtin's name */
 
 	/* function is only used if type is BLTIN_ROUTINE; null otherwise */
 	void (*fun)(Eval *, Simp *, Simp, Simp, Simp, Simp);
@@ -350,6 +356,15 @@ f_and(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 			break;
 		}
 	}
+}
+
+static void
+f_auxiliary(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)env;
+	(void)ret;
+	(void)args;
+	error(eval, expr, simp_void(), self, ERROR_AUXILIARY);
 }
 
 static void
@@ -1155,7 +1170,7 @@ f_quasiquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 	}
 	fst = simp_getvectormemb(vect, 0);
 	size = simp_getsize(vect);
-	if (simp_issame(fst, eval->unquote)) {
+	if (simp_issame(fst, eval->aux[AUX_UNQUOTE])) {
 		if (size != 2)
 			error(eval, expr, self, simp_void(), ERROR_NARGS);
 		obj = simp_getvectormemb(vect, 1);
@@ -1167,7 +1182,7 @@ f_quasiquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 	for (i = j = 0; i < size; j++) {
 		obj = simp_getvectormemb(vect, j);
 		if (simp_isvector(obj) && (n = simp_getsize(obj)) > 0 &&
-		    simp_issame((fst = simp_getvectormemb(obj, 0)), eval->splice)) {
+		    simp_issame((fst = simp_getvectormemb(obj, 0)), eval->aux[AUX_SPLICE])) {
 			if (n != 2)
 				error(eval, expr, fst, simp_void(), ERROR_NARGS);
 			args = simp_slicevector(obj, 1, 1);
@@ -1672,15 +1687,6 @@ f_truep(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 }
 
 static void
-f_unquote(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	(void)env;
-	(void)ret;
-	(void)args;
-	error(eval, expr, simp_void(), self, ERROR_AUXILIARY);
-}
-
-static void
 f_symbolp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
@@ -2064,28 +2070,38 @@ simp_environmentnew(Simp ctx, Simp *env)
 	.namelen = sizeof(s)-1 },
 		MACRO_SPECIALS
 #undef  X
+
+#define X(s, e) { \
+	.type = BLTIN_ROUTINE, \
+	.name = (unsigned char *)s, \
+	.fun = &f_auxiliary, \
+	.nargs = 0, \
+	.variadic = true, \
+	.namelen = sizeof(s)-1 },
+		AUXILIARY_SYNTAX
+#undef  X
 	};
-	Simp val;
+	Simp var, val;
 	SimpSiz i;
 
 	if (!simp_makeenvironment(ctx, env, simp_nulenv()))
 		return false;
 	for (i = 0; i < LEN(macros); i++) {
 		/* fill initial environment with builtin macros */
-		if (!simp_makesymbol(ctx, &macros[i].self, macros[i].name, macros[i].namelen))
+		if (!simp_makesymbol(ctx, &var, macros[i].name, macros[i].namelen))
 			return false;
 		if (!simp_makebuiltin(ctx, &val, &macros[i]))
 			return false;
-		if (!simp_envdefine(ctx, *env, macros[i].self, val, true))
+		if (!simp_envdefine(ctx, *env, var, val, true))
 			return false;
 	}
 	for (i = 0; i < LEN(funcs); i++) {
 		/* fill initial environment with builtin procedures */
-		if (!simp_makesymbol(ctx, &funcs[i].self, funcs[i].name, funcs[i].namelen))
+		if (!simp_makesymbol(ctx, &var, funcs[i].name, funcs[i].namelen))
 			return false;
 		if (!simp_makebuiltin(ctx, &val, &funcs[i]))
 			return false;
-		if (!simp_envdefine(ctx, *env, funcs[i].self, val, false))
+		if (!simp_envdefine(ctx, *env, var, val, false))
 			return false;
 	}
 	return true;
@@ -2237,7 +2253,9 @@ apply:
 		goto loop;
 	case BLTIN_ROUTINE:
 		val = simp_void();
-		(*bltin->fun)(eval, &val, bltin->self, expr, env, arguments);
+		if (!simp_makesymbol(eval->ctx, &var, bltin->name, bltin->namelen))
+			memerror(eval);
+		(*bltin->fun)(eval, &val, var, expr, env, arguments);
 		return val;
 	}
 	/* UNREACHABLE */
@@ -2260,10 +2278,9 @@ simp_repl(Simp ctx, Simp env, Simp rport, Simp iport, Simp oport, Simp eport, in
 	};
 	bool retval = false;
 
-	if (!simp_makesymbol(ctx, &eval.unquote, (unsigned char *)UNQUOTE, sizeof(UNQUOTE)-1))
-		goto error;
-	if (!simp_makesymbol(ctx, &eval.splice, (unsigned char *)SPLICE, sizeof(SPLICE)-1))
-		goto error;
+#define X(s, e) if(!simp_makesymbol(ctx, &eval.aux[e], (unsigned char *)s, sizeof(s)-1)) goto error;
+	AUXILIARY_SYNTAX
+#undef  X
 	if (setjmp(eval.jmp) && !FLAG(mode, SIMP_CONTINUE))
 		goto error;
 	for (;;) {

@@ -44,4 +44,7 @@ stage: Makefile README.md ${SRCS} ${MANS} ${HEDS} ${PDFS}
 commit:
 	git commit
 
-.PHONY: all clean lint loc stage commit
+push:
+	git push
+
+.PHONY: all clean lint loc stage commit push
