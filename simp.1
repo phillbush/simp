@@ -317,11 +317,12 @@ then the variable is said to be
 .Em unbound
 in the environment.
 .Bl -tag -width Ds -compact
-.It Ic ( current-environment ) Ar "⇒" ENVIRONMENT
-Return the current environment active at the point of evaluation this procedure is called.
-.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
+.It Ic ( environment Ar ENVIRONMENT ) "⇒" ENVIRONMENT
 Return a newly allocated environment using the given environment as parent environment.
-If no environment is given, return the empty environment.
+.It Ic ( environment-current ) Ar "⇒" ENVIRONMENT
+Return the current environment active at the point of evaluation this procedure is called.
+.It Ic ( environment-empty ) Ar "⇒" ENVIRONMENT
+Return the empty environment.
 .It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
 Return whether the given object is an environment object.
 .It Ic ( eval Ar OBJECT ENVIRONMENT ) "⇒" OBJECT

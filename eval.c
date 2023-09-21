@@ -78,11 +78,12 @@
 	X("cdr",                f_cdr,          1,      false      )\
 	X("clone",              f_vectordup,    0,      true       )\
 	X("concat",             f_vectorcat,    0,      true       )\
-	X("current-environment",f_envcur,       0,      false      )\
 	X("copy!",              f_vectorcpy,    2,      false      )\
 	X("display",            f_display,      1,      true       )\
 	X("empty?",             f_emptyp,       1,      false      )\
-	X("environment",        f_envnew,       0,      true       )\
+	X("environment",        f_envnew,       1,      false      )\
+	X("environment-current",f_envcur,       0,      false      )\
+	X("environment-empty",  f_envnul,       0,      false      )\
 	X("environment?",       f_envp,         1,      false      )\
 	X("eof?",               f_eofp,         1,      false      )\
 	X("equiv?",             f_vectoreqv,    0,      true       )\
@@ -606,20 +607,22 @@ f_envp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 static void
 f_envnew(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
-	env = simp_nulenv();
-	switch (simp_getsize(args)) {
-	case 1:
-		env = simp_getvectormemb(args, 0);
-		/* FALLTHROUGH */
-	case 0:
-		break;
-	default:
-		error(eval, expr, self, simp_void(), ERROR_NARGS);
-	}
+	env = simp_getvectormemb(args, 0);
 	if (!simp_isenvironment(env))
 		error(eval, expr, self, env, ERROR_NOTENV);
 	if (!simp_makeenvironment(eval->ctx, ret, env))
 		memerror(eval);
+}
+
+static void
+f_envnul(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)eval;
+	(void)self;
+	(void)expr;
+	(void)env;
+	(void)args;
+	*ret = simp_nulenv();
 }
 
 static void
