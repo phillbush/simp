@@ -40,13 +40,13 @@
 	X("if",                 BLTIN_IF,       2,      true       )\
 	X("let",                BLTIN_LET,      1,      true       )
 
-#define PROCEDURE_SPECIALS                                            \
+#define PROCEDURE_SPECIALS                                          \
 	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
 	X("apply",              BLTIN_APPLY,    2,      true       )\
 	X("eval",               BLTIN_EVAL,     2,      false      )
 
 #define MACRO_ROUTINES                                              \
-	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
+	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
 	X("and",                f_and,          0,      true       )\
 	X("define",             f_define,       2,      false      )\
 	X("defmacro",           f_defmacro,     2,      true       )\
@@ -64,7 +64,7 @@
 	X("true",               f_true,         0,      false      )\
 	X("unquote",            f_unquote,      0,      true       )
 
-#define PROCEDURE_ROUTINES                                            \
+#define PROCEDURE_ROUTINES                                          \
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
 	X("*",                  f_multiply,     0,      true       )\
 	X("+",                  f_add,          0,      true       )\
@@ -83,6 +83,7 @@
 	X("cdr",                f_cdr,          1,      false      )\
 	X("clone",              f_vectordup,    0,      true       )\
 	X("concat",             f_vectorcat,    0,      true       )\
+	X("current-environment",f_envcur,       0,      false      )\
 	X("copy!",              f_vectorcpy,    2,      false      )\
 	X("display",            f_display,      1,      true       )\
 	X("empty?",             f_emptyp,       1,      false      )\
@@ -144,9 +145,10 @@ typedef struct Eval {
 } Eval;
 
 struct Builtin {
+	/* data for builtin procedure or builtin macro */
 	unsigned char *name;
 	enum {
-		BLTIN_NORMAL,
+		BLTIN_ROUTINE,
 #define X(s, e, a, v) e,
 		PROCEDURE_SPECIALS
 		MACRO_SPECIALS
@@ -155,7 +157,9 @@ struct Builtin {
 	bool variadic;
 	SimpSiz nargs;
 	SimpSiz namelen;
-	Simp self;
+	Simp self;              /* symbol containing builtin's name */
+
+	/* function is only used if type is BLTIN_ROUTINE; null otherwise */
 	void (*fun)(Eval *, Simp *, Simp, Simp, Simp, Simp);
 };
 
@@ -562,6 +566,16 @@ f_emptyp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 	(void)self;
 	(void)env;
 	typepred(args, ret, simp_isempty);
+}
+
+static void
+f_envcur(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+{
+	(void)eval;
+	(void)expr;
+	(void)self;
+	(void)args;
+	*ret = env;
 }
 
 static void
@@ -2011,7 +2025,7 @@ simp_environmentnew(Simp ctx, Simp *env)
 {
 	static Builtin funcs[] = {
 #define X(s, p, a, v) { \
-	.type = BLTIN_NORMAL, \
+	.type = BLTIN_ROUTINE, \
 	.name = (unsigned char *)s, \
 	.fun = &p, \
 	.nargs = a, \
@@ -2032,7 +2046,7 @@ simp_environmentnew(Simp ctx, Simp *env)
 	};
 	static Builtin macros[] = {
 #define X(s, p, a, v) { \
-	.type = BLTIN_NORMAL, \
+	.type = BLTIN_ROUTINE, \
 	.name = (unsigned char *)s, \
 	.fun = &p, \
 	.nargs = a, \
@@ -2221,7 +2235,7 @@ apply:
 		}
 		expr = simp_getvectormemb(operands, noperands - 1);
 		goto loop;
-	case BLTIN_NORMAL:
+	case BLTIN_ROUTINE:
 		val = simp_void();
 		(*bltin->fun)(eval, &val, bltin->self, expr, env, arguments);
 		return val;

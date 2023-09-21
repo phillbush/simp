@@ -109,7 +109,7 @@ A
 program is a sequence of expressions, possibly alternated with comments and whitespace.
 The kind of value that an expression returns is specified below after the
 .Em "⇒" symbol.
-An expression can be a special form, a symbol, a literal or a procedure combination.
+An expression can be a special form, a symbol, a literal or a combination.
 The initial
 .Nm
 syntax environment starts out with a few builtin syntactical forms;
@@ -156,10 +156,10 @@ is expanded to the special form
 .Ic "(quote ())"
 while parsing, which evaluates to the empty vector
 .Ic "()" .
-.It Ic "$\)" Ns Ar OBJECT "⇒" OBJECT
+.It Ic "?\)" Ns Ar OBJECT "⇒" OBJECT
 Any object prefixed with a dollar sign is equivalent to quasi-quoting the object.
 For example,
-.Ic "$(a b c d)"
+.Ic "?(a b c d)"
 is expanded to the special form
 .Ic "(quasiquote (a b c d))"
 while parsing, which evaluates to the inner vector
@@ -168,7 +168,7 @@ while parsing, which evaluates to the inner vector
 Any object prefixed with an exclamation point is equivalent to unquoting the object.
 Unquoting should only occur inside a quasi-quotation.
 For example,
-.Ic "$(a b !two d)"
+.Ic "?(a b !two d)"
 is expanded to the special form
 .Ic "(quasiquote (a b (unquote two) d))"
 while parsing, which evaluates to the inner vector,
@@ -182,7 +182,7 @@ is evaluated with the value
 Any object prefixed with an at sign is equivalent to splicing the object.
 Splicing should only occur inside a quasi-quotation.
 For example,
-.Ic "$(a @(b c) d)"
+.Ic "?(a @(b c) d)"
 is expanded to the special form
 .Ic "(quasiquote (a (splice (b c)) d))"
 while parsing, which evaluates to the quasi-quoted vector
@@ -274,6 +274,58 @@ Splice the given vector inside a quasi-quotation.
 Return the true boolean constant.
 .It Ic ( unquote Ar EXPRESSION ) "⇒" OBJECT
 Evaluate the given expression inside a quasi-quotation.
+.El
+.Ss Environments
+Evaluation is subject to the current environment
+(or the enviroment given to the
+.Ic eval
+special form).
+.Pp
+An identifier may name a location in memory where a value can be stored.
+Such identifier is called a
+.Em variable
+and is said to be
+.Em bound
+to that location.
+The set of all visible bindings in effect at some point in a program is known as the
+.Em environment
+in effect at that point.
+The value stored in the location to which a variable is bound is called the variable's
+.Em value .
+By abuse of terminology, the variable is sometimes said to name the value or to be bound to the value.
+This is not quite accurate, but confusion rarely results from this practice.
+.Pp
+An environment is made of two sub-environments:
+The syntax environment, in which macros are defined;
+and the evaluation environment, in which objects are defined.
+A variable binding is first checked in the syntax environment,
+and then on the evaluation environment.
+.Pp
+An environment is a sequence of
+.Em frames .
+Each frame is a table (possible empty) of
+.Em bindings ,
+which associate variable names with their corresponding location in memory.
+Frames are structured in a singly linked list:
+each frame can point to either nothing or to a parent tree.
+The
+.Em "value of a variable"
+with respect to an environment is the value on the location given by the binding of the variable
+in the first frame in the environment that contains a binding for that variable.
+If no frame in the sequence specifies a binding for the variable,
+then the variable is said to be
+.Em unbound
+in the environment.
+.Bl -tag -width Ds -compact
+.It Ic ( current-environment ) Ar "⇒" ENVIRONMENT
+Return the current environment active at the point of evaluation this procedure is called.
+.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
+Return a newly allocated environment using the given environment as parent environment.
+If no environment is given, return the empty environment.
+.It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
+Return whether the given object is an environment object.
+.It Ic ( eval Ar OBJECT ENVIRONMENT ) "⇒" OBJECT
+Evaluate the given object in the given environment and return the result of the evaluation.
 .El
 .Ss Values
 There are two means of comparing objects.
@@ -616,50 +668,6 @@ It returns false on read error and the end-of-object file when the port reached 
 .It Ic ( write Ar OBJECT [PORT] ) Ar "⇒" VOID
 Write the given object into the given port (standard output, by default)
 in its printed external representation.
-.El
-.Ss Environments
-Evaluation is subject to the current environment
-(or the enviroment given to the
-.Ic eval
-special form).
-.Pp
-An identifier may name a location in memory where a value can be stored.
-Such identifier is called a
-.Em variable
-and is said to be
-.Em bound
-to that location.
-The set of all visible bindings in effect at some point in a program is known as the
-.Em environment
-in effect at that point.
-The value stored in the location to which a variable is bound is called the variable's
-.Em value .
-By abuse of terminology, the variable is sometimes said to name the value or to be bound to the value.
-This is not quite accurate, but confusion rarely results from this practice.
-.Pp
-An environment is a sequence of
-.Em frames .
-Each frame is a table (possible empty) of
-.Em bindings ,
-which associate variable names with their corresponding location in memory.
-Frames are structured in a singly linked list:
-each frame can point to either nothing or to a parent tree.
-The
-.Em "value of a variable"
-with respect to an environment is the value on the location given by the binding of the variable
-in the first frame in the environment that contains a binding for that variable.
-If no frame in the sequence specifies a binding for the variable,
-then the variable is said to be
-.Em unbound
-in the environment.
-.Bl -tag -width Ds -compact
-.It Ic ( environment Ar [ ENVIRONMENT ] ) "⇒" ENVIRONMENT
-Return a newly allocated environment using the given environment as parent environment.
-If no environment is given, return the empty environment.
-.It Ic ( environment?\) Ar OBJECT ) "⇒" BOOLEAN
-Return whether the given object is an environment object.
-.It Ic ( eval Ar OBJECT ENVIRONMENT ) "⇒" OBJECT
-Evaluate the given object in the given environment and return the result of the evaluation.
 .El
 .Sh FORMAL SYNTAX
 This section provides a formal syntax for
