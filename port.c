@@ -5,6 +5,35 @@
 
 #include "simp.h"
 
+struct Port {
+	enum Porttype {
+		PORT_STREAM,
+		PORT_STRING,
+	} type;
+	enum PortMode {
+		PORT_OPEN     = 0x01,
+		PORT_WRITE    = 0x02,
+		PORT_READ     = 0x04,
+		PORT_ERR      = 0x08,
+		PORT_EOF      = 0x10,
+	} mode;
+	enum PortCount {
+		PORT_NOTHING,
+		PORT_NEWLINE,
+		PORT_NEWCHAR,
+	} count;
+	union {
+		void   *fp;
+		struct {
+			unsigned char *arr;
+			SimpSiz curr, size;
+		} str;
+	} u;
+	const char *filename;
+	SimpSiz lineno;
+	SimpSiz column;
+};
+
 static enum PortMode
 openmode(char *s)
 {
