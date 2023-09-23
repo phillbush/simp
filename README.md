@@ -4,15 +4,14 @@
 
 Simp is my attempt to design and implement a minimalist lisp language.
 Garbage collection and tail-call optimization are implemented.
-See `./simp.1` for documentation.
+See `./simp.pdf` for documentation.
 
 TODO:
-* Explain about the two environments in the manual (the regular
-  environment, for variables; and the syntax environment, for macros).
 * Multiple values?
 * Arbitrary precision arithmetic.
 
-Example:
+
+## Example
 
 ```
 (define ackermann
@@ -27,8 +26,8 @@ Example:
             (- x 1)
             (ackermann x (- y 1)))))))
 
-(defun ack-of-one y
-  (ackermann 1 y))
+(define ack-of-one
+  (ackermann 1))
 
 (define val
   (apply ackermann \(1 2)))
@@ -59,8 +58,29 @@ The following can be observed:
 * There is no `cond` form. The `if` form is the same as scheme's `cond`
   but with less parentheses.
 
+* Procedures (but not macros) can be curried.
+  In the example, `ack-of-one`, defined as `(ackermann 1)` is equivalent
+  to `(lambda y (ackermann 1 y))`.
+
 * There are no pairs.  S-expressions are not implemented as singly
   linked lists of cons cells, but as tuples/vectors.
 
 * `set!` does not redefine a variable, use `redefine` for that.
   There is a `set!` procedure, but it is a vector mutator.
+
+
+## Auxiliary syntax considered harmful
+
+I tried to avoid auxiliary syntax as much as I could.  An auxiliary
+syntax is a syntactical identifier that can only be used inside another
+syntactical form.  Examples in Scheme is the `else` form, which can only
+be used inside a `cond`.  In Simp, I tried to minimize their use as much
+as I could.  For now, the only auxiliary syntax used in Simp are:
+
+* `unquote`:
+  Available inside a quasi-quotation to evaluate an expression.
+* `splice`:
+  Available inside a quasi-quotation to splice a vector
+* `...`:
+  Available inside a `lambda` (or `defun` or `defmacro`) to create
+  variadic procedures (or macros).

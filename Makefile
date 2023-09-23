@@ -41,7 +41,7 @@ clean:
 stage: Makefile README.md ${SRCS} ${MANS} ${HEDS} ${PDFS}
 	git add Makefile README.md ${SRCS} ${MANS} ${HEDS} ${PDFS}
 
-commit:
+commit: all
 	git commit
 
 push:

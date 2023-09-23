@@ -183,6 +183,18 @@ simp_getbuiltin(Simp obj)
 	return obj.u.builtin;
 }
 
+Simp
+simp_getbuiltinargs(Simp obj)
+{
+	return (Simp){
+		.type = TYPE_VECTOR,
+		.u.heap = obj.meta,
+		.size = obj.size,
+		.start = 0,
+		.meta = NULL,
+	};
+}
+
 unsigned char
 simp_getbyte(Simp obj)
 {
@@ -496,13 +508,14 @@ simp_true(void)
 }
 
 bool
-simp_makebuiltin(Simp ctx, Simp *ret, Builtin *builtin)
+simp_makebuiltin(Simp ctx, Simp *ret, Simp args, Builtin *builtin)
 {
 	(void)ctx;
 	*ret = (Simp){
 		.type = TYPE_BUILTIN,
 		.u.builtin = builtin,
-		.source = NULL,
+		.meta = simp_getgcmemory(args),
+		.size = simp_getsize(args),
 	};
 	return true;
 }
@@ -514,7 +527,7 @@ simp_makebyte(Simp ctx, Simp *ret, unsigned char byte)
 	*ret = (Simp){
 		.type = TYPE_BYTE,
 		.u.byte = byte,
-		.source = NULL,
+		.meta = NULL,
 	};
 	return true;
 }
@@ -539,7 +552,7 @@ simp_makesignum(Simp ctx, Simp *ret, SimpInt n)
 	*ret = (Simp){
 		.type = TYPE_SIGNUM,
 		.u.num = n,
-		.source = NULL,
+		.meta = NULL,
 	};
 	return true;
 }
@@ -571,7 +584,7 @@ simp_makeport(Simp ctx, Simp *ret, Heap *p)
 		.type = TYPE_PORT,
 		.size = 1,
 		.start = 0,
-		.source = NULL,
+		.meta = NULL,
 		.u.heap = p,
 	};
 	return true;
@@ -584,7 +597,7 @@ simp_makereal(Simp ctx, Simp *ret, double x)
 	*ret = (Simp){
 		.type = TYPE_REAL,
 		.u.real = x,
-		.source = NULL,
+		.meta = NULL,
 	};
 	return true;
 }
@@ -609,7 +622,7 @@ simp_makestring(Simp ctx, Simp *ret, const unsigned char *src, SimpSiz size)
 		.size = size,
 		.start = 0,
 		.u.heap = heap,
-		.source = NULL,
+		.meta = NULL,
 	};
 	return true;
 }
@@ -670,13 +683,10 @@ simp_makevector(Simp ctx, Simp *ret, SimpSiz size)
 	data = simp_getheapdata(heap);
 	for (i = 0; i < size; i++)
 		data[i] = simp_nil();
-	*ret = (Simp){
-		.type = TYPE_VECTOR,
-		.u.heap = heap,
-		.size = size,
-		.start = 0,
-		.source = NULL,
-	};
+	ret->type = TYPE_VECTOR;
+	ret->u.heap = heap;
+	ret->size = size;
+	ret->start = 0;
 	return true;
 }
 
@@ -719,10 +729,10 @@ simp_setsource(Simp ctx, Simp *obj, const char *filename, SimpSiz lineno, SimpSi
 {
 	struct Source *src;
 
-	obj->source = simp_gcnewobj(simp_getgcmemory(ctx), sizeof(*src), 0);
-	if (obj->source == NULL)
+	obj->meta = simp_gcnewobj(simp_getgcmemory(ctx), sizeof(*src), 0);
+	if (obj->meta == NULL)
 		return false;
-	src = simp_getheapdata(obj->source);
+	src = simp_getheapdata(obj->meta);
 	src->filename = filename;
 	src->lineno = lineno;
 	src->column = column;
@@ -734,9 +744,9 @@ simp_getsource(Simp obj, const char **filename, SimpSiz *lineno, SimpSiz *column
 {
 	struct Source *src;
 
-	if (obj.source == NULL)
+	if (obj.meta == NULL)
 		return false;
-	if ((src = simp_getheapdata(obj.source)) == NULL)
+	if ((src = simp_getheapdata(obj.meta)) == NULL)
 		return false;
 	if (filename != NULL)
 		*filename = src->filename;
@@ -750,5 +760,5 @@ simp_getsource(Simp obj, const char **filename, SimpSiz *lineno, SimpSiz *column
 Heap *
 simp_getsourcep(Simp obj)
 {
-	return obj.source;
+	return obj.meta;
 }

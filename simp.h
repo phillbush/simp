@@ -52,7 +52,7 @@ struct Simp {
 		unsigned char   byte;
 		Builtin        *builtin;
 	} u;
-	Heap                   *source;
+	Heap                   *meta;   /* used differently by different datatypes */
 	SimpSiz                 start;
 	SimpSiz                 size;
 	Type                    type;
@@ -74,6 +74,7 @@ Simp    simp_void(void);
 
 /* data type accessors */
 Builtin *simp_getbuiltin(Simp obj);
+Simp    simp_getbuiltinargs(Simp obj);
 unsigned char simp_getbyte(Simp obj);
 SimpInt simp_getsignum(Simp obj);
 Port   *simp_getport(Simp obj);
@@ -128,8 +129,8 @@ void    simp_cpystring(Simp dst, Simp src);
 
 /* data type constructors */
 bool    simp_makebyte(Simp ctx, Simp *ret, unsigned char byte);
-bool    simp_makebuiltin(Simp ctx, Simp *ret, Builtin *);
-bool    simp_makeclosure(Simp ctx, Simp *ret, Simp src, Simp env, Simp params, Simp extras, Simp body);
+bool    simp_makebuiltin(Simp ctx, Simp *ret, Simp args, Builtin *);
+bool    simp_makeclosure(Simp ctx, Simp *ret, Simp src, Simp env, Simp params, Simp variadic, Simp body);
 bool    simp_makeenvironment(Simp ctx, Simp *ret, Simp parent);
 bool    simp_makesignum(Simp ctx, Simp *ret, SimpInt n);
 bool    simp_makeport(Simp ctx, Simp *ret, Heap *p);

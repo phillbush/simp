@@ -208,29 +208,24 @@ Evaluate each expression in turn and return false when one evaluate to false;
 return a true value otherwise.
 .It Ic ( define Ar SYMBOL EXPRESSION ) "⇒" VOID
 Bind the given symbol to the given expression in the current environment.
-.It Ic ( defmacro Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" VOID
-Bind the given symbol to the given expression in the current syntax environment.
-.It Ic ( "defmacro...\)" Ar SYMBOL SYMBOL ... Ar SYMBOL Ar EXPRESSION ) "⇒" VOID
-Same as
-.Ic defmacro ,
-but creates a variadic argument macro,
-in which the last given symbol is bound to the remaining actual unevaluated arguments.
-.It Ic ( defun Ar SYMBOL SYMBOL ... Ar EXPRESSION ) "⇒" VOID
-Bind, in the current environment, the given first symbol to the closure in which the given following symbols
-are bound to the actual arguments in the given body expression.
+.It Ic ( defmacro Ar SYMBOL SYMBOL ... [ ELLIPSIS ] Ar EXPRESSION ) "⇒" VOID
+Bind, in the current syntax environment, the first given symbol to the
+closure in which the given following symbls are bound to the actual
+arguments in the given body expression.
+If the ellipsis auxiliary syntax (that is,
+.Ic "\)...\)" )
+is given, the macro is variadic.
+.It Ic ( defun Ar SYMBOL SYMBOL ... [ ELLIPSIS ] Ar EXPRESSION ) "⇒" VOID
+Bind, in the current evaluation environment, the given first symbol to
+the closure in which the given following symbols are bound to the actual
+arguments in the given body expression.
+If the ellipsis auxiliary syntax (that is,
+.Ic "\)...\)" )
+is given, the procedure is variadic.
 This is a combination of the
 .Ic define
 and
 .Ic lambda
-syntactical forms.
-.It Ic ( "defun...\)" Ar SYMBL Ar SYMBOL ... Ar SYMBOL Ar EXPRESSION ) "⇒" VOID
-Same as
-.Ic defun ,
-but in the closure, the last symbol is bound to a vector containing the remaining actual arguments.
-This is a combination of the
-.Ic define
-and
-.Ic "lambda...\)"
 syntactical forms.
 .It Ic ( do Ar EXPRESSION ... ) "⇒" OBJECT
 Evaluate each given expression and return the result of the last evaluation.
@@ -245,14 +240,12 @@ expression.
 If all condition-then pairs have been tested, return the optional
 .Ar ELSE
 condition, if it exists.
-.It Ic ( lambda Ar SYMBOL ... EXPRESSION ) "⇒" PROCEDURE
+.It Ic ( lambda Ar SYMBOL ... [ ELLIPSIS ] EXPRESSION ) "⇒" PROCEDURE
 Return a closure in which the given symbols are bound to the actual arguments in the given body expression.
-.It Ic ( "lambda..." Ar SYMBOL ... SYMBOL EXPRESSION ) "⇒" PROCEDURE
-(The form is literally
-.Qq lambda
-three dots).
-Return a variadic closure in which the given symbols but the last are bound to the actual arguments in the given body expression.
-The last symbol is bound to a vector containing the remaining actual arguments.
+If the ellipsis auxiliary syntax (that is,
+.Ic "\)...\)" )
+is given, the procedure is variadic,
+and the last symbol is bound to a vector containing the remaining actual arguments.
 .It Ic ( let Ar [SYMBOL EXPRESSION] ... EXPRESSION ) "⇒" OBJECT
 Evaluate the final given expression in an environment in which each given symbol is
 bound to the given expression after it.
@@ -553,6 +546,11 @@ Procedures are self-evaluating objects that represent either a builtin procedure
 a closure created with the
 .Ic lambda
 syntactical form.
+.Pp
+Procedures can be curried.
+That is, applying a binary procedure to a single argument
+returns a new procedure expecting the remaining argument.
+The variadic arguments of a variadic procedure cannot be curried.
 .Bl -tag -width Ds -compact
 .It Ic ( apply Ar PROCEDURE OBJECT ... VECTOR ) "⇒" OBJECT
 Return the result of the application of the given

@@ -33,6 +33,8 @@
 
 #define MACRO_SPECIALS                                              \
 	/* SYMBOL               ENUM            NARGS   VARIADIC */ \
+	X("defmacro",           BLTIN_DEFMACRO, 2,      true       )\
+	X("defun",              BLTIN_DEFUN,    2,      true       )\
 	X("do",                 BLTIN_DO,       0,      true       )\
 	X("if",                 BLTIN_IF,       2,      true       )\
 	X("let",                BLTIN_LET,      1,      true       )
@@ -46,13 +48,8 @@
 	/* SYMBOL               FUNCTION        NARGS   VARIADIC */ \
 	X("and",                f_and,          0,      true       )\
 	X("define",             f_define,       2,      false      )\
-	X("defmacro",           f_defmacro,     2,      true       )\
-	X("defmacro...",        f_vardefmacro,  3,      true       )\
-	X("defun",              f_defun,        2,      true       )\
-	X("defun...",           f_vardefun,     3,      true       )\
 	X("false",              f_false,        0,      false      )\
 	X("lambda",             f_lambda,       1,      true       )\
-	X("lambda...",          f_varlambda,    2,      true       )\
 	X("or",                 f_or,           0,      true       )\
 	X("quote",              f_quote,        1,      false      )\
 	X("quasiquote",         f_quasiquote,   1,      false      )\
@@ -134,6 +131,7 @@
 
 #define AUXILIARY_SYNTAX                                            \
 	/* SYMBOL               ENUM                             */ \
+	X("...",                AUX_ELLIPSIS                       )\
 	X("splice",             AUX_SPLICE                         )\
 	X("unquote",            AUX_UNQUOTE                        )
 
@@ -166,7 +164,10 @@ struct Builtin {
 	SimpSiz nargs;
 	SimpSiz namelen;
 
-	/* function is only used if type is BLTIN_ROUTINE; null otherwise */
+	/*
+	 * The .fun member is only used when .type is BLTIN_ROUTINE.
+	 * It is ignored otherwise.
+	 */
 	void (*fun)(Eval *, Simp *, Simp, Simp, Simp, Simp);
 };
 
@@ -470,56 +471,6 @@ f_define(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 }
 
 static void
-f_defmacro(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	Simp var, val, body;
-	SimpSiz nargs, i;
-
-	(void)ret;
-	nargs = simp_getsize(args);
-	var = simp_getvectormemb(args, 0);
-	body = simp_getvectormemb(args, nargs - 1);
-	if (!simp_issymbol(var))
-		error(eval, expr, self, var, ERROR_NOTSYM);
-	nargs -= 2;
-	args = simp_slicevector(args, 1, nargs);
-	for (i = 0; i < nargs; i++) {
-		val = simp_getvectormemb(args, i);
-		if (!simp_issymbol(val)) {
-			error(eval, expr, self, val, ERROR_NOTSYM);
-		}
-	}
-	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, simp_nil(), body))
-		memerror(eval);
-	envdef(eval, expr, env, var, val, true);
-}
-
-static void
-f_defun(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	Simp var, val, body;
-	SimpSiz nargs, i;
-
-	(void)ret;
-	nargs = simp_getsize(args);
-	var = simp_getvectormemb(args, 0);
-	body = simp_getvectormemb(args, nargs - 1);
-	if (!simp_issymbol(var))
-		error(eval, expr, self, var, ERROR_NOTSYM);
-	nargs -= 2;
-	args = simp_slicevector(args, 1, nargs);
-	for (i = 0; i < nargs; i++) {
-		val = simp_getvectormemb(args, i);
-		if (!simp_issymbol(val)) {
-			error(eval, expr, self, val, ERROR_NOTSYM);
-		}
-	}
-	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, simp_nil(), body))
-		memerror(eval);
-	envdef(eval, expr, env, var, val, false);
-}
-
-static void
 f_display(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp obj, port;
@@ -811,22 +762,44 @@ f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 }
 
 static void
-f_lambda(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
+f_lambda(Eval *eval, Simp *body, Simp self, Simp expr, Simp env, Simp args)
 {
 	SimpSiz nargs, i;
-	Simp body, var;
+	Simp sym, variadic;
 
+	variadic = simp_false();
 	nargs = simp_getsize(args);
-	body = simp_getvectormemb(args, nargs - 1);
-	args = simp_slicevector(args, 0, --nargs);
+	*body = simp_getvectormemb(args, --nargs);
+	if (nargs > 0 &&
+	    simp_issame(simp_getvectormemb(args, nargs - 1), eval->aux[AUX_ELLIPSIS])) {
+		if (nargs < 2)
+			error(eval, expr, self, simp_void(), ERROR_ILLMACRO);
+		variadic = simp_true();
+		args = simp_slicevector(args, 0, --nargs);
+	} else {
+		args = simp_slicevector(args, 0, nargs);
+	}
 	for (i = 0; i < nargs; i++) {
-		var = simp_getvectormemb(args, i);
-		if (!simp_issymbol(var)) {
-			error(eval, expr, self, var, ERROR_NOTSYM);
+		sym = simp_getvectormemb(args, i);
+		if (!simp_issymbol(sym)) {
+			error(eval, expr, self, sym, ERROR_NOTSYM);
 		}
 	}
-	if (!simp_makeclosure(eval->ctx, ret, expr, env, args, simp_nil(), body))
+	if (nargs == 0) {
+		if (!simp_makeclosure(eval->ctx, body, expr, env, simp_false(), simp_false(), *body))
+			memerror(eval);
+		return;
+	}
+	for (i = nargs; i > 1; i--) {
+		sym = simp_getvectormemb(args, i - 1);
+		if (!simp_makeclosure(eval->ctx, body, expr, env, sym, simp_false(), *body)) {
+			memerror(eval);
+		}
+	}
+	sym = simp_getvectormemb(args, 0);
+	if (!simp_makeclosure(eval->ctx, body, expr, env, sym, variadic, *body)) {
 		memerror(eval);
+	}
 }
 
 static void
@@ -1700,79 +1673,6 @@ f_symbolp(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 }
 
 static void
-f_vardefmacro(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	Simp var, val, body, extra;
-	SimpSiz nargs, i;
-
-	(void)ret;
-	nargs = simp_getsize(args);
-	var = simp_getvectormemb(args, 0);
-	body = simp_getvectormemb(args, nargs - 1);
-	extra = simp_getvectormemb(args, nargs - 2);
-	if (!simp_issymbol(var))
-		error(eval, expr, self, var, ERROR_NOTSYM);
-	args = simp_slicevector(args, 1, nargs - 3);
-	nargs -= 2;
-	for (i = 0; i < nargs; i++) {
-		val = simp_getvectormemb(args, i);
-		if (!simp_issymbol(val)) {
-			error(eval, expr, self, val, ERROR_NOTSYM);
-		}
-	}
-	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, extra, body))
-		memerror(eval);
-	envdef(eval, expr, env, var, val, true);
-}
-
-static void
-f_vardefun(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	Simp var, val, body, extra;
-	SimpSiz nargs, i;
-
-	(void)ret;
-	nargs = simp_getsize(args);
-	var = simp_getvectormemb(args, 0);
-	body = simp_getvectormemb(args, nargs - 1);
-	extra = simp_getvectormemb(args, nargs - 2);
-	if (!simp_issymbol(var))
-		error(eval, expr, self, var, ERROR_NOTSYM);
-	args = simp_slicevector(args, 1, nargs - 3);
-	nargs -= 2;
-	for (i = 0; i < nargs; i++) {
-		val = simp_getvectormemb(args, i);
-		if (!simp_issymbol(val)) {
-			error(eval, expr, self, val, ERROR_NOTSYM);
-		}
-	}
-	if (!simp_makeclosure(eval->ctx, &val, expr, env, args, extra, body))
-		memerror(eval);
-	envdef(eval, expr, env, var, val, false);
-}
-
-static void
-f_varlambda(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
-{
-	SimpSiz nargs, i;
-	Simp extra, body, var;
-
-	nargs = simp_getsize(args);
-	body = simp_getvectormemb(args, nargs - 1);
-	extra = simp_getvectormemb(args, nargs - 2);
-	args = simp_slicevector(args, 0, nargs - 2);
-	nargs--;
-	for (i = 0; i < nargs; i++) {
-		var = simp_getvectormemb(args, i);
-		if (!simp_issymbol(var)) {
-			error(eval, expr, self, var, ERROR_NOTSYM);
-		}
-	}
-	if (!simp_makeclosure(eval->ctx, ret, expr, env, args, extra, body))
-		memerror(eval);
-}
-
-static void
 f_vector(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 {
 	(void)eval;
@@ -1836,7 +1736,7 @@ static void
 f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp env, Simp args)
 {
 	Simp src;
-	SimpSiz i, len;
+	SimpSiz len;
 
 	(void)env;
 	src = simp_getvectormemb(args, 0);
@@ -1845,13 +1745,7 @@ f_vectordup(Eval *eval, Simp *dst, Simp self, Simp expr, Simp env, Simp args)
 	len = simp_getsize(src);
 	if (!simp_makevector(eval->ctx, dst, len))
 		memerror(eval);
-	for (i = 0; i < len; i++) {
-		simp_setvector(
-			*dst,
-			i,
-			simp_getvectormemb(src, i)
-		);
-	}
+	simp_cpyvector(*dst, src);
 }
 
 static void
@@ -2093,7 +1987,7 @@ simp_environmentnew(Simp ctx, Simp *env)
 		/* fill initial environment with builtin macros */
 		if (!simp_makesymbol(ctx, &var, macros[i].name, macros[i].namelen))
 			return false;
-		if (!simp_makebuiltin(ctx, &val, &macros[i]))
+		if (!simp_makebuiltin(ctx, &val, simp_nil(), &macros[i]))
 			return false;
 		if (!simp_envdefine(ctx, *env, var, val, true))
 			return false;
@@ -2102,7 +1996,7 @@ simp_environmentnew(Simp ctx, Simp *env)
 		/* fill initial environment with builtin procedures */
 		if (!simp_makesymbol(ctx, &var, funcs[i].name, funcs[i].namelen))
 			return false;
-		if (!simp_makebuiltin(ctx, &val, &funcs[i]))
+		if (!simp_makebuiltin(ctx, &val, simp_nil(), &funcs[i]))
 			return false;
 		if (!simp_envdefine(ctx, *env, var, val, false))
 			return false;
@@ -2114,9 +2008,9 @@ static Simp
 simp_eval(Eval *eval, Simp expr, Simp env)
 {
 	Builtin *bltin;
-	Simp operator, operands, arguments, extraargs, extraparams;
-	Simp proc, macro, params, var, val;
-	SimpSiz noperands, nparams, narguments, nextraargs, i;
+	Simp sym, operator, operands, body, macro;
+	Simp args, param, varargs, var, val;
+	SimpSiz nargs, noperands, i;
 	bool ismacro;
 
 loop:
@@ -2129,83 +2023,151 @@ loop:
 		error(eval, expr, simp_void(), simp_void(), ERROR_EMPTY);
 	noperands--;
 	operator = simp_getvectormemb(expr, 0);
-	operands = simp_slicevector(expr, 1, noperands);
-	extraargs = simp_nil();
-	nextraargs = 0;
-	ismacro = syntaxget(&macro, env, operator);
-	if (ismacro) {
-		/* operator is a macro; do not evaluate operands */
-		proc = macro;
-		arguments = operands;
-		narguments = noperands;
-	} else {
-		/* operator is a not a macro; evaluate the operands */
-		proc = simp_eval(eval, operator, env);
-apply:
-		if (simp_isvoid(proc))
-			error(eval, expr, operator, simp_void(), ERROR_VOID);
-		narguments = noperands + nextraargs;
-		if (!simp_makevector(eval->ctx, &arguments, narguments))
+	sym = operator;
+	if (simp_issymbol(operator) && syntaxget(&macro, env, operator)) {
+		operator = macro;
+		operands = simp_slicevector(expr, 1, noperands);
+		ismacro = true;
+	}
+	if (!ismacro) {
+		/* evaluate operator */
+		operator = simp_eval(eval, operator, env);
+		if (simp_isvoid(operator))
+			error(eval, expr, sym, simp_void(), ERROR_VOID);
+
+		/* evaluate operands */
+		operands = expr;
+		if (!simp_makevector(eval->ctx, &operands, noperands))
 			memerror(eval);
 		for (i = 0; i < noperands; i++) {
-			/* evaluate arguments */
-			val = simp_getvectormemb(operands, i);
+			val = simp_getvectormemb(expr, i + 1);
 			val = simp_eval(eval, val, env);
 			if (simp_isvoid(val))
-				error(eval, expr, operator, simp_void(), ERROR_VOID);
-			simp_setvector(arguments, i, val);
-		}
-		for (i = 0; i < nextraargs; i++) {
-			/* evaluate extra arguments */
-			val = simp_getvectormemb(extraargs, i);
-			val = simp_eval(eval, val, env);
-			if (simp_isvoid(val))
-				error(eval, expr, operator, simp_void(), ERROR_VOID);
-			simp_setvector(arguments, i + noperands, val);
+				error(eval, expr, sym, simp_void(), ERROR_VOID);
+			simp_setvector(operands, i, val);
 		}
 	}
-	if (simp_isclosure(proc)) {
-		expr = simp_getclosurebody(proc);
-		if (!ismacro &&
-		    !simp_makeenvironment(eval->ctx, &env, simp_getclosureenv(proc)))
-			memerror(eval);
-		params = simp_getclosureparam(proc);
-		nparams = simp_getsize(params);
-		extraparams = simp_getclosurevarargs(proc);
-		if (narguments < nparams)
-			error(eval, expr, operator, simp_void(), ERROR_NARGS);
-		if (narguments > nparams && simp_isnil(extraparams))
-			error(eval, expr, operator, simp_void(), ERROR_NARGS);
-		for (i = 0; i < nparams; i++) {
-			var = simp_getvectormemb(params, i);
-			val = simp_getvectormemb(arguments, i);
-			envdef(eval, expr, env, var, val, false);
+apply:
+	if (ismacro) {
+		operator = macro;
+		if (simp_isbuiltin(operator)) {
+			bltin = simp_getbuiltin(operator);
+			goto dispatch;
 		}
-		if (simp_issymbol(extraparams)) {
-			val = simp_slicevector(arguments, i, narguments - i);
-			envdef(eval, expr, env, extraparams, val, false);
+		if (!simp_isclosure(operator))
+			error(eval, expr, simp_void(), sym, ERROR_NOTPROC);
+		for (i = 0; i < noperands; i++) {
+			if (!simp_isclosure(operator))
+				error(eval, expr, sym, simp_void(), ERROR_ILLMACRO);
+			param = simp_getclosureparam(operator);
+			varargs = simp_getclosurevarargs(operator);
+			operator = simp_getclosurebody(operator);
+			if (simp_isfalse(param))
+				error(eval, expr, sym, simp_void(), ERROR_NARGS);
+			if (simp_isfalse(varargs)) {
+				val = simp_getvectormemb(operands, i);
+				envdef(eval, expr, env, param, val, false);
+			} else {
+				val = simp_slicevector(operands, i, noperands - i);
+				envdef(eval, expr, env, param, val, false);
+				break;
+			}
 		}
-		if (ismacro)
-			expr = simp_eval(eval, expr, env);
+		if (simp_isclosure(operator))
+			error(eval, expr, sym, simp_void(), ERROR_ILLMACRO);
+		expr = operator;
 		goto loop;
 	}
-	if (!simp_isbuiltin(proc))
+
+	if (simp_isclosure(operator)) {
+		body = simp_getclosurebody(operator);
+		param = simp_getclosureparam(operator);
+		varargs = simp_getclosurevarargs(operator);
+		env = simp_getclosureenv(operator);
+		if (simp_isfalse(param)) {
+			/* nullary closure */
+			if (noperands == 0) {
+				expr = body;
+				goto loop;
+			}
+			error(eval, expr, sym, simp_void(), ERROR_NARGS);
+		}
+		if (noperands == 0) {
+			/* unary closure with no argument */
+			return operator;
+		}
+		if (simp_isfalse(varargs)) {
+			val = simp_getvectormemb(operands, 0);
+			operands = simp_slicevector(operands, 1, noperands - 1);
+			noperands--;
+		} else {
+			val = operands;
+			operands = simp_nil();
+			noperands = 0;
+		}
+		envdef(eval, expr, env, param, val, false);
+		if (noperands > 0) {
+			operator = body;
+			goto apply;
+		} else {
+			expr = body;
+			goto loop;
+		}
+	}
+	if (!simp_isbuiltin(operator))
 		error(eval, expr, simp_void(), operator, ERROR_NOTPROC);
-	bltin = simp_getbuiltin(proc);
-	if (bltin->variadic && narguments < bltin->nargs)
-		error(eval, expr, operator, simp_void(), ERROR_NARGS);
-	if (!bltin->variadic && narguments != bltin->nargs)
-		error(eval, expr, operator, simp_void(), ERROR_NARGS);
+	bltin = simp_getbuiltin(operator);
+	args = simp_getbuiltinargs(operator);
+	nargs = simp_getsize(args);
+	if (nargs > 0 && noperands > 0) {
+		if (!simp_makevector(eval->ctx, &val, nargs + noperands))
+			memerror(eval);
+		simp_cpyvector(val, args);
+		simp_cpyvector(simp_slicevector(val, nargs, noperands), operands);
+		operands = val;
+		noperands += nargs;
+	} if (noperands == 0) {
+		operands = args;
+		noperands = nargs;
+	}
+	if (noperands < bltin->nargs) {
+		/* partially applied builtin */
+		if (!simp_makebuiltin(eval->ctx, &val, operands, bltin))
+			memerror(eval);
+		return val;
+	}
+
+dispatch:
+	if (bltin->variadic && noperands < bltin->nargs)
+		error(eval, expr, sym, simp_void(), ERROR_NARGS);
+	if (!bltin->variadic && noperands != bltin->nargs)
+		error(eval, expr, sym, simp_void(), ERROR_NARGS);
 	switch (bltin->type) {
 	case BLTIN_APPLY:
-		extraargs = simp_getvectormemb(arguments, narguments - 1);
-		if (!simp_isvector(extraargs))
-			error(eval, expr, operator, extraargs, ERROR_NOTVECTOR);
-		proc = simp_getvectormemb(arguments, 0);
-		nextraargs = simp_getsize(extraargs);
-		operands = simp_slicevector(arguments, 1, narguments - 2);
-		noperands = narguments - 2;
+		/* (apply PROCEDURE SYMBOL ... VECTOR) */
+		operator = simp_getvectormemb(operands, 0);
+		args = simp_getvectormemb(operands, noperands - 1);
+		if (!simp_isvector(args))
+			error(eval, expr, sym, args, ERROR_NOTVECTOR);
+		nargs = simp_getsize(args);
+		noperands -= 2;
+		operands = simp_slicevector(operands, 1, noperands);
+		if (!simp_makevector(eval->ctx, &val, nargs + noperands))
+			memerror(eval);
+		simp_cpyvector(val, operands);
+		simp_cpyvector(simp_slicevector(val, noperands, nargs), args);
+		operands = val;
+		noperands += nargs;
 		goto apply;
+	case BLTIN_DEFMACRO:
+	case BLTIN_DEFUN:
+		if (!simp_makesymbol(eval->ctx, &sym, bltin->name, bltin->namelen))
+			memerror(eval);
+		var = simp_getvectormemb(operands, 0);
+		operands = simp_slicevector(operands, 1, noperands - 1);
+		f_lambda(eval, &val, sym, expr, env, operands);
+		envdef(eval, expr, env, var, val, bltin->type == BLTIN_DEFMACRO);
+		return simp_void();
 	case BLTIN_DO:
 		/* (do EXPRESSION ...) */
 		if (noperands == 0)
@@ -2217,18 +2179,19 @@ apply:
 		expr = simp_getvectormemb(operands, i);
 		goto loop;
 	case BLTIN_EVAL:
-		expr = simp_getvectormemb(arguments, 0);
-		env = simp_getvectormemb(arguments, 1);
+		/* (eval EXPRESSION ENVIRONMENT) */
+		expr = simp_getvectormemb(operands, 0);
+		env = simp_getvectormemb(operands, 1);
 		goto loop;
 	case BLTIN_IF:
 		/* (if [COND THEN]... [ELSE]) */
 		if (noperands < 2)
-			error(eval, expr, operator, simp_void(), ERROR_ILLMACRO);
+			error(eval, expr, sym, simp_void(), ERROR_ILLMACRO);
 		for (i = 0; i + 1 < noperands; i++) {
 			val = simp_getvectormemb(operands, i);
 			val = simp_eval(eval, val, env);
 			if (simp_isvoid(val))
-				error(eval, expr, operator, simp_void(), ERROR_VOID);
+				error(eval, expr, sym, simp_void(), ERROR_VOID);
 			i++;
 			if (simp_istrue(val)) {
 				break;
@@ -2241,13 +2204,13 @@ apply:
 		return simp_void();
 	case BLTIN_LET:
 		if (noperands % 2 == 0)
-			error(eval, expr, operator, simp_void(), ERROR_ILLMACRO);
+			error(eval, expr, sym, simp_void(), ERROR_ILLMACRO);
 		if (!simp_makeenvironment(eval->ctx, &env, env))
 			memerror(eval);
 		for (i = 0; i + 1 < noperands; i += 2) {
 			var = simp_getvectormemb(operands, i);
 			if (!simp_issymbol(var))
-				error(eval, expr, operator, var, ERROR_NOTSYM);
+				error(eval, expr, sym, var, ERROR_NOTSYM);
 			val = simp_getvectormemb(operands, i + 1);
 			val = simp_eval(eval, val, env);
 			envdef(eval, expr, env, var, val, false);
@@ -2258,7 +2221,7 @@ apply:
 		val = simp_void();
 		if (!simp_makesymbol(eval->ctx, &var, bltin->name, bltin->namelen))
 			memerror(eval);
-		(*bltin->fun)(eval, &val, var, expr, env, arguments);
+		(*bltin->fun)(eval, &val, var, expr, env, operands);
 		return val;
 	}
 	/* UNREACHABLE */
