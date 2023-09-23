@@ -764,42 +764,62 @@ f_gt(Eval *eval, Simp *ret, Simp self, Simp expr, Simp env, Simp args)
 static void
 f_lambda(Eval *eval, Simp *body, Simp self, Simp expr, Simp env, Simp args)
 {
-	SimpSiz nargs, i;
-	Simp sym, variadic;
+	SimpSiz nargs;
+	Simp sym, lambda;
 
-	variadic = simp_false();
 	nargs = simp_getsize(args);
-	*body = simp_getvectormemb(args, --nargs);
-	if (nargs > 0 &&
-	    simp_issame(simp_getvectormemb(args, nargs - 1), eval->aux[AUX_ELLIPSIS])) {
-		if (nargs < 2)
-			error(eval, expr, self, simp_void(), ERROR_ILLMACRO);
-		variadic = simp_true();
-		args = simp_slicevector(args, 0, --nargs);
-	} else {
-		args = simp_slicevector(args, 0, nargs);
-	}
-	for (i = 0; i < nargs; i++) {
-		sym = simp_getvectormemb(args, i);
-		if (!simp_issymbol(sym)) {
-			error(eval, expr, self, sym, ERROR_NOTSYM);
-		}
-	}
 	if (nargs == 0) {
-		if (!simp_makeclosure(eval->ctx, body, expr, env, simp_false(), simp_false(), *body))
-			memerror(eval);
+		if (!simp_makeclosure(
+			eval->ctx,
+			body, expr, env,
+			simp_false(), simp_false(),
+			simp_void()
+		)) memerror(eval);
 		return;
 	}
-	for (i = nargs; i > 1; i--) {
-		sym = simp_getvectormemb(args, i - 1);
-		if (!simp_makeclosure(eval->ctx, body, expr, env, sym, simp_false(), *body)) {
-			memerror(eval);
-		}
+	if (nargs == 1) {
+		if (!simp_makeclosure(
+			eval->ctx,
+			body, expr, env,
+			simp_false(), simp_false(),
+			simp_getvectormemb(args, 0)
+		)) memerror(eval);
+		return;
 	}
 	sym = simp_getvectormemb(args, 0);
-	if (!simp_makeclosure(eval->ctx, body, expr, env, sym, variadic, *body)) {
-		memerror(eval);
+	if (!simp_issymbol(sym))
+		error(eval, expr, self, sym, ERROR_NOTSYM);
+	if (nargs == 3 && 
+	    simp_issame(simp_getvectormemb(args, 1), eval->aux[AUX_ELLIPSIS])) {
+		if (!simp_makeclosure(
+			eval->ctx,
+			body, expr, env,
+			sym, simp_true(),
+			simp_getvectormemb(args, 2)
+		)) memerror(eval);
+		return;
 	}
+	if (nargs == 2) {
+		if (!simp_makeclosure(
+			eval->ctx,
+			body, expr, env,
+			sym, simp_false(),
+			simp_getvectormemb(args, 1)
+		)) memerror(eval);
+		return;
+	}
+	if (!simp_makevector(eval->ctx, body, nargs))
+		memerror(eval);
+	simp_cpyvector(*body, args);
+	if (!simp_makesymbol(eval->ctx, &lambda, (unsigned char *)"lambda", 6))
+		memerror(eval);
+	simp_setvector(*body, 0, lambda);
+	if (!simp_makeclosure(
+		eval->ctx,
+		body, expr, env,
+		sym, simp_false(),
+		*body
+	)) memerror(eval);
 }
 
 static void
@@ -2011,10 +2031,8 @@ simp_eval(Eval *eval, Simp expr, Simp env)
 	Simp sym, operator, operands, body, macro;
 	Simp args, param, varargs, var, val;
 	SimpSiz nargs, noperands, i;
-	bool ismacro;
 
 loop:
-	ismacro = false;
 	if (simp_issymbol(expr))   /* expression is variable */
 		return envget(eval, expr, env, expr);
 	if (!simp_isvector(expr))  /* expression is self-evaluating */
@@ -2027,29 +2045,6 @@ loop:
 	if (simp_issymbol(operator) && syntaxget(&macro, env, operator)) {
 		operator = macro;
 		operands = simp_slicevector(expr, 1, noperands);
-		ismacro = true;
-	}
-	if (!ismacro) {
-		/* evaluate operator */
-		operator = simp_eval(eval, operator, env);
-		if (simp_isvoid(operator))
-			error(eval, expr, sym, simp_void(), ERROR_VOID);
-
-		/* evaluate operands */
-		operands = expr;
-		if (!simp_makevector(eval->ctx, &operands, noperands))
-			memerror(eval);
-		for (i = 0; i < noperands; i++) {
-			val = simp_getvectormemb(expr, i + 1);
-			val = simp_eval(eval, val, env);
-			if (simp_isvoid(val))
-				error(eval, expr, sym, simp_void(), ERROR_VOID);
-			simp_setvector(operands, i, val);
-		}
-	}
-apply:
-	if (ismacro) {
-		operator = macro;
 		if (simp_isbuiltin(operator)) {
 			bltin = simp_getbuiltin(operator);
 			goto dispatch;
@@ -2079,11 +2074,34 @@ apply:
 		goto loop;
 	}
 
+	/* evaluate operands */
+	operands = expr;
+	if (!simp_makevector(eval->ctx, &operands, noperands))
+		memerror(eval);
+	for (i = 0; i < noperands; i++) {
+		val = simp_getvectormemb(expr, i + 1);
+		val = simp_eval(eval, val, env);
+		if (simp_isvoid(val))
+			error(eval, expr, sym, simp_void(), ERROR_VOID);
+		simp_setvector(operands, i, val);
+	}
+
+	/* evaluate operator */
+	operator = simp_eval(eval, operator, env);
+	if (simp_isclosure(operator)) {
+		env = simp_getclosureenv(operator);
+		if (!simp_makeenvironment(eval->ctx, &env, env)) {
+			memerror(eval);
+		}
+	}
+
+apply:
+	if (simp_isvoid(operator))
+		error(eval, expr, sym, simp_void(), ERROR_VOID);
 	if (simp_isclosure(operator)) {
 		body = simp_getclosurebody(operator);
 		param = simp_getclosureparam(operator);
 		varargs = simp_getclosurevarargs(operator);
-		env = simp_getclosureenv(operator);
 		if (simp_isfalse(param)) {
 			/* nullary closure */
 			if (noperands == 0) {
@@ -2107,7 +2125,7 @@ apply:
 		}
 		envdef(eval, expr, env, param, val, false);
 		if (noperands > 0) {
-			operator = body;
+			operator = simp_eval(eval, body, env);
 			goto apply;
 		} else {
 			expr = body;
